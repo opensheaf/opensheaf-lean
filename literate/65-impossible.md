@@ -7,11 +7,12 @@ detected. These are the negative tests of the model.
 
 | The break | Why it cannot happen |
 |---|---|
-| A pin changes its meaning | immutability: no step changes what a pin resolves to |
-| An archive rewrites the history of an object | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving (with a collision-free digest) |
+| A pin changes its meaning | immutability: once a pin resolves to a version, no step changes that version |
+| An archive rewrites the history of an object | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving (unless the inventories collide) |
 | An identifier taken down names another object | tombstones stay |
 | One document version number for two contents, or a gap in the numbering | the counting rule of section 7.3 |
 | Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already |
+| A withdrawn object becomes active again | valid steps forbid it (the model's choice on issue #25) |
 
 The last one is stated in section 10.2 ("Pins cannot form cycles"), where
 it is justified by the hashes. The model proves it from the protocol alone,
@@ -59,16 +60,18 @@ is therefore not reachable by any sequence of steps.
 An archive can still rewrite its files outside the protocol: nothing stops
 the owner of a disk. Then every pin of a rewritten version, made before,
 stops resolving: the digest in the pin is that of the original inventory,
-and, with a collision-free digest, no other inventory has it. Tampering is
-not prevented, it is detected, by anyone holding a pin.
+and the rewritten inventory has another, unless the two collide
+([chapter 6](48-copies.md)). Tampering is not prevented, it is detected, by
+anyone holding a pin.
 
     /-- **Tampering is detected.** If an archive replaces an object by one whose
     history differs up to version `p.version`, a pin of that version made
     before resolves to no version at all. -/
-    theorem tamper_detected (hinj : ∀ l l', hash l = hash l' → l = l') {w : World D}
+    theorem tamper_detected {w : World D}
         {a : ArchiveId} {oid : ObjectId} {o o' : Obj D} (hl : lookup w a oid = some (.live o))
         {p : Pin D} {v : Version D} (hpa : p.archive = a ∧ p.object = oid)
         (hp : resolve hash w p = .ok v) (hdiff : o'.inventory p.version ≠ o.inventory p.version)
+        (hcol : NoCollision hash (o'.inventory p.version) (o.inventory p.version))
         (u : Version D) : resolve hash (setEntry w a oid (.live o')) p ≠ .ok u := by
       obtain ⟨ar, ha⟩ := lookup_some_archive hl
       intro h
@@ -78,7 +81,7 @@ not prevented, it is detected, by anyone holding a pin.
       rw [hpa.1, hpa.2, hl] at hp
       obtain ⟨_, hd⟩ := resolveEntry_live_ok hash hp
       obtain ⟨_, hd'⟩ := resolveEntry_live_ok hash h
-      exact hdiff (hinj _ _ (hd'.trans hd.symm))
+      exact hdiff (hcol (hd'.trans hd.symm))
 
 ## A tombstoned identifier cannot be reused
 
@@ -115,7 +118,7 @@ from induction on the reversed list.
       | cons x r ih => rw [List.reverse_cons]; exact snoc _ _ ih
 
     theorem WellFormed.init {l : List (Version D)} {x : Version D}
-        (h : WellFormed (l ++ [x])) : WellFormed l ∧ Follows l x := by
+        (h : WellFormed (l ++ [x])) : WellFormed l ∧ Extends l x := by
       constructor
       · intro i hi
         have := h i (by simp; omega)
@@ -141,10 +144,6 @@ from induction on the reversed list.
         · exact Nat.le_max_left _ _
         · exact Nat.le_trans (ih h) (Nat.le_max_right _ _)
 
-    theorem sameContent_iff {v u : Version D} :
-        sameContent v u = true ↔ v.files = u.files ∧ v.members = u.members := by
-      simp [sameContent]
-
 One number, one content: two versions of a well-formed history with the
 same document version have the same content. The last version either holds
 earlier content, and takes its number, or new content, and a number above
@@ -163,7 +162,7 @@ all the others.
           rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hxn⟩
           · have hyz := ih hwf hy hz (hyx.trans hxz)
             rw [sameContent_iff] at hyz hzx ⊢
-            exact ⟨hyz.1.trans hzx.1, hyz.2.trans hzx.2⟩
+            exact ⟨fun f => (hyz.1 f).trans (hzx.1 f), hyz.2.trans hzx.2⟩
           · have := le_docCount hy; omega
         simp only [List.mem_append, List.mem_singleton] at hv hu
         rcases hv with hv | rfl <;> rcases hu with hu | rfl
@@ -171,7 +170,7 @@ all the others.
         · exact key v hv heq
         · have := key u hu heq.symm
           rw [sameContent_iff] at this ⊢
-          exact ⟨this.1.symm, this.2.symm⟩
+          exact ⟨fun f => (this.1 f).symm, this.2.symm⟩
         · exact sameContent_self _
 
 No gaps: every number from 1 to the highest is held by some version.
@@ -252,8 +251,8 @@ down, so it cannot come back.
       intro h
       exact Nat.lt_irrefl _ (Ranked.chain_lt hash hdown h)
 
-Two facts about versions after an append: a version of the object is an
-old one or the one appended, at the next number.
+After an append, a version of the object is an old one or the one
+appended, at the next number.
 
     omit [DecidableEq D] in
     theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
@@ -287,8 +286,9 @@ deprecates:
     theorem if_no {α : Type} {c : Prop} [Decidable c] {x y : α} (h : ¬ c) :
         (if c then x else y) = y := by simp [h]
 
-A version found at a number is a version of the object, and an object has
-no version after its last.
+Three more facts: a version found at a number is a version of the object;
+an object has no version after its last; and an empty entry has no
+version at all.
 
     omit [DecidableEq D] in
     theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
@@ -327,7 +327,8 @@ it, already resolved before it.
 The main lemma: a valid step keeps a numbering in which pins go down. The
 new versions get the number `N`, above all the others; their pins resolved
 before the step, so they name versions numbered below `N`. The pins of the
-old versions are unchanged, by immutability.
+old versions already resolved before the step, since the world was well
+formed (`pinsTo_old`), so the old numbering already sent them down.
 
     theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : WFWorld hash w)
         (hr : Ranked hash w) : Ranked hash w' := by
@@ -385,7 +386,7 @@ old versions are unchanged, by immutability.
             have hpt := pinsTo_old hash hw hl hv hp ht
             rw [if_no hc, if_no (htold hpt)]
             exact hdown _ _ hpt
-      | append a ar oid o x ha ho hf hk hpins =>
+      | append a ar oid o x ha ho hf _ hk hpins =>
         have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
         let new : Site := (a, oid, o.versions.length + 1)
         have hnew : ∀ t, Live w t → t ≠ new := by
@@ -476,5 +477,51 @@ hashes (a pin names a digest, which cannot be known before the version
 exists). The model shows that the protocol is enough: a valid step pins
 only what already exists. The hashes make it hold also for copies that come
 from outside the protocol.
+
+## A withdrawal cannot be undone
+
+Section 11.1 makes the status a property of the object, and issue #25 asks
+whether a withdrawal can be undone. The model's choice
+([chapter 2](20-object.md)) is that it cannot, and valid steps enforce it:
+once the head of an object is withdrawn, it stays withdrawn.
+
+    /-- The head of a live object is withdrawn. -/
+    def HeadWithdrawn (w : World D) (a : ArchiveId) (oid : ObjectId) : Prop :=
+      ∃ o, lookup w a oid = some (.live o) ∧ headStatus o.versions = .withdrawn
+
+    /-- **A withdrawal cannot be undone** by valid steps. -/
+    theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep hash w w')
+        {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
+      obtain ⟨o, hl, hst⟩ := h
+      cases hs with
+      | newArchive b ar hb _ =>
+        refine ⟨o, ?_, hst⟩
+        by_cases hab : a = b
+        · subst hab; simp [lookup, hb] at hl
+        · simpa [lookup, hab] using hl
+      | create b ar c o' hb hc _ _ =>
+        refine ⟨o, ?_, hst⟩
+        rw [lookup_setEntry hb]
+        split
+        · rename_i hbc
+          obtain ⟨rfl, rfl⟩ := hbc
+          simp [lookup, hb, hc] at hl
+        · exact hl
+      | append b ar c o' y hb hc _ hst' _ _ =>
+        by_cases hbc : a = b ∧ oid = c
+        · obtain ⟨rfl, rfl⟩ := hbc
+          have hoo : some (Entry.live o') = some (Entry.live o) := by
+            rw [← hl]; simp [lookup, hb, hc]
+          have := Entry.live.inj (Option.some.inj hoo)
+          subst this
+          refine ⟨o'.append y, by rw [lookup_setEntry hb]; simp, ?_⟩
+          simp [headStatus, Obj.append, hst' hst]
+        · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
+
+    theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps hash w w')
+        {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
+      induction hs with
+      | refl => exact h
+      | tail _ hstep ih => exact hstep.withdrawn_stays hash ih
 
     end OpenSheaf

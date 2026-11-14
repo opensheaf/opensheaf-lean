@@ -7,12 +7,15 @@ The two kinds of collection differ in what updating them does (section
 - in a **catalogue**, a member with `follow` is moved to the head of its
   object, the newest object version; the other members stay;
 - a **selection** never moves: its revision sets change only by an act of
-  its curator, a new version of the collection which they deposit. Updating
-  a selection reports new versions of its members; it does not add them.
+  its curator, a new version of the collection which they deposit. A tool
+  updating a selection may report new versions of its members; it does not
+  add them.
 
-This chapter defines the update and proves both statements, together with
-the fact that the pin given to a followed member resolves, to the newest
-version.
+This chapter defines the update and proves what it does to each kind,
+together with the fact that the pin given to a followed member resolves, to
+the newest version. That only the curator changes a selection is not proved
+here: the model has no notion of who makes a step (see
+[chapter 5](45-worlds.md)).
 
     -- in OpenSheaf/Collection.lean:
     import OpenSheaf.Archive
@@ -62,9 +65,10 @@ is the history of what it pinned.
 
 ## What updating does
 
-For a selection, nothing. This is the formal content of "a selection
-changes only by an act of its curator": no update, whatever the state of the
-archives, changes it.
+For a selection, nothing, whatever the state of the archives. The theorem
+holds by the definition of `collect`: it records the rule of section 10.2
+that tools "MUST NOT change revision sets on their own", rather than prove
+something about it.
 
     /-- **Selections do not move.** Updating a selection leaves it as it is. -/
     theorem collect_selection (w : World D) {c : Members D} (h : c.type = .selection) :

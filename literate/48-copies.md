@@ -1,13 +1,14 @@
 # Mirrors and accepted copies
 
-The specification has two kinds of copy (sections 10.3 to 10.5):
+The specification has two kinds of copy (sections 10.3 to 10.5), and a rule
+for resolving pins through them (section 6.4):
 
 - a **mirror** copies a whole object, byte for byte, under the same
   identifier, into another archive. It is the same object, and is brought up
   to date only by copying the new versions of the original, so its history
   is always a prefix of the original's. A member entry may list archives
   holding mirrors, so that the member can be resolved when its own archive
-  does not answer;
+  fails;
 - an **accepted copy** is a new object of a selection's archive, whose first
   version holds exactly the files of the revision vetted. It has its own
   inventories, and "cannot stand for the original in the resolution of a
@@ -15,11 +16,10 @@ The specification has two kinds of copy (sections 10.3 to 10.5):
 
 This chapter proves that the two behave as the specification says. A
 mirror resolves exactly the pins of the original that it has copied, and
-nothing else, so a reader can use it without trusting it. An accepted copy
-survives a takedown of the original, and is never taken for it. Two of
-these statements are the first of the model that need a hypothesis on the
-digest function: they are about copies that come from anywhere, and only
-the digests tie them to the original.
+nothing else. Any copy, mirror or not, trusted or not, resolves a pin only
+to the original's version, unless the digests collide. An accepted copy
+survives a takedown of the original, and, unless the digests collide, is
+never taken for it.
 
     -- in OpenSheaf/Copies.lean:
     import OpenSheaf.Worlds
@@ -28,53 +28,80 @@ the digests tie them to the original.
 
     variable {D : Type} [DecidableEq D] (hash : Hash D)
 
+## Collisions
+
+The statements about copies that come from anywhere need a hypothesis on
+the digest: only the digest ties a copy to the original. The tempting
+hypothesis, that `hash` is injective, cannot hold for a real digest: there
+are infinitely many inventories and only finitely many SHA-512 digests, so
+some inventories share a digest. What cryptography offers is that nobody
+can *find* two such inventories. The model therefore assumes, each time,
+only that the two inventories being compared do not collide: if their
+digests are equal, so are they. This is the hypothesis a reader relies on
+when they accept a copy because its digest matches.
+
+    omit [DecidableEq D] in
+    /-- The inventories `i` and `j` do not collide. -/
+    def NoCollision (i j : Inventory D) : Prop := hash i = hash j → i = j
+
+The same four theorems use it: `copy_authentic`, `resolveVia_sound`,
+`acceptedCopy_not_mirror` here, and `tamper_detected` in
+[chapter 9](65-impossible.md). No other theorem of the model assumes
+anything about `hash`.
+
 ## Mirrors agree with the original
 
-A mirror's history is a prefix of the original's. The prefix lemma of
+A mirror is the same object: same archive in its `object.json`, same
+identifier. Its history is a prefix of the original's. The prefix lemma of
 [chapter 3](30-archive.md) gives both directions: a pin of the original
 resolves on the mirror to the same version, if the mirror has copied that
 version; and whatever a pin resolves to on the mirror, it resolves to the
-same on the original.
+same on the original. Both assume that the copy really is a mirror (the
+hypotheses `hid` and `hm`): they are about honest mirrors. A copy that may
+not be one is the subject of the next section.
 
     /-- A mirror resolves the pins of the original that it has copied. -/
-    theorem mirror_agrees {o m : Obj D} {t : List (Version D)} (hm : o.versions = m.versions ++ t)
+    theorem mirror_agrees {o m : Obj D} {t : List (Version D)}
+        (hid : m.archive = o.archive ∧ m.id = o.id) (hm : o.versions = m.versions ++ t)
         {p : Pin D} {v : Version D} (hp : p.version ≤ m.versions.length)
         (h : resolveEntry hash (some (.live o)) p = .ok v) :
         resolveEntry hash (some (.live m)) p = .ok v :=
-      resolveEntry_prefix hash hm (t' := []) (by simp) hp h
+      resolveEntry_prefix hash hid hm (t' := []) (by simp) hp h
 
     /-- A mirror shows nothing that the original does not. -/
-    theorem mirror_sound {o m : Obj D} {t : List (Version D)} (hm : o.versions = m.versions ++ t)
+    theorem mirror_sound {o m : Obj D} {t : List (Version D)}
+        (hid : m.archive = o.archive ∧ m.id = o.id) (hm : o.versions = m.versions ++ t)
         {p : Pin D} {v : Version D} (h : resolveEntry hash (some (.live m)) p = .ok v) :
         resolveEntry hash (some (.live o)) p = .ok v := by
       obtain ⟨hv, _⟩ := resolveEntry_live_ok hash h
-      exact resolveEntry_prefix hash (t := []) (by simp) hm (Obj.versionAt_bounds hv).2 h
+      exact resolveEntry_prefix hash (o := m) (o' := o) (t := []) ⟨hid.1.symm, hid.2.symm⟩
+        (by simp) hm (Obj.versionAt_bounds hv).2 h
 
 ## Any copy, from anywhere
 
 A reader who fetches an object from an archive they do not trust, or from a
 disk found in a drawer, has no reason to believe that it is a mirror. The
-pin is enough, provided the digest function has no collisions: if the copy
-resolves the pin at all, it resolves it to the version of the original.
-This is the use of SHA-512 in the specification, and the first statement
-of the model that needs it.
+pin is enough, unless the copy's inventory collides with the original's: if
+the copy resolves the pin at all, it resolves it to the version of the
+original. This is the use of SHA-512 in the specification.
 
-    /-- **A pin authenticates any copy.** With a collision-free digest, a copy
-    that resolves a pin resolves it to the original's version. -/
-    theorem copy_authentic (hinj : ∀ l l', hash l = hash l' → l = l') {o c : Obj D}
-        {p : Pin D} {v u : Version D} (ho : resolveEntry hash (some (.live o)) p = .ok v)
+    /-- **A pin authenticates any copy**, unless the inventories collide. -/
+    theorem copy_authentic {o c : Obj D} {p : Pin D} {v u : Version D}
+        (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
+        (ho : resolveEntry hash (some (.live o)) p = .ok v)
         (hc : resolveEntry hash (some (.live c)) p = .ok u) : u = v := by
       obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
       obtain ⟨hvc, hdc⟩ := resolveEntry_live_ok hash hc
-      have heq : c.inventory p.version = o.inventory p.version := hinj _ _ (hdc.trans hdo.symm)
+      have heq : c.inventory p.version = o.inventory p.version := hcol (hdc.trans hdo.symm)
+      have heqv : c.versions.take p.version = o.versions.take p.version :=
+        congrArg Inventory.versions heq
       obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
       unfold Obj.versionAt at hvo hvc
       have hne : p.version ≠ 0 := by omega
       simp only [hne, ite_false] at hvo hvc
-      unfold Obj.inventory at heq
       have key : ∀ l : List (Version D), l[p.version - 1]? = (l.take p.version)[p.version - 1]? := by
         intro l; rw [List.getElem?_take]; simp; omega
-      rw [key, heq, ← key] at hvc
+      rw [key, heqv, ← key] at hvc
       rw [hvo] at hvc
       cases hvc
       rfl
@@ -110,26 +137,43 @@ consulted.
       have : resolveAt hash w p.archive p = .ok v := h
       simp [resolveVia, this, firstOk]
 
-When it does not (the archive is gone, the object is lost or corrupted), a
-mirror holding the pinned version gives it.
+When it does not (the archive is gone, the object is lost or corrupted),
+the first mirror that gives the pinned version gives the answer: the
+mirrors listed before it are passed over when they give no version. First,
+a list of results with no version in front does not change the first
+version found.
 
-    /-- **A mirror stands in for the member's archive.** -/
-    theorem resolveVia_mirror {w : World D} {p : Pin D} {b : ArchiveId} {ms : List ArchiveId}
-        {m : Obj D} {v : Version D} (hown : ∀ u, resolve hash w p ≠ .ok u)
+    omit [DecidableEq D] in
+    theorem firstOk_append {rs rs' : List (Resolution D)}
+        (h : ∀ r ∈ rs, ∀ u, r ≠ .ok u) : firstOk (rs ++ rs') = firstOk rs' := by
+      induction rs with
+      | nil => rfl
+      | cons r rs ih =>
+        cases r with
+        | ok u => exact absurd rfl (h _ (List.mem_cons_self ..) u)
+        | _ => exact ih fun r hr => h r (List.mem_cons_of_mem _ hr)
+
+    /-- **A mirror stands in for the member's archive**, when the member's
+    archive and the mirrors listed before it give no version. -/
+    theorem resolveVia_mirror {w : World D} {p : Pin D} {b : ArchiveId}
+        {pre post : List ArchiveId} {m : Obj D} {v : Version D}
+        (hbefore : ∀ b' ∈ p.archive :: pre, ∀ u, resolveAt hash w b' p ≠ .ok u)
         (hb : lookup w b p.object = some (.live m))
         (hm : resolveEntry hash (some (.live m)) p = .ok v) :
-        resolveVia hash w p (b :: ms) = .ok v := by
+        resolveVia hash w p (pre ++ b :: post) = .ok v := by
       have h2 : resolveAt hash w b p = .ok v := by
         simp only [resolveAt, hb]; exact hm
-      simp only [resolveVia, List.map_cons]
-      cases h : resolveAt hash w p.archive p with
-      | ok u => exact absurd h (hown u)
-      | _ => simp [firstOk, h2]
+      unfold resolveVia
+      rw [← List.cons_append, List.map_append,
+        firstOk_append (fun r hr u => by
+          obtain ⟨b', hb', rfl⟩ := List.mem_map.mp hr
+          exact hbefore b' hb' u)]
+      simp [firstOk, h2]
 
-Whatever copy answers, the answer is right: with a collision-free digest,
-a version found through mirrors is the version of the original, by
-`copy_authentic`. A tombstone never gives a version, so every answer comes
-from a live copy.
+Whatever copy answers, the answer is right: a version found through the
+mirrors is the version of the original, unless one of the copies consulted
+collides with it (`copy_authentic`). A tombstone never gives a version, so
+every answer comes from a live copy.
 
     theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
         (h : resolveEntry hash e p = .ok u) : ∃ c, e = some (.live c) := by
@@ -149,9 +193,11 @@ from a live copy.
         | _ => simp only [firstOk] at h; exact List.mem_cons_of_mem _ (ih h)
 
     /-- **Resolution through mirrors is sound**: what it finds is the original's
-    version, whoever holds the copy. -/
-    theorem resolveVia_sound (hinj : ∀ l l', hash l = hash l' → l = l') {w : World D}
-        {p : Pin D} {ms : List ArchiveId} {o : Obj D} {u v : Version D}
+    version, whoever holds the copy, unless a copy consulted collides. -/
+    theorem resolveVia_sound {w : World D} {p : Pin D} {ms : List ArchiveId} {o : Obj D}
+        {u v : Version D}
+        (hcol : ∀ b ∈ p.archive :: ms, ∀ c, lookup w b p.object = some (.live c) →
+          NoCollision hash (c.inventory p.version) (o.inventory p.version))
         (ho : resolveEntry hash (some (.live o)) p = .ok v)
         (h : resolveVia hash w p ms = .ok u) : u = v := by
       unfold resolveVia at h
@@ -162,72 +208,89 @@ from a live copy.
         obtain ⟨c, hc⟩ := resolveEntry_ok_live hash h
         unfold resolve at h
         rw [hc] at h
-        exact copy_authentic hash hinj ho h
+        exact copy_authentic hash (hcol _ (List.mem_cons_self ..) c hc) ho h
       | some r =>
         rw [hf] at h
         simp only [Option.getD_some] at h
         subst h
-        obtain ⟨b, _, hb⟩ := List.mem_map.mp (firstOk_mem hf)
+        obtain ⟨b, hbm, hb⟩ := List.mem_map.mp (firstOk_mem hf)
         unfold resolveAt at hb
         obtain ⟨c, hc⟩ := resolveEntry_ok_live hash hb
         rw [hc] at hb
-        exact copy_authentic hash hinj ho hb
+        exact copy_authentic hash (hcol b hbm c hc) ho hb
 
 ## Accepted copies
 
-An accepted copy is a new document of the selection's archive. Its first
-version holds the files of the revision vetted, as document version 1, with
-the description and the depositor of the selection.
-
-    /-- The accepted copy of the revision `v`, as object `cid` (section 10.5). -/
-    def acceptedCopy (cid : ObjectId) (v : Version D) (description curator message : String) :
-        Obj D :=
-      { id := cid, kind := .document,
-        versions := [{ documentVersion := 1, files := v.files, description,
-                       depositor := curator, message }] }
-
-It holds exactly the files vetted, and it is a well-formed object, so that
-creating it is a valid step whenever the identifier is free.
+An accepted copy is a new document of the selection's archive `s`, under a
+new identifier `cid`. Its first version holds the files of the revision
+vetted, as document version 1; its description, depositor and message are
+the selection's, given as parameters.
 
     omit [DecidableEq D] in
-    theorem acceptedCopy_files (cid : ObjectId) (v : Version D) (d c m : String) :
-        ∀ x ∈ (acceptedCopy cid v d c m).versions, x.files = v.files := by
-      simp [acceptedCopy]
+    /-- The first version of an accepted copy of `v`. -/
+    def copyVersion (v : Version D) (description curator message : String) : Version D :=
+      { documentVersion := 1, files := v.files, description, depositor := curator, message }
 
-    theorem acceptedCopy_wf (cid : ObjectId) (v : Version D) (d c m : String) :
-        (acceptedCopy cid v d c m).WF cid :=
-      ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy]⟩
+    omit [DecidableEq D] in
+    /-- The accepted copy of the revision `v`, as object `cid` of archive `s`
+    (section 10.5). -/
+    def acceptedCopy (s : ArchiveId) (cid : ObjectId) (v : Version D)
+        (description curator message : String) : Obj D :=
+      { archive := s, id := cid, kind := .document,
+        versions := [copyVersion v description curator message] }
+
+It holds exactly the files vetted. It is a well-formed object without pins,
+so creating it is a valid step whenever the identifier is free in the
+selection's archive.
+
+    omit [DecidableEq D] in
+    theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
+        ∀ x ∈ (acceptedCopy s cid v d c m).versions, x.files = v.files := by
+      simp [acceptedCopy, copyVersion]
+
+    theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
+        (acceptedCopy s cid v d c m).WF cid :=
+      ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy, copyVersion]⟩
+
+    theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
+        (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String) :
+        ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
+      .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
+        (by simp [acceptedCopy, copyVersion, Version.pins])
 
 The copy is kept by the selection's archive, so a takedown of the original
-leaves it alone: this is what accepted copies are for.
+leaves it alone: its pin still resolves to its first version. This is what
+accepted copies are for.
 
     /-- **An accepted copy survives the original.** -/
     theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
-        {o : Obj D} (hl : lookup w a oid = some (.live o)) (hdiff : ¬ (s = a ∧ cid = oid))
-        {q : Pin D} (hq : q.archive = s ∧ q.object = cid) :
-        resolve hash (takedown hash w a oid o) q = resolve hash w q :=
-      takedown_other hash hl (by rw [hq.1, hq.2]; exact hdiff)
+        {o : Obj D} {v : Version D} {d c m : String} (hl : lookup w a oid = some (.live o))
+        (hc : lookup w s cid = some (.live (acceptedCopy s cid v d c m)))
+        (hdiff : ¬ (s = a ∧ cid = oid)) :
+        resolve hash (takedown hash w a oid o)
+            ⟨s, cid, 1, hash ((acceptedCopy s cid v d c m).inventory 1)⟩ =
+          .ok (copyVersion v d c m) := by
+      rw [takedown_other hash hl hdiff]
+      unfold resolve
+      simp only [hc]
+      exact resolveEntry_live_of hash (by simp [Obj.versionAt, acceptedCopy]) rfl
 
-And it is never taken for the original. With a collision-free digest, a pin
-of the original cannot resolve on the copy, since the copy's first version
-differs from the original's (it has another description and depositor, if
-nothing else). This is why section 10.5 forbids listing an accepted copy
-among the mirrors: it would not help, and the model shows it.
+And it is never taken for the original. Its inventories name another object
+(another archive, or another identifier), so they differ from the
+original's, and, unless they collide, so do their digests: a pin of the
+original cannot resolve on the copy. This is why section 10.5 forbids
+listing an accepted copy among the mirrors.
 
     /-- **An accepted copy is not a mirror.** -/
-    theorem acceptedCopy_not_mirror (hinj : ∀ l l', hash l = hash l' → l = l') {o c : Obj D}
-        (hfirst : c.versions.head? ≠ o.versions.head?) {p : Pin D} {v u : Version D}
+    theorem acceptedCopy_not_mirror {o c : Obj D} {p : Pin D} {v u : Version D}
+        (hother : ¬ (c.archive = o.archive ∧ c.id = o.id))
+        (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
         (ho : resolveEntry hash (some (.live o)) p = .ok v) :
         resolveEntry hash (some (.live c)) p ≠ .ok u := by
       intro hc
-      obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
+      obtain ⟨_, hdo⟩ := resolveEntry_live_ok hash ho
       obtain ⟨_, hdc⟩ := resolveEntry_live_ok hash hc
-      have heq : c.inventory p.version = o.inventory p.version := hinj _ _ (hdc.trans hdo.symm)
-      obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
-      apply hfirst
-      unfold Obj.inventory at heq
-      have key : ∀ l : List (Version D), l.head? = (l.take p.version).head? := by
-        intro l; rw [List.head?_take]; simp; omega
-      rw [key, heq, ← key]
+      have heq := hcol (hdc.trans hdo.symm)
+      exact hother ⟨congrArg Inventory.archive heq, congrArg Inventory.id heq⟩
 
     end OpenSheaf

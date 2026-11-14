@@ -28,10 +28,11 @@ theorem history_not_rewritten {w w' : World D} (hs : Steps w w') {a : ArchiveId}
 /-- **Tampering is detected.** If an archive replaces an object by one whose
 history differs up to version `p.version`, a pin of that version made
 before resolves to no version at all. -/
-theorem tamper_detected (hinj : ∀ l l', hash l = hash l' → l = l') {w : World D}
+theorem tamper_detected {w : World D}
     {a : ArchiveId} {oid : ObjectId} {o o' : Obj D} (hl : lookup w a oid = some (.live o))
     {p : Pin D} {v : Version D} (hpa : p.archive = a ∧ p.object = oid)
     (hp : resolve hash w p = .ok v) (hdiff : o'.inventory p.version ≠ o.inventory p.version)
+    (hcol : NoCollision hash (o'.inventory p.version) (o.inventory p.version))
     (u : Version D) : resolve hash (setEntry w a oid (.live o')) p ≠ .ok u := by
   obtain ⟨ar, ha⟩ := lookup_some_archive hl
   intro h
@@ -41,7 +42,7 @@ theorem tamper_detected (hinj : ∀ l l', hash l = hash l' → l = l') {w : Worl
   rw [hpa.1, hpa.2, hl] at hp
   obtain ⟨_, hd⟩ := resolveEntry_live_ok hash hp
   obtain ⟨_, hd'⟩ := resolveEntry_live_ok hash h
-  exact hdiff (hinj _ _ (hd'.trans hd.symm))
+  exact hdiff (hcol (hd'.trans hd.symm))
 
 omit [DecidableEq D] in
 /-- **A tombstoned identifier is never reused.** -/
@@ -63,7 +64,7 @@ theorem snoc_induction {α : Type} {motive : List α → Prop} (nil : motive [])
   | cons x r ih => rw [List.reverse_cons]; exact snoc _ _ ih
 
 theorem WellFormed.init {l : List (Version D)} {x : Version D}
-    (h : WellFormed (l ++ [x])) : WellFormed l ∧ Follows l x := by
+    (h : WellFormed (l ++ [x])) : WellFormed l ∧ Extends l x := by
   constructor
   · intro i hi
     have := h i (by simp; omega)
@@ -89,10 +90,6 @@ theorem le_docCount {l : List (Version D)} {v : Version D} (h : v ∈ l) :
     · exact Nat.le_max_left _ _
     · exact Nat.le_trans (ih h) (Nat.le_max_right _ _)
 
-theorem sameContent_iff {v u : Version D} :
-    sameContent v u = true ↔ v.files = u.files ∧ v.members = u.members := by
-  simp [sameContent]
-
 /-- **One document version, one content.** -/
 theorem one_number_one_content {l : List (Version D)} (h : WellFormed l)
     {v u : Version D} (hv : v ∈ l) (hu : u ∈ l)
@@ -106,7 +103,7 @@ theorem one_number_one_content {l : List (Version D)} (h : WellFormed l)
       rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hxn⟩
       · have hyz := ih hwf hy hz (hyx.trans hxz)
         rw [sameContent_iff] at hyz hzx ⊢
-        exact ⟨hyz.1.trans hzx.1, hyz.2.trans hzx.2⟩
+        exact ⟨fun f => (hyz.1 f).trans (hzx.1 f), hyz.2.trans hzx.2⟩
       · have := le_docCount hy; omega
     simp only [List.mem_append, List.mem_singleton] at hv hu
     rcases hv with hv | rfl <;> rcases hu with hu | rfl
@@ -114,7 +111,7 @@ theorem one_number_one_content {l : List (Version D)} (h : WellFormed l)
     · exact key v hv heq
     · have := key u hu heq.symm
       rw [sameContent_iff] at this ⊢
-      exact ⟨this.1.symm, this.2.symm⟩
+      exact ⟨fun f => (this.1 f).symm, this.2.symm⟩
     · exact sameContent_self _
 
 /-- **Document versions have no gaps.** -/
@@ -291,7 +288,7 @@ theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : WFWor
         have hpt := pinsTo_old hash hw hl hv hp ht
         rw [if_no hc, if_no (htold hpt)]
         exact hdown _ _ hpt
-  | append a ar oid o x ha ho hf hk hpins =>
+  | append a ar oid o x ha ho hf _ hk hpins =>
     have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
     let new : Site := (a, oid, o.versions.length + 1)
     have hnew : ∀ t, Live w t → t ≠ new := by
@@ -372,5 +369,44 @@ theorem no_cycles {w : World D}
     (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) (s : Site) :
     ¬ Chain (PinsTo hash w) s s :=
   (hs.ranked hash).2.no_cycle hash s
+
+/-- The head of a live object is withdrawn. -/
+def HeadWithdrawn (w : World D) (a : ArchiveId) (oid : ObjectId) : Prop :=
+  ∃ o, lookup w a oid = some (.live o) ∧ headStatus o.versions = .withdrawn
+
+/-- **A withdrawal cannot be undone** by valid steps. -/
+theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep hash w w')
+    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
+  obtain ⟨o, hl, hst⟩ := h
+  cases hs with
+  | newArchive b ar hb _ =>
+    refine ⟨o, ?_, hst⟩
+    by_cases hab : a = b
+    · subst hab; simp [lookup, hb] at hl
+    · simpa [lookup, hab] using hl
+  | create b ar c o' hb hc _ _ =>
+    refine ⟨o, ?_, hst⟩
+    rw [lookup_setEntry hb]
+    split
+    · rename_i hbc
+      obtain ⟨rfl, rfl⟩ := hbc
+      simp [lookup, hb, hc] at hl
+    · exact hl
+  | append b ar c o' y hb hc _ hst' _ _ =>
+    by_cases hbc : a = b ∧ oid = c
+    · obtain ⟨rfl, rfl⟩ := hbc
+      have hoo : some (Entry.live o') = some (Entry.live o) := by
+        rw [← hl]; simp [lookup, hb, hc]
+      have := Entry.live.inj (Option.some.inj hoo)
+      subst this
+      refine ⟨o'.append y, by rw [lookup_setEntry hb]; simp, ?_⟩
+      simp [headStatus, Obj.append, hst' hst]
+    · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
+
+theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps hash w w')
+    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
+  induction hs with
+  | refl => exact h
+  | tail _ hstep ih => exact hstep.withdrawn_stays hash ih
 
 end OpenSheaf

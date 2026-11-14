@@ -23,7 +23,7 @@ inductive Resolution (D : Type)
   | ok (v : Version D)
   | removed
   | mismatch
-  | missing
+  | unavailable
   deriving DecidableEq, Repr
 
 variable {D : Type}
@@ -62,11 +62,11 @@ variable [DecidableEq D] (hash : Hash D)
 
 /-- Resolve a pin against an entry. -/
 def resolveEntry : Option (Entry D) → Pin D → Resolution D
-  | none, _ => .missing
+  | none, _ => .unavailable
   | some (.tomb _ _), _ => .removed
   | some (.live o), p =>
     match o.versionAt p.version with
-    | none => .missing
+    | none => .unavailable
     | some v => if hash (o.inventory p.version) = p.digest then .ok v else .mismatch
 
 /-- Resolve a pin in a world. -/
@@ -95,12 +95,13 @@ theorem resolveEntry_live_of {o : Obj D} {p : Pin D} {v : Version D}
 /-- A pin of an object that keeps the prefix of the history up to the pinned
 version resolves to the same version. -/
 theorem resolveEntry_prefix {o o' : Obj D} {pre t t' : List (Version D)} {p : Pin D}
-    {v : Version D} (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
+    {v : Version D} (hid : o'.archive = o.archive ∧ o'.id = o.id)
+    (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
     (hn : p.version ≤ pre.length) (h : resolveEntry hash (some (.live o)) p = .ok v) :
     resolveEntry hash (some (.live o')) p = .ok v := by
   obtain ⟨hv, hd⟩ := resolveEntry_live_ok hash h
   exact resolveEntry_live_of hash (versionAt_prefix ho ho' hn hv)
-    (by rw [inventory_prefix ho ho' hn]; exact hd)
+    (by rw [inventory_prefix hid ho ho' hn]; exact hd)
 
 /-- Appending a version to an object does not change what its pins resolve
 to. -/
@@ -108,7 +109,8 @@ theorem resolveEntry_append {o : Obj D} {x : Version D} {p : Pin D} {v : Version
     (h : resolveEntry hash (some (.live o)) p = .ok v) :
     resolveEntry hash (some (.live (o.append x))) p = .ok v := by
   obtain ⟨hv, _⟩ := resolveEntry_live_ok hash h
-  exact resolveEntry_prefix hash (t := []) (by simp) rfl (Obj.versionAt_bounds hv).2 h
+  exact resolveEntry_prefix hash (o := o) (o' := o.append x) (t := []) ⟨rfl, rfl⟩
+    (by simp) rfl (Obj.versionAt_bounds hv).2 h
 
 end Resolve
 
@@ -133,7 +135,7 @@ section Immutability
 
 variable [DecidableEq D] (hash : Hash D)
 
-/-- **Immutability.** No step changes what a pin resolves to. -/
+/-- **Immutability.** No step changes the version a pin resolves to. -/
 theorem Step.resolve_ok {w w' : World D} (hs : Step w w') {p : Pin D} {v : Version D}
     (h : resolve hash w p = .ok v) : resolve hash w' p = .ok v := by
   unfold resolve at *

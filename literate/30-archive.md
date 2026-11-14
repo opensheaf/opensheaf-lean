@@ -6,7 +6,8 @@ keeps the object and the inventory of that version has the digest of the
 pin (sections 10.2 and 14). This chapter defines resolution, the steps by
 which archives change, and proves the two properties on which pins rely:
 
-- **immutability**: no step changes what a pin resolves to;
+- **immutability**: once a pin resolves to a version, no step changes the
+  version it resolves to;
 - **takedown is detected**: the one change that removes versions (section
   11.2) leaves a tombstone, and pins of the object taken down resolve to
   `removed`, not to an error.
@@ -39,23 +40,27 @@ the identifier, the kind, a date and a reason, which the model leaves out).
     abbrev World (D : Type) := ArchiveId → Option (Archive D)
 
 A verifier resolving a pin (section 14) reaches one of four results: the
-object version; `removed`, for a version taken down; `mismatch`, when the
-digest is not that of the inventory; `missing`, when the archive, the object
-or the version cannot be found.
+object version; `removed`, for an object taken down; `mismatch`, when the
+digest is not that of the inventory; `unavailable`, when the archive or the
+object cannot be found. Section 14 has these four outcomes. The model also
+reports `unavailable` for a version number that the object does not have,
+which section 14 does not mention; it could as well be reported as a
+mismatch.
 
     /-- The result of resolving a pin (section 14). -/
     inductive Resolution (D : Type)
       | ok (v : Version D)
       | removed
       | mismatch
-      | missing
+      | unavailable
       deriving DecidableEq, Repr
 
     variable {D : Type}
 
 Two helpers: finding the entry of an object, and replacing it. Replacing an
-entry is the only way the model changes an existing archive; every step and
-the takedown below are written with it.
+entry is the only way the model changes an object of an existing archive:
+the steps that create objects or add versions, and the takedown below, are
+written with it.
 
     /-- The entry of an object, if its archive and the object exist. -/
     def lookup (w : World D) (a : ArchiveId) (oid : ObjectId) : Option (Entry D) :=
@@ -99,11 +104,11 @@ it needs the digest function `hash`.
 
     /-- Resolve a pin against an entry. -/
     def resolveEntry : Option (Entry D) → Pin D → Resolution D
-      | none, _ => .missing
+      | none, _ => .unavailable
       | some (.tomb _ _), _ => .removed
       | some (.live o), p =>
         match o.versionAt p.version with
-        | none => .missing
+        | none => .unavailable
         | some v => if hash (o.inventory p.version) = p.digest then .ok v else .mismatch
 
     /-- Resolve a pin in a world. -/
@@ -133,18 +138,20 @@ and the digest matches. The two directions are used throughout.
       simp [resolveEntry, hv, hd]
 
 With the lemmas of [chapter 2](20-object.md): a pin of a version within a
-kept prefix still resolves, to the same version. Appending a version is the
+kept prefix of the same object still resolves, to the same version.
+Appending a version is the
 case where the whole history is the prefix.
 
     /-- A pin of an object that keeps the prefix of the history up to the pinned
     version resolves to the same version. -/
     theorem resolveEntry_prefix {o o' : Obj D} {pre t t' : List (Version D)} {p : Pin D}
-        {v : Version D} (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
+        {v : Version D} (hid : o'.archive = o.archive ∧ o'.id = o.id)
+        (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
         (hn : p.version ≤ pre.length) (h : resolveEntry hash (some (.live o)) p = .ok v) :
         resolveEntry hash (some (.live o')) p = .ok v := by
       obtain ⟨hv, hd⟩ := resolveEntry_live_ok hash h
       exact resolveEntry_live_of hash (versionAt_prefix ho ho' hn hv)
-        (by rw [inventory_prefix ho ho' hn]; exact hd)
+        (by rw [inventory_prefix hid ho ho' hn]; exact hd)
 
     /-- Appending a version to an object does not change what its pins resolve
     to. -/
@@ -152,7 +159,8 @@ case where the whole history is the prefix.
         (h : resolveEntry hash (some (.live o)) p = .ok v) :
         resolveEntry hash (some (.live (o.append x))) p = .ok v := by
       obtain ⟨hv, _⟩ := resolveEntry_live_ok hash h
-      exact resolveEntry_prefix hash (t := []) (by simp) rfl (Obj.versionAt_bounds hv).2 h
+      exact resolveEntry_prefix hash (o := o) (o' := o.append x) (t := []) ⟨rfl, rfl⟩
+        (by simp) rfl (Obj.versionAt_bounds hv).2 h
 
     end Resolve
 
@@ -193,7 +201,7 @@ after the pinned one, and `resolveEntry_append` applies.
 
     variable [DecidableEq D] (hash : Hash D)
 
-    /-- **Immutability.** No step changes what a pin resolves to. -/
+    /-- **Immutability.** No step changes the version a pin resolves to. -/
     theorem Step.resolve_ok {w w' : World D} (hs : Step w w') {p : Pin D} {v : Version D}
         (h : resolve hash w p = .ok v) : resolve hash w' p = .ok v := by
       unfold resolve at *
@@ -235,9 +243,9 @@ By induction, the same holds over any number of steps.
 
 Note what the proof did not use: any property of `hash`. Pins stay valid
 because archives only add versions, not because digests are hard to forge.
-The digests matter for a different question, which this model does not yet
-ask: whether a copy of an object, received from anywhere, is the version
-pinned.
+The digests matter for a different question: whether a copy of an object,
+received from anywhere, is the version pinned. [Chapter 6](48-copies.md)
+answers it, under a hypothesis on `hash`.
 
 ## Takedown
 

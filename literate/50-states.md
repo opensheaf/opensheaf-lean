@@ -6,6 +6,14 @@ discussed in
 It lives in a namespace of its own, `OpenSheaf.States`, and nothing else in
 the model depends on it.
 
+It models the proposal as stated in the comments of #29 of 14 November
+2026, with a `draft` mark on object versions. The discussion has moved on
+since: [PR #30](https://github.com/opensheaf/opensheaf.github.io/pull/30)
+marks a draft by the absence of a genesis record, and leaves open whether
+drafts may be rewritten at all. The theorems below concern the rule on pins
+("a version pins only versions at least as fixed"), which holds in both
+forms; the chapter will be revised when the design settles.
+
 The proposal:
 
 - an object version may be a **draft** (`"draft": true` in `object.json`).
@@ -96,12 +104,8 @@ sealed versions; and serving more objects only raises them.
 ## Drafts as a tail
 
 Drafts come after every sealed version: a history is a sealed prefix
-followed by drafts.
-
-    /-- Drafts form a tail of the history. -/
-    def DraftTail (vs : List (Version D)) : Prop :=
-      ∃ sealed drafts, vs = sealed ++ drafts ∧
-        (∀ v ∈ sealed, isDraft v = false) ∧ (∀ v ∈ drafts, isDraft v = true)
+followed by drafts. The theorems below take this as hypotheses: a history
+`sealed ++ drafts`, every version of `drafts` a draft.
 
 Rewriting drafts replaces the tail by new versions: revised drafts, or the
 same versions sealed. The sealed prefix stays.
@@ -147,7 +151,8 @@ applies.
           have := hd t (List.mem_of_getElem? hvat)
           rw [ht] at this
           contradiction
-        exact resolveEntry_prefix hash hv rfl hn hp
+        exact resolveEntry_prefix hash (o := o) (o' := { o with versions := sealed ++ newTail })
+          ⟨rfl, rfl⟩ hv rfl hn hp
       · exact hp
 
 ## The rule
@@ -197,8 +202,8 @@ What is not proved yet: that rewriting keeps the rule itself. A pin held by
 a draft that did not resolve before the rewrite (it named a version that
 did not exist yet) might resolve after it, to a new version whose fixity
 the rule does not control. Excluding that needs the digest of the new
-inventory to differ from the digest in the pin: collision resistance, the
-first place where the model will need a hypothesis on `hash`.
+inventory to differ from the digest in the pin: a hypothesis of no
+collision, like those of [chapter 6](48-copies.md).
 
 ## Publication
 

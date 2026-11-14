@@ -5,36 +5,44 @@ namespace OpenSheaf
 
 variable {D : Type} [DecidableEq D] (hash : Hash D)
 
+omit [DecidableEq D] in
+/-- The inventories `i` and `j` do not collide. -/
+def NoCollision (i j : Inventory D) : Prop := hash i = hash j → i = j
+
 /-- A mirror resolves the pins of the original that it has copied. -/
-theorem mirror_agrees {o m : Obj D} {t : List (Version D)} (hm : o.versions = m.versions ++ t)
+theorem mirror_agrees {o m : Obj D} {t : List (Version D)}
+    (hid : m.archive = o.archive ∧ m.id = o.id) (hm : o.versions = m.versions ++ t)
     {p : Pin D} {v : Version D} (hp : p.version ≤ m.versions.length)
     (h : resolveEntry hash (some (.live o)) p = .ok v) :
     resolveEntry hash (some (.live m)) p = .ok v :=
-  resolveEntry_prefix hash hm (t' := []) (by simp) hp h
+  resolveEntry_prefix hash hid hm (t' := []) (by simp) hp h
 
 /-- A mirror shows nothing that the original does not. -/
-theorem mirror_sound {o m : Obj D} {t : List (Version D)} (hm : o.versions = m.versions ++ t)
+theorem mirror_sound {o m : Obj D} {t : List (Version D)}
+    (hid : m.archive = o.archive ∧ m.id = o.id) (hm : o.versions = m.versions ++ t)
     {p : Pin D} {v : Version D} (h : resolveEntry hash (some (.live m)) p = .ok v) :
     resolveEntry hash (some (.live o)) p = .ok v := by
   obtain ⟨hv, _⟩ := resolveEntry_live_ok hash h
-  exact resolveEntry_prefix hash (t := []) (by simp) hm (Obj.versionAt_bounds hv).2 h
+  exact resolveEntry_prefix hash (o := m) (o' := o) (t := []) ⟨hid.1.symm, hid.2.symm⟩
+    (by simp) hm (Obj.versionAt_bounds hv).2 h
 
-/-- **A pin authenticates any copy.** With a collision-free digest, a copy
-that resolves a pin resolves it to the original's version. -/
-theorem copy_authentic (hinj : ∀ l l', hash l = hash l' → l = l') {o c : Obj D}
-    {p : Pin D} {v u : Version D} (ho : resolveEntry hash (some (.live o)) p = .ok v)
+/-- **A pin authenticates any copy**, unless the inventories collide. -/
+theorem copy_authentic {o c : Obj D} {p : Pin D} {v u : Version D}
+    (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
+    (ho : resolveEntry hash (some (.live o)) p = .ok v)
     (hc : resolveEntry hash (some (.live c)) p = .ok u) : u = v := by
   obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
   obtain ⟨hvc, hdc⟩ := resolveEntry_live_ok hash hc
-  have heq : c.inventory p.version = o.inventory p.version := hinj _ _ (hdc.trans hdo.symm)
+  have heq : c.inventory p.version = o.inventory p.version := hcol (hdc.trans hdo.symm)
+  have heqv : c.versions.take p.version = o.versions.take p.version :=
+    congrArg Inventory.versions heq
   obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
   unfold Obj.versionAt at hvo hvc
   have hne : p.version ≠ 0 := by omega
   simp only [hne, ite_false] at hvo hvc
-  unfold Obj.inventory at heq
   have key : ∀ l : List (Version D), l[p.version - 1]? = (l.take p.version)[p.version - 1]? := by
     intro l; rw [List.getElem?_take]; simp; omega
-  rw [key, heq, ← key] at hvc
+  rw [key, heqv, ← key] at hvc
   rw [hvo] at hvc
   cases hvc
   rfl
@@ -58,18 +66,32 @@ theorem resolveVia_own {w : World D} {p : Pin D} (ms : List ArchiveId) {v : Vers
   have : resolveAt hash w p.archive p = .ok v := h
   simp [resolveVia, this, firstOk]
 
-/-- **A mirror stands in for the member's archive.** -/
-theorem resolveVia_mirror {w : World D} {p : Pin D} {b : ArchiveId} {ms : List ArchiveId}
-    {m : Obj D} {v : Version D} (hown : ∀ u, resolve hash w p ≠ .ok u)
+omit [DecidableEq D] in
+theorem firstOk_append {rs rs' : List (Resolution D)}
+    (h : ∀ r ∈ rs, ∀ u, r ≠ .ok u) : firstOk (rs ++ rs') = firstOk rs' := by
+  induction rs with
+  | nil => rfl
+  | cons r rs ih =>
+    cases r with
+    | ok u => exact absurd rfl (h _ (List.mem_cons_self ..) u)
+    | _ => exact ih fun r hr => h r (List.mem_cons_of_mem _ hr)
+
+/-- **A mirror stands in for the member's archive**, when the member's
+archive and the mirrors listed before it give no version. -/
+theorem resolveVia_mirror {w : World D} {p : Pin D} {b : ArchiveId}
+    {pre post : List ArchiveId} {m : Obj D} {v : Version D}
+    (hbefore : ∀ b' ∈ p.archive :: pre, ∀ u, resolveAt hash w b' p ≠ .ok u)
     (hb : lookup w b p.object = some (.live m))
     (hm : resolveEntry hash (some (.live m)) p = .ok v) :
-    resolveVia hash w p (b :: ms) = .ok v := by
+    resolveVia hash w p (pre ++ b :: post) = .ok v := by
   have h2 : resolveAt hash w b p = .ok v := by
     simp only [resolveAt, hb]; exact hm
-  simp only [resolveVia, List.map_cons]
-  cases h : resolveAt hash w p.archive p with
-  | ok u => exact absurd h (hown u)
-  | _ => simp [firstOk, h2]
+  unfold resolveVia
+  rw [← List.cons_append, List.map_append,
+    firstOk_append (fun r hr u => by
+      obtain ⟨b', hb', rfl⟩ := List.mem_map.mp hr
+      exact hbefore b' hb' u)]
+  simp [firstOk, h2]
 
 theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
     (h : resolveEntry hash e p = .ok u) : ∃ c, e = some (.live c) := by
@@ -89,9 +111,11 @@ theorem firstOk_mem {rs : List (Resolution D)} {u : Version D}
     | _ => simp only [firstOk] at h; exact List.mem_cons_of_mem _ (ih h)
 
 /-- **Resolution through mirrors is sound**: what it finds is the original's
-version, whoever holds the copy. -/
-theorem resolveVia_sound (hinj : ∀ l l', hash l = hash l' → l = l') {w : World D}
-    {p : Pin D} {ms : List ArchiveId} {o : Obj D} {u v : Version D}
+version, whoever holds the copy, unless a copy consulted collides. -/
+theorem resolveVia_sound {w : World D} {p : Pin D} {ms : List ArchiveId} {o : Obj D}
+    {u v : Version D}
+    (hcol : ∀ b ∈ p.archive :: ms, ∀ c, lookup w b p.object = some (.live c) →
+      NoCollision hash (c.inventory p.version) (o.inventory p.version))
     (ho : resolveEntry hash (some (.live o)) p = .ok v)
     (h : resolveVia hash w p ms = .ok u) : u = v := by
   unfold resolveVia at h
@@ -102,54 +126,68 @@ theorem resolveVia_sound (hinj : ∀ l l', hash l = hash l' → l = l') {w : Wor
     obtain ⟨c, hc⟩ := resolveEntry_ok_live hash h
     unfold resolve at h
     rw [hc] at h
-    exact copy_authentic hash hinj ho h
+    exact copy_authentic hash (hcol _ (List.mem_cons_self ..) c hc) ho h
   | some r =>
     rw [hf] at h
     simp only [Option.getD_some] at h
     subst h
-    obtain ⟨b, _, hb⟩ := List.mem_map.mp (firstOk_mem hf)
+    obtain ⟨b, hbm, hb⟩ := List.mem_map.mp (firstOk_mem hf)
     unfold resolveAt at hb
     obtain ⟨c, hc⟩ := resolveEntry_ok_live hash hb
     rw [hc] at hb
-    exact copy_authentic hash hinj ho hb
-
-/-- The accepted copy of the revision `v`, as object `cid` (section 10.5). -/
-def acceptedCopy (cid : ObjectId) (v : Version D) (description curator message : String) :
-    Obj D :=
-  { id := cid, kind := .document,
-    versions := [{ documentVersion := 1, files := v.files, description,
-                   depositor := curator, message }] }
+    exact copy_authentic hash (hcol b hbm c hc) ho hb
 
 omit [DecidableEq D] in
-theorem acceptedCopy_files (cid : ObjectId) (v : Version D) (d c m : String) :
-    ∀ x ∈ (acceptedCopy cid v d c m).versions, x.files = v.files := by
-  simp [acceptedCopy]
+/-- The first version of an accepted copy of `v`. -/
+def copyVersion (v : Version D) (description curator message : String) : Version D :=
+  { documentVersion := 1, files := v.files, description, depositor := curator, message }
 
-theorem acceptedCopy_wf (cid : ObjectId) (v : Version D) (d c m : String) :
-    (acceptedCopy cid v d c m).WF cid :=
-  ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy]⟩
+omit [DecidableEq D] in
+/-- The accepted copy of the revision `v`, as object `cid` of archive `s`
+(section 10.5). -/
+def acceptedCopy (s : ArchiveId) (cid : ObjectId) (v : Version D)
+    (description curator message : String) : Obj D :=
+  { archive := s, id := cid, kind := .document,
+    versions := [copyVersion v description curator message] }
+
+omit [DecidableEq D] in
+theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
+    ∀ x ∈ (acceptedCopy s cid v d c m).versions, x.files = v.files := by
+  simp [acceptedCopy, copyVersion]
+
+theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
+    (acceptedCopy s cid v d c m).WF cid :=
+  ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy, copyVersion]⟩
+
+theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
+    (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String) :
+    ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
+  .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
+    (by simp [acceptedCopy, copyVersion, Version.pins])
 
 /-- **An accepted copy survives the original.** -/
 theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
-    {o : Obj D} (hl : lookup w a oid = some (.live o)) (hdiff : ¬ (s = a ∧ cid = oid))
-    {q : Pin D} (hq : q.archive = s ∧ q.object = cid) :
-    resolve hash (takedown hash w a oid o) q = resolve hash w q :=
-  takedown_other hash hl (by rw [hq.1, hq.2]; exact hdiff)
+    {o : Obj D} {v : Version D} {d c m : String} (hl : lookup w a oid = some (.live o))
+    (hc : lookup w s cid = some (.live (acceptedCopy s cid v d c m)))
+    (hdiff : ¬ (s = a ∧ cid = oid)) :
+    resolve hash (takedown hash w a oid o)
+        ⟨s, cid, 1, hash ((acceptedCopy s cid v d c m).inventory 1)⟩ =
+      .ok (copyVersion v d c m) := by
+  rw [takedown_other hash hl hdiff]
+  unfold resolve
+  simp only [hc]
+  exact resolveEntry_live_of hash (by simp [Obj.versionAt, acceptedCopy]) rfl
 
 /-- **An accepted copy is not a mirror.** -/
-theorem acceptedCopy_not_mirror (hinj : ∀ l l', hash l = hash l' → l = l') {o c : Obj D}
-    (hfirst : c.versions.head? ≠ o.versions.head?) {p : Pin D} {v u : Version D}
+theorem acceptedCopy_not_mirror {o c : Obj D} {p : Pin D} {v u : Version D}
+    (hother : ¬ (c.archive = o.archive ∧ c.id = o.id))
+    (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
     (ho : resolveEntry hash (some (.live o)) p = .ok v) :
     resolveEntry hash (some (.live c)) p ≠ .ok u := by
   intro hc
-  obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
+  obtain ⟨_, hdo⟩ := resolveEntry_live_ok hash ho
   obtain ⟨_, hdc⟩ := resolveEntry_live_ok hash hc
-  have heq : c.inventory p.version = o.inventory p.version := hinj _ _ (hdc.trans hdo.symm)
-  obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
-  apply hfirst
-  unfold Obj.inventory at heq
-  have key : ∀ l : List (Version D), l.head? = (l.take p.version).head? := by
-    intro l; rw [List.head?_take]; simp; omega
-  rw [key, heq, ← key]
+  have heq := hcol (hdc.trans hdo.symm)
+  exact hother ⟨congrArg Inventory.archive heq, congrArg Inventory.id heq⟩
 
 end OpenSheaf

@@ -5,12 +5,19 @@ namespace OpenSheaf
 
 /-- An OCFL object of an OpenSheaf archive (section 7). -/
 structure Obj (D : Type) where
+  archive : ArchiveId
   id : ObjectId
   kind : Kind
   versions : List (Version D)
 
+/-- What an inventory describes: the object, and its versions up to one. -/
+structure Inventory (D : Type) where
+  archive : ArchiveId
+  id : ObjectId
+  versions : List (Version D)
+
 /-- A digest function for inventories. -/
-abbrev Hash (D : Type) := List (Version D) → D
+abbrev Hash (D : Type) := Inventory D → D
 
 namespace Obj
 
@@ -24,9 +31,9 @@ def append (o : Obj D) (v : Version D) : Obj D :=
 def versionAt (o : Obj D) (n : Nat) : Option (Version D) :=
   if n = 0 then none else o.versions[n - 1]?
 
-/-- What the inventory of object version `n` describes: versions `1` to `n`. -/
-def inventory (o : Obj D) (n : Nat) : List (Version D) :=
-  o.versions.take n
+/-- The inventory of object version `n`: the object, and versions `1` to `n`. -/
+def inventory (o : Obj D) (n : Nat) : Inventory D :=
+  ⟨o.archive, o.id, o.versions.take n⟩
 
 theorem versionAt_bounds {o : Obj D} {n : Nat} {v : Version D}
     (h : o.versionAt n = some v) : 1 ≤ n ∧ n ≤ o.versions.length := by
@@ -56,10 +63,12 @@ theorem versionAt_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
     exact h
 
 theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
+    (hid : o'.archive = o.archive ∧ o'.id = o.id)
     (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
     (hn : n ≤ pre.length) : o'.inventory n = o.inventory n := by
   unfold Obj.inventory
-  rw [ho, ho', List.take_append_of_le_length hn, List.take_append_of_le_length hn]
+  rw [hid.1, hid.2, ho, ho', List.take_append_of_le_length hn,
+    List.take_append_of_le_length hn]
 
 end Prefix
 
@@ -67,33 +76,48 @@ section DocumentVersions
 
 variable {D : Type} [DecidableEq D]
 
+/-- Two lists of files hold the same files. -/
+def sameFiles (a b : List (LogicalPath × D)) : Bool :=
+  a.all (· ∈ b) && b.all (· ∈ a)
+
+theorem sameFiles_iff {a b : List (LogicalPath × D)} :
+    sameFiles a b = true ↔ ∀ f, f ∈ a ↔ f ∈ b := by
+  simp only [sameFiles, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
+  constructor
+  · rintro ⟨h1, h2⟩ f; exact ⟨h1 f, h2 f⟩
+  · intro h; exact ⟨fun f => (h f).1, fun f => (h f).2⟩
+
 /-- Two object versions have the same content. -/
 def sameContent (v w : Version D) : Bool :=
-  v.files == w.files && v.members == w.members
+  sameFiles v.files w.files && v.members == w.members
+
+theorem sameContent_iff {v u : Version D} :
+    sameContent v u = true ↔ (∀ f, f ∈ v.files ↔ f ∈ u.files) ∧ v.members = u.members := by
+  simp [sameContent, sameFiles_iff]
 
 /-- The highest document version of a history. -/
 def docCount : List (Version D) → Nat
   | [] => 0
   | v :: l => max v.documentVersion (docCount l)
 
-/-- `x` may follow the history `l` (section 7.3). -/
-def Follows (l : List (Version D)) (x : Version D) : Prop :=
+/-- `x` may extend the history `l` (section 7.3, with the choice above). -/
+def Extends (l : List (Version D)) (x : Version D) : Prop :=
   (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
     ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
 
-instance (l : List (Version D)) (x : Version D) : Decidable (Follows l x) := by
-  unfold Follows; infer_instance
+instance (l : List (Version D)) (x : Version D) : Decidable (Extends l x) := by
+  unfold Extends; infer_instance
 
-/-- A well-formed history: each version follows those before it. -/
+/-- A well-formed history: each version extends those before it. -/
 def WellFormed (l : List (Version D)) : Prop :=
-  ∀ i (h : i < l.length), Follows (l.take i) l[i]
+  ∀ i (h : i < l.length), Extends (l.take i) l[i]
 
 instance (l : List (Version D)) : Decidable (WellFormed l) := by
   unfold WellFormed; infer_instance
 
-/-- Appending a version that follows the history keeps it well formed. -/
+/-- Appending a version that extends the history keeps it well formed. -/
 theorem WellFormed.snoc {l : List (Version D)} {x : Version D} (h : WellFormed l)
-    (hx : Follows l x) : WellFormed (l ++ [x]) := by
+    (hx : Extends l x) : WellFormed (l ++ [x]) := by
   intro i hi
   simp only [List.length_append, List.length_singleton] at hi
   by_cases hlt : i < l.length
@@ -109,12 +133,27 @@ theorem WellFormed.single {x : Version D} (hx : x.documentVersion = 1) :
     (Or.inr ⟨by simp, by simp [docCount, hx]⟩)
   simpa using this
 
-/-- A description-only version (section 7.3): a new description of the
-content of `v`. -/
-def Version.describe (v : Version D) (description depositor message : String) :
-    Version D :=
-  { v with description, depositor, message }
+omit [DecidableEq D] in
+/-- The status of the object: that of the head, `active` before any version. -/
+def headStatus (l : List (Version D)) : Status :=
+  (l.getLast?.map (·.status)).getD .active
 
+omit [DecidableEq D] in
+/-- `x` does not make a withdrawn object active again. -/
+def NoReinstatement (l : List (Version D)) (x : Version D) : Prop :=
+  headStatus l = .withdrawn → x.status = .withdrawn
+
+instance (l : List (Version D)) (x : Version D) : Decidable (NoReinstatement l x) := by
+  unfold NoReinstatement; infer_instance
+
+omit [DecidableEq D] in
+/-- A description-only version (section 7.3) of the history `l`: a new
+description of the content of `v`, with the status of the object. -/
+def Version.describe (l : List (Version D)) (v : Version D)
+    (description depositor message : String) : Version D :=
+  { v with status := headStatus l, description, depositor, message }
+
+omit [DecidableEq D] in
 /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }
@@ -123,31 +162,45 @@ def Version.withdraw (last : Version D) (depositor message : String) : Version D
 def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
     (members : Option (Members D)) (description depositor message : String) :
     Version D :=
-  { documentVersion := docCount l + 1, files, members, description, depositor, message }
+  { documentVersion := docCount l + 1, files, members, description,
+    status := headStatus l, depositor, message }
 
 theorem sameContent_self (v : Version D) : sameContent v v = true := by
-  simp [sameContent]
+  simp [sameContent_iff]
 
-theorem describe_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
-    (d a m : String) : Follows l (v.describe d a m) :=
-  Or.inl ⟨v, hv, by simp [sameContent, Version.describe], rfl⟩
+theorem describe_extends {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+    (d a m : String) : Extends l (Version.describe l v d a m) :=
+  Or.inl ⟨v, hv, by simp [sameContent_iff, Version.describe], rfl⟩
 
-theorem withdraw_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
-    (a m : String) : Follows l (v.withdraw a m) :=
-  Or.inl ⟨v, hv, by simp [sameContent, Version.withdraw], rfl⟩
+theorem withdraw_extends {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+    (a m : String) : Extends l (v.withdraw a m) :=
+  Or.inl ⟨v, hv, by simp [sameContent_iff, Version.withdraw], rfl⟩
 
-theorem revise_follows (l : List (Version D)) (fs : List (LogicalPath × D))
+theorem revise_extends (l : List (Version D)) (fs : List (LogicalPath × D))
     (ms : Option (Members D)) (d a m : String)
     (hnew : ∀ v ∈ l, sameContent v (Version.revise l fs ms d a m) = false) :
-    Follows l (Version.revise l fs ms d a m) :=
+    Extends l (Version.revise l fs ms d a m) :=
   Or.inr ⟨hnew, rfl⟩
 
 omit [DecidableEq D] in
+theorem describe_noReinstatement (l : List (Version D)) (v : Version D) (d a m : String) :
+    NoReinstatement l (Version.describe l v d a m) := fun h => h
+
+omit [DecidableEq D] in
+theorem withdraw_noReinstatement (l : List (Version D)) (v : Version D) (a m : String) :
+    NoReinstatement l (v.withdraw a m) := fun _ => rfl
+
+omit [DecidableEq D] in
+theorem revise_noReinstatement (l : List (Version D)) (fs : List (LogicalPath × D))
+    (ms : Option (Members D)) (d a m : String) :
+    NoReinstatement l (Version.revise l fs ms d a m) := fun h => h
+
+omit [DecidableEq D] in
 /-- A description-only version keeps the document version and the content. -/
-theorem describe_keeps (v : Version D) (d a m : String) :
-    (v.describe d a m).documentVersion = v.documentVersion ∧
-    (v.describe d a m).files = v.files ∧
-    (v.describe d a m).members = v.members :=
+theorem describe_keeps (l : List (Version D)) (v : Version D) (d a m : String) :
+    (Version.describe l v d a m).documentVersion = v.documentVersion ∧
+    (Version.describe l v d a m).files = v.files ∧
+    (Version.describe l v d a m).members = v.members :=
   ⟨rfl, rfl, rfl⟩
 
 end DocumentVersions

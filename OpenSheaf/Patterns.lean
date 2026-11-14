@@ -34,16 +34,17 @@ theorem selection_stable {w w' : World D} (hs : Steps w w') {c : Members D}
 
 /-- **Nested pins are stable.** If a pin resolves to a collection version
 whose pins all resolve, then after any number of steps it resolves to the
-same version, and the verifier reports the same for its member list. -/
+same version, and the member list read through it verifies as before. -/
 theorem nested_stable {w w' : World D} (hs : Steps w w') {q : Pin D} {cv : Version D}
-    {c : Members D} (hq : resolve hash w q = .ok cv) (_hc : cv.members = some c)
-    (hok : AllOk hash w c) :
-    resolve hash w' q = .ok cv ∧ verify hash w' c = verify hash w c := by
-  refine ⟨Steps.resolve_ok hash hs hq, ?_⟩
+    (hq : resolve hash w q = .ok cv)
+    (hok : ∀ c, cv.members = some c → AllOk hash w c) :
+    resolve hash w' q = .ok cv ∧
+      ∀ c, cv.members = some c → verify hash w' c = verify hash w c := by
+  refine ⟨Steps.resolve_ok hash hs hq, fun c hc => ?_⟩
   unfold verify
   apply List.map_congr_left
   intro p hp
-  obtain ⟨v, hv⟩ := hok p hp
+  obtain ⟨v, hv⟩ := hok c hc p hp
   rw [Steps.resolve_ok hash hs hv, hv]
 
 /-- After a deposit, the head of the object resolves to the version
@@ -83,9 +84,9 @@ theorem follow_after_deposit {w : World D} {a : ArchiveId} {ar : Archive D}
 /-- **A description-only version is not a new document version.** -/
 theorem correction_same_document_version {o : Obj D} (hwf : WellFormed o.versions)
     {v : Version D} (hv : v ∈ o.versions) (d a m : String) :
-    WellFormed (o.append (v.describe d a m)).versions ∧
-      (v.describe d a m).documentVersion = v.documentVersion :=
-  ⟨WellFormed.snoc hwf (describe_follows hv d a m), rfl⟩
+    WellFormed (o.append (Version.describe o.versions v d a m)).versions ∧
+      (Version.describe o.versions v d a m).documentVersion = v.documentVersion :=
+  ⟨WellFormed.snoc hwf (describe_extends hv d a m), rfl⟩
 
 /-- **Withdrawal keeps the vetted revision.** -/
 theorem withdrawal_keeps_vetted {w : World D} {a : ArchiveId} {ar : Archive D}

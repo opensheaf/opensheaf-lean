@@ -54,11 +54,6 @@ theorem rank_mono {served served' : Serving}
     · simp [hs a oid h, Fixity.rank]
   · simp [Fixity.rank]
 
-/-- Drafts form a tail of the history. -/
-def DraftTail (vs : List (Version D)) : Prop :=
-  ∃ sealed drafts, vs = sealed ++ drafts ∧
-    (∀ v ∈ sealed, isDraft v = false) ∧ (∀ v ∈ drafts, isDraft v = true)
-
 section Rewrite
 
 variable [DecidableEq D] (hash : Hash D)
@@ -95,7 +90,8 @@ theorem rewrite_keeps_sealed {w : World D} {a : ArchiveId} {oid : ObjectId} {o :
       have := hd t (List.mem_of_getElem? hvat)
       rw [ht] at this
       contradiction
-    exact resolveEntry_prefix hash hv rfl hn hp
+    exact resolveEntry_prefix hash (o := o) (o' := { o with versions := sealed ++ newTail })
+      ⟨rfl, rfl⟩ hv rfl hn hp
   · exact hp
 
 /-- Versions pin only versions at least as fixed as themselves. -/

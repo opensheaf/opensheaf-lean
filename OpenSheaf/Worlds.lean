@@ -35,7 +35,7 @@ inductive ValidStep : World D → World D → Prop
       ValidStep w (setEntry w a oid (.live o))
   | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
-      (hf : Follows o.versions x)
+      (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
       (hk : x.members.isSome = true ↔ o.kind = .collection)
       (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t) :
       ValidStep w (setEntry w a oid (.live (o.append x)))
@@ -49,7 +49,7 @@ theorem ValidStep.toStep {w w' : World D} (h : ValidStep hash w w') : Step w w' 
   cases h with
   | newArchive a ar h _ => exact .newArchive w a ar h
   | create a ar oid o ha ho _ _ => exact .create w a ar oid o ha ho
-  | append a ar oid o x ha ho _ _ _ => exact .append w a ar oid o x ha ho
+  | append a ar oid o x ha ho _ _ _ _ => exact .append w a ar oid o x ha ho
 
 theorem ValidSteps.toSteps {w w' : World D} (h : ValidSteps hash w w') : Steps w w' := by
   induction h with
@@ -139,7 +139,7 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w') (hw : WFWorl
       cases h
       exact ⟨hwf, hpins⟩
     · exact ⟨hw.1 _ _ _ h, hw.2 _ _ _ h⟩
-  | append a ar oid o y ha ho hf hk hpins =>
+  | append a ar oid o y ha ho hf _ hk hpins =>
     rw [lookup_setEntry ha] at h
     split at h
     · rename_i hc

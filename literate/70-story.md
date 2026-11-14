@@ -24,14 +24,16 @@ by comparing proof and computation.
 
 ## A toy digest
 
-Digests are natural numbers, computed by a toy function of the versions an
-inventory describes. It is deliberately weak: none of the theorems used
-here needs more, and a weak function keeps the computations small.
+Digests are natural numbers, computed by a toy function of what an
+inventory describes: the archive and identifier of the object, and its
+versions. It is deliberately weak: the theorems used here assume nothing
+of it, and a weak function keeps the computations small.
 
     /-- A toy digest of an inventory. -/
-    def toy : Hash Nat := fun l =>
-      l.foldl (fun h v => 31 * h + v.description.length + 7 * v.documentVersion
-        + v.files.length + v.depositor.length) l.length
+    def toy : Hash Nat := fun i =>
+      i.versions.foldl (fun h v => 31 * h + v.description.length + 7 * v.documentVersion
+        + v.files.length + v.depositor.length)
+        (i.versions.length + 1000 * i.archive.length + 100 * i.id.length)
 
 Valid steps ask that every pin of a new version resolve. A pin resolving is
 an existential statement, which `decide` cannot check; the check that its
@@ -71,19 +73,20 @@ The researcher deposits a paper; the co-author deposits a note of their own.
         description := "On sheaves of documents", depositor := "author",
         message := "first version" }
 
-    def paper : Obj Nat := { id := "paper", kind := .document, versions := [v1] }
+    def paper : Obj Nat := { archive := "author", id := "paper", kind := .document, versions := [v1] }
 
     def n1 : Version Nat :=
       { documentVersion := 1, files := [("notes.md", 301)], description := "Notes",
         depositor := "coauthor", message := "notes" }
 
-    def notes : Obj Nat := { id := "notes", kind := .document, versions := [n1] }
+    def notes : Obj Nat := { archive := "coauthor", id := "notes", kind := .document, versions := [n1] }
 
     def w4 : World Nat := setEntry w3 "author" "paper" (.live paper)
     def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 
 Each creation is a valid step: the identifier is free, the object is well
-formed (`decide` checks the four conditions), and its versions hold no pins.
+formed (`rfl` checks the identifier, `decide` the other three conditions),
+and its versions hold no pins.
 
     theorem s4 : ValidStep toy w3 w4 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
@@ -95,8 +98,8 @@ formed (`decide` checks the four conditions), and its versions hold no pins.
 
 The pins of version 1 of the paper and of the note:
 
-    def pinV1 : Pin Nat := ⟨"author", "paper", 1, toy [v1]⟩
-    def pinNotes : Pin Nat := ⟨"coauthor", "notes", 1, toy [n1]⟩
+    def pinV1 : Pin Nat := ⟨"author", "paper", 1, toy (paper.inventory 1)⟩
+    def pinNotes : Pin Nat := ⟨"coauthor", "notes", 1, toy (notes.inventory 1)⟩
 
 The journal publishes issue 7, a selection whose member pins version 1 of
 the paper, the revision the editors vetted ("An overlay journal").
@@ -109,7 +112,7 @@ the paper, the revision the editors vetted ("An overlay journal").
       { documentVersion := 1, files := [], members := some issue7, description := "Issue 7",
         depositor := "editor", message := "issue 7: the papers accepted" }
 
-    def issue : Obj Nat := { id := "issue-7", kind := .collection, versions := [i1] }
+    def issue : Obj Nat := { archive := "journal", id := "issue-7", kind := .collection, versions := [i1] }
 
     def w6 : World Nat := setEntry w5 "journal" "issue-7" (.live issue)
 
@@ -126,7 +129,7 @@ archives").
       { documentVersion := 1, files := [], members := some joint, description := "Joint papers",
         depositor := "coauthor", message := "joint papers" }
 
-    def jointObj : Obj Nat := { id := "joint", kind := .collection, versions := [j1] }
+    def jointObj : Obj Nat := { archive := "coauthor", id := "joint", kind := .collection, versions := [j1] }
 
     def w7 : World Nat := setEntry w6 "coauthor" "joint" (.live jointObj)
 
@@ -164,7 +167,8 @@ version 1, by a description-only version of that earlier document version
       Version.revise [v1] [("paper.tm", 201), ("paper.pdf", 202)] none
         "On sheaves of documents" "author" "revised after the referees' comments"
 
-    def v3 : Version Nat := v1.describe "On sheaves of documents, I" "author" "title of version 1"
+    def v3 : Version Nat :=
+      Version.describe [v1, v2] v1 "On sheaves of documents, I" "author" "title of version 1"
 
     def paper2 : Obj Nat := paper.append v2
     def paper3 : Obj Nat := paper2.append v3
@@ -172,26 +176,26 @@ version 1, by a description-only version of that earlier document version
     def w9 : World Nat := setEntry w8 "author" "paper" (.live paper2)
     def w10 : World Nat := setEntry w9 "author" "paper" (.live paper3)
 
-Both follow the history, as `decide` checks against the rule of section
+Both extend the history, as `decide` checks against the rule of section
 7.3: `v2` is new content, document version 2; `v3` holds the content of
 `v1`, so it is document version 1 again.
 
     theorem s9 : ValidStep toy w8 w9 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
 
     theorem s10 : ValidStep toy w9 w10 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide)
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
         (by simp [v3, v1, Version.describe, Version.pins])
 
     example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
 The rule also rejects what it should. Depositing the files of version 1
-again as a new document version 3 does not follow the history; with
+again as a new document version 3 does not extend the history; with
 document version 1 it does.
 
-    example : ¬ Follows paper2.versions { v1 with documentVersion := 3 } := by decide
+    example : ¬ Extends paper2.versions { v1 with documentVersion := 3 } := by decide
 
-    example : Follows paper2.versions { v1 with message := "again" } := by decide
+    example : Extends paper2.versions { v1 with message := "again" } := by decide
 
 ## The co-author's tool updates the catalogue, and the mirror
 
@@ -206,7 +210,7 @@ catalogue, a new document version since its content changed.
     def w11 : World Nat := setEntry w10 "coauthor" "joint" (.live (jointObj.append j2))
 
     theorem s11 : ValidStep toy w10 w11 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide)
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
         fun p hp => exists_of_isOk ((by decide :
           ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)
 
@@ -216,10 +220,10 @@ The mirror is brought up to date by copying the two new versions.
     def w13 : World Nat := setEntry w12 "coauthor" "paper" (.live paper3)
 
     theorem s12 : ValidStep toy w11 w12 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
 
     theorem s13 : ValidStep toy w12 w13 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide)
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
         (by simp [v3, v1, Version.describe, Version.pins])
 
 ## The journal keeps an accepted copy
@@ -227,15 +231,14 @@ The mirror is brought up to date by copying the two new versions.
 The journal keeps its own copy of the revision it vetted (section 10.5).
 
     def copy : Obj Nat :=
-      acceptedCopy "paper-accepted" v1 "On sheaves of documents (accepted)" "editor"
+      acceptedCopy "journal" "paper-accepted" v1 "On sheaves of documents (accepted)" "editor"
         "accepted copy of paper v1"
 
     def w14 : World Nat := setEntry w13 "journal" "paper-accepted" (.live copy)
 
-    theorem s14 : ValidStep toy w13 w14 :=
-      .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _) (by simp [copy, acceptedCopy, Version.pins])
+    theorem s14 : ValidStep toy w13 w14 := acceptedCopy_valid toy rfl rfl _ _ _ _
 
-    def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy copy.versions⟩
+    def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩
 
 ## The whole story is valid
 
@@ -264,7 +267,7 @@ nothing.
 The catalogue's second version pins the head of the paper, version 3, and
 keeps the note's pin.
 
-    def pinV3 : Pin Nat := ⟨"author", "paper", 3, toy [v1, v2, v3]⟩
+    def pinV3 : Pin Nat := ⟨"author", "paper", 3, toy (paper3.inventory 3)⟩
 
     example : j2.members = some
         { joint with members :=
@@ -276,9 +279,9 @@ keeps the note's pin.
 A pin made by copying the number of version 3 and the digest of version 1
 is caught; so is a pin of a version that does not exist.
 
-    example : resolve toy w14 ⟨"author", "paper", 3, toy [v1]⟩ = .mismatch := by decide
+    example : resolve toy w14 ⟨"author", "paper", 3, toy (paper.inventory 1)⟩ = .mismatch := by decide
 
-    example : resolve toy w14 ⟨"author", "paper", 4, toy [v1]⟩ = .missing := by decide
+    example : resolve toy w14 ⟨"author", "paper", 4, toy (paper.inventory 1)⟩ = .unavailable := by decide
 
 The mirror resolves the paper's pins as the original does, and the accepted
 copy holds the files vetted.
@@ -289,25 +292,25 @@ copy holds the files vetted.
 
 ## The researcher's archive disappears
 
-The author's archive goes offline for good. Its pins resolve to `missing`;
+The author's archive goes offline for good. Its pins resolve to `unavailable`;
 through the mirror they resolve as before (section 6.4).
 
     def wGone : World Nat := fun b => if b = "author" then none else w14 b
 
-    example : resolve toy wGone pinV3 = .missing := by decide
+    example : resolve toy wGone pinV3 = .unavailable := by decide
 
     example : resolveVia toy wGone pinV3 ["coauthor"] = .ok v3 := by decide
 
-    example : verify toy wGone issue7 = [(pinV1, .missing)] := by decide
+    example : verify toy wGone issue7 = [(pinV1, .unavailable)] := by decide
 
     example : resolveVia toy wGone pinV1 ["coauthor"] = .ok v1 := by decide
 
 ## The paper is taken down
 
 Instead, a court orders the paper taken down in the author's archive
-(section 11.2). Every pin of it reports `removed`, also a pin that never
-named a version (section 11.3 keeps only the last digest). The accepted
-copy is not touched.
+(section 11.2). Every pin of it reports `removed`, even a pin with a wrong
+digest (section 11.3 keeps only the last digest). The accepted copy is not
+touched.
 
     def wDown : World Nat := takedown toy w14 "author" "paper" paper3
 
@@ -361,8 +364,30 @@ the step that would deposit it is not valid. This is why pins cannot form
 cycles: a version cannot pin itself, since it does not exist when its pins
 are checked.
 
-    example : (resolve toy w14 ⟨"author", "paper", 4, toy [v1, v2, v3, v3]⟩).isOk = false := by
+    example : (resolve toy w14 ⟨"author", "paper", 4, toy ((paper3.append v3).inventory 4)⟩).isOk = false := by
       decide
+
+**The authors withdraw the paper, then describe version 1 again as active.**
+The description takes the status of the head, so it stays withdrawn; a
+version marked active by hand is rejected (the model's choice on issue
+#25).
+
+    def wd : Version Nat := v3.withdraw "author" "retracted"
+
+    example : (Version.describe (paper3.versions ++ [wd]) v1 "On sheaves" "author" "again").status =
+        .withdrawn := by decide
+
+    example : ¬ NoReinstatement (paper3.versions ++ [wd]) { v1 with message := "back" } := by
+      decide
+
+**The journal deposits an accepted copy with the original's description and
+depositor**, so that its version is identical to version 1. Its inventory
+still names another object, so it does not resolve the original's pin.
+
+    def twin : Obj Nat :=
+      acceptedCopy "journal" "paper-twin" v1 v1.description v1.depositor v1.message
+
+    example : resolveEntry toy (some (.live twin)) pinV1 = .mismatch := by decide
 
 **The story's world has no cycle of pins**, by the general theorem:
 
@@ -387,8 +412,12 @@ and `resolveVia_mirror` gives the answer of the mirror when the author's
 archive is gone:
 
     example : resolveVia toy wGone pinV3 ["coauthor"] = .ok v3 :=
-      have hgone : resolve toy wGone pinV3 = .missing := by decide
-      resolveVia_mirror toy (m := paper3) (fun u h => by rw [hgone] at h; cases h)
+      have hgone : resolve toy wGone pinV3 = .unavailable := by decide
+      resolveVia_mirror toy (pre := []) (post := []) (m := paper3)
+        (fun b' hb' u h => by
+          simp only [List.mem_singleton] at hb'
+          subst hb'
+          exact absurd (hgone ▸ h : Resolution.unavailable = .ok u) (by simp))
         rfl (by decide)
 
     end OpenSheaf.Story

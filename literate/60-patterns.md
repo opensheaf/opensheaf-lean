@@ -6,8 +6,8 @@ on. This chapter states some of those promises as theorems about the model,
 for every world and every sequence of changes. They play the role of tests:
 if a change of the model, or of the specification it follows, broke one of
 these promises, the proof would no longer go through. The
-[next chapter](70-story.md) does the same for one concrete story, checked by
-computation.
+[story](70-story.md) of chapter 10 does the same for one concrete world,
+checked by computation.
 
     -- in OpenSheaf/Patterns.lean:
     import OpenSheaf.Collection
@@ -66,25 +66,24 @@ A selection may contain collections ("A digest, a reading list"): a volume
 pins its issues, each pinned in the version published. A reader who follows
 the volume's pin to an issue, then the issue's pins to the papers, should
 find the same papers forever. Pins to collection versions carry their
-member lists with them, so this is immutability twice.
+member lists with them, so this is immutability twice: the volume's pin
+keeps naming the same issue version, hence the same member list, and that
+list verifies as before.
 
     /-- **Nested pins are stable.** If a pin resolves to a collection version
     whose pins all resolve, then after any number of steps it resolves to the
-    same version, and the verifier reports the same for its member list. -/
+    same version, and the member list read through it verifies as before. -/
     theorem nested_stable {w w' : World D} (hs : Steps w w') {q : Pin D} {cv : Version D}
-        {c : Members D} (hq : resolve hash w q = .ok cv) (_hc : cv.members = some c)
-        (hok : AllOk hash w c) :
-        resolve hash w' q = .ok cv ∧ verify hash w' c = verify hash w c := by
-      refine ⟨Steps.resolve_ok hash hs hq, ?_⟩
+        (hq : resolve hash w q = .ok cv)
+        (hok : ∀ c, cv.members = some c → AllOk hash w c) :
+        resolve hash w' q = .ok cv ∧
+          ∀ c, cv.members = some c → verify hash w' c = verify hash w c := by
+      refine ⟨Steps.resolve_ok hash hs hq, fun c hc => ?_⟩
       unfold verify
       apply List.map_congr_left
       intro p hp
-      obtain ⟨v, hv⟩ := hok p hp
+      obtain ⟨v, hv⟩ := hok c hc p hp
       rw [Steps.resolve_ok hash hs hv, hv]
-
-The hypothesis `_hc` is not used by the proof (hence its name): once the collection version is
-fixed, so is its member list, since it is part of the version. It is kept to
-say what the theorem is about.
 
 ## A co-author follows a paper (catalogues)
 
@@ -150,16 +149,17 @@ and the history stays well formed.
     /-- **A description-only version is not a new document version.** -/
     theorem correction_same_document_version {o : Obj D} (hwf : WellFormed o.versions)
         {v : Version D} (hv : v ∈ o.versions) (d a m : String) :
-        WellFormed (o.append (v.describe d a m)).versions ∧
-          (v.describe d a m).documentVersion = v.documentVersion :=
-      ⟨WellFormed.snoc hwf (describe_follows hv d a m), rfl⟩
+        WellFormed (o.append (Version.describe o.versions v d a m)).versions ∧
+          (Version.describe o.versions v d a m).documentVersion = v.documentVersion :=
+      ⟨WellFormed.snoc hwf (describe_extends hv d a m), rfl⟩
 
 ## A withdrawal does not erase what was vetted (section 11.1)
 
 The authors withdraw a paper that a journal has vetted. The promise: the
-withdrawal is a new version with status `withdrawn`; the vetted revision is
-still there, as it was, with status `active`. Presentations show the two
-together (section 11.1); the model shows that both remain reachable.
+withdrawal is a new version with status `withdrawn`; the pin of the vetted
+revision still resolves to it, exactly as it was vetted. Presentations show
+the two together (section 11.1); the model shows that both remain
+reachable.
 
     /-- **Withdrawal keeps the vetted revision.** -/
     theorem withdrawal_keeps_vetted {w : World D} {a : ArchiveId} {ar : Archive D}

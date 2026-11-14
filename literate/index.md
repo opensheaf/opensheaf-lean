@@ -75,14 +75,21 @@ The specification describes files on disk, JSON documents and web servers.
 The model keeps only what the properties depend on.
 
 - **Digests.** A digest is a value of an arbitrary type `D`, and the digest
-  of an inventory is a function `hash` applied to the object versions it
-  describes. No property of `hash` is assumed: every theorem below holds for
-  any function, even a constant one. This is worth knowing. Immutability,
-  for instance, does not rest on the strength of SHA-512: it rests on the
-  fact that archives only ever add versions. Collision resistance is needed
-  only for statements about copies that come from anywhere ("a copy that
-  resolves a pin holds the original's version"), and is then an explicit
-  hypothesis ([chapter 6](48-copies.md)).
+  of an inventory is a function `hash` applied to what the inventory
+  describes: the archive and identifier of the object, and its versions up
+  to one. Almost nothing assumes a property of `hash`: those theorems hold
+  for any function, even a constant one. This is worth knowing.
+  Immutability, for instance, does not rest on the strength of SHA-512: it
+  rests on the fact that archives only ever add versions. Four theorems,
+  about copies that come from anywhere and about tampering, assume that the
+  two inventories they compare do not collide (`NoCollision`, in
+  [chapter 6](48-copies.md)). They do not assume that `hash` is injective,
+  which no real digest is.
+- **Choices on open questions.** Where the specification leaves a question
+  open, the model makes a choice and says so: the numbering of document
+  versions that only remove files (issue #23), withdrawals that cannot be
+  undone (issue #25), pins that must resolve when they are made, and the
+  states of issue #29. Each is marked in its chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
   the discovery document are left out. The pins of the model are those of

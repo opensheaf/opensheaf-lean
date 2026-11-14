@@ -14,12 +14,21 @@ that they keep the archives **well formed**:
   ([chapter 2](20-object.md));
 - the versions of a collection, and only those, have member lists
   (section 7.4);
-- every pin held by any version resolves (section 10.2: "every member is
-  pinned"), so that, without takedowns, nothing ever dangles.
+- every pin held by any version resolves, so that, without takedowns,
+  nothing ever dangles.
 
-It also proves two facts about all steps, valid or not: an identifier taken
-down is never reused, and an object only grows, so that the history of a
-collection is the record of the acts that changed it.
+The last condition is a **modelling choice**, stronger than the
+specification. Section 10.2 asks that every member be pinned, not that every
+pin resolve when it is made: section 14 reports pins as "unavailable", and
+issue #29 discusses pins of objects that readers cannot reach. The model
+asks that a tool resolve every pin it writes, as the reference tools do.
+The freedom from cycles of [chapter 9](65-impossible.md) rests on this
+choice; for pins of versions that cannot be reached, it rests on the
+hashes, which the model does not use there.
+
+The chapter also proves two facts about all steps, valid or not: an
+identifier taken down is never reused, and an object only grows, so that
+every earlier version of a collection, with its member list, is kept.
 
     -- in OpenSheaf/Worlds.lean:
     import OpenSheaf.Collection
@@ -58,9 +67,10 @@ A valid step is a step with the checks of the specification:
 - a new archive is empty;
 - a new object is well formed, and the pins of its versions resolve at the
   time it is created, so that it pins only versions that already exist;
-- a new object version follows the history (section 7.3), has a member list
-  exactly if the object is a collection, and pins only versions that
-  resolve.
+- a new object version extends the history (section 7.3, with the choice
+  of [chapter 2](20-object.md)), does not make a withdrawn object active
+  again (the choice of chapter 2 on issue #25), has a member list exactly if
+  the object is a collection, and pins only versions that resolve.
 
 The last check is what a tool does when it writes a collection version: it
 resolves each member before pinning it.
@@ -76,7 +86,7 @@ resolves each member before pinning it.
           ValidStep w (setEntry w a oid (.live o))
       | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
-          (hf : Follows o.versions x)
+          (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
           (hk : x.members.isSome = true ↔ o.kind = .collection)
           (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t) :
           ValidStep w (setEntry w a oid (.live (o.append x)))
@@ -93,7 +103,7 @@ steps, immutability first.
       cases h with
       | newArchive a ar h _ => exact .newArchive w a ar h
       | create a ar oid o ha ho _ _ => exact .create w a ar oid o ha ho
-      | append a ar oid o x ha ho _ _ _ => exact .append w a ar oid o x ha ho
+      | append a ar oid o x ha ho _ _ _ _ => exact .append w a ar oid o x ha ho
 
     theorem ValidSteps.toSteps {w w' : World D} (h : ValidSteps hash w w') : Steps w w' := by
       induction h with
@@ -158,14 +168,13 @@ can never resolve to something else.
 ## Objects only grow
 
 A live object stays live, keeps its identifier and kind, and its history
-only grows. For a collection this is the formal content of section 10.2:
-the history of a selection is the record of its curator's acts. Every
-change of its member list is a new version, deposited by someone (the
-depositor and the message of the version), and every earlier member list
-is kept, as a prefix of the history. Nothing else can change a selection:
-not the authors of its members, whose deposits are steps on other objects,
-and not the tools, which update a selection by depositing it unchanged
-([chapter 4](40-collection.md)).
+only grows. For a collection: every change of its member list is a new
+version, which records who deposited it and why (the depositor and the
+message), and every earlier member list is kept, as a prefix of the
+history. This is half of section 10.2's "the selection changes only by an
+explicit act of its curator, which is a new version of the selection". The
+other half, that only the curator may make that version, is not modelled:
+steps have no actor, and anyone may append to any object.
 
     omit [DecidableEq D] in
     /-- **Objects only grow.** -/
@@ -215,7 +224,7 @@ resolved before the step. By immutability, they still resolve after it.
           cases h
           exact ⟨hwf, hpins⟩
         · exact ⟨hw.1 _ _ _ h, hw.2 _ _ _ h⟩
-      | append a ar oid o y ha ho hf hk hpins =>
+      | append a ar oid o y ha ho hf _ hk hpins =>
         rw [lookup_setEntry ha] at h
         split at h
         · rename_i hc
@@ -250,10 +259,9 @@ resolved before the step. By immutability, they still resolve after it.
       | refl => exact hw
       | tail _ hstep ih => exact hstep.wf hash ih
 
-The consequence, in the words of section 10.2: in archives built by valid
-steps from nothing, every member of every collection is pinned, and every
-pin resolves. Only a takedown can make a pin stop resolving, and then it
-resolves to `removed` ([chapter 3](30-archive.md)).
+The consequence: in archives built by valid steps from nothing, every pin
+held by any version resolves. Takedowns are not steps; what they do to this
+property is the subject of the next section.
 
     /-- **Nothing dangles.** -/
     theorem ValidSteps.pins_ok {w : World D}
