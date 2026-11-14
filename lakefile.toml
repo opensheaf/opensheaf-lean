@@ -1,0 +1,6 @@
+name = "opensheaf"
+version = "0.1.0"
+defaultTargets = ["OpenSheaf"]
+
+[[lean_lib]]
+name = "OpenSheaf"
