@@ -40,6 +40,12 @@ def setEntry (w : World D) (a : ArchiveId) (oid : ObjectId) (e : Entry D) : Worl
       (w b).map fun ar => { ar with entries := fun x => if x = oid then some e else ar.entries x }
     else w b
 
+theorem if_yes {α : Type} {c : Prop} [Decidable c] {x y : α} (h : c) :
+    (if c then x else y) = x := by simp [h]
+
+theorem if_no {α : Type} {c : Prop} [Decidable c] {x y : α} (h : ¬ c) :
+    (if c then x else y) = y := by simp [h]
+
 theorem lookup_setEntry {w : World D} {a : ArchiveId} {ar : Archive D} {oid : ObjectId}
     {e : Entry D} (ha : w a = some ar) (b : ArchiveId) (x : ObjectId) :
     lookup (setEntry w a oid e) b x = if b = a ∧ x = oid then some e else lookup w b x := by

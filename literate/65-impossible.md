@@ -275,17 +275,6 @@ appended, at the next number.
           simp at h
           exact ⟨by omega, h.symm⟩
 
-Two small helpers for `if`, whose library names this version of Lean
-deprecates:
-
-    omit [DecidableEq D] in
-    theorem if_yes {α : Type} {c : Prop} [Decidable c] {x y : α} (h : c) :
-        (if c then x else y) = x := by simp [h]
-
-    omit [DecidableEq D] in
-    theorem if_no {α : Type} {c : Prop} [Decidable c] {x y : α} (h : ¬ c) :
-        (if c then x else y) = y := by simp [h]
-
 Three more facts: a version found at a number is a version of the object;
 an object has no version after its last; and an empty entry has no
 version at all.
@@ -313,26 +302,30 @@ version at all.
       rw [hl] at hl'
       cases hl'
 
-In a well-formed world, a version that exists holds only pins that
-resolve; so a pin seen after a step, held by a version that existed before
-it, already resolved before it.
+In a sound world ([chapter 5](45-worlds.md)), a version that exists holds
+only pins that resolve or report `removed`; `removed` stays `removed`
+through a step. So a pin that resolves after a step, held by a version that
+existed before it, already resolved before it.
 
-    theorem pinsTo_old {w : World D} (hw : WFWorld hash w) {s t : Site} {o : Obj D}
-        {v : Version D} {p : Pin D} (hl : lookup w s.1 s.2.1 = some (.live o))
-        (hv : o.versionAt s.2.2 = some v) (hp : p ∈ v.pins)
-        (ht : t = (p.archive, p.object, p.version)) : PinsTo hash w s t := by
-      obtain ⟨u, hu⟩ := hw.2 _ _ _ hl v (versionAt_mem hv) p hp
-      exact ⟨o, v, p, hl, hv, hp, ⟨u, hu⟩, ht⟩
+    theorem pinsTo_old {w w' : World D} (hw : SoundWorld hash w) (hstep : Step w w')
+        {s t : Site} {o : Obj D} {v : Version D} {p : Pin D}
+        (hl : lookup w s.1 s.2.1 = some (.live o)) (hv : o.versionAt s.2.2 = some v)
+        (hp : p ∈ v.pins) (ht : t = (p.archive, p.object, p.version)) {u : Version D}
+        (hu : resolve hash w' p = .ok u) : PinsTo hash w s t := by
+      rcases hw.2 _ _ _ hl v (versionAt_mem hv) p hp with ⟨u', hu'⟩ | hr
+      · exact ⟨o, v, p, hl, hv, hp, ⟨u', hu'⟩, ht⟩
+      · rw [Step.resolve_removed hash hstep hr] at hu; cases hu
 
 The main lemma: a valid step keeps a numbering in which pins go down. The
 new versions get the number `N`, above all the others; their pins resolved
 before the step, so they name versions numbered below `N`. The pins of the
-old versions already resolved before the step, since the world was well
-formed (`pinsTo_old`), so the old numbering already sent them down.
+old versions that resolve after the step already resolved before it
+(`pinsTo_old`), so the old numbering already sent them down.
 
-    theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : WFWorld hash w)
+    theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
         (hr : Ranked hash w) : Ranked hash w' := by
       obtain ⟨rank, N, hlive, hdown⟩ := hr
+      have hstep := hs.toStep hash
       cases hs with
       | newArchive a ar ha hempty =>
         have back : ∀ b x e, lookup (fun c => if c = a then some ar else w c) b x = some e →
@@ -342,9 +335,9 @@ formed (`pinsTo_old`), so the old numbering already sent them down.
           · subst hb; simp [lookup, hempty] at h
           · simpa [lookup, hb] using h
         refine ⟨rank, N, fun s ⟨o, v, hl, hv⟩ => hlive s ⟨o, v, back _ _ _ hl, hv⟩, ?_⟩
-        rintro s t ⟨o, v, p, hl, hv, hp, _, ht⟩
-        exact hdown s t (pinsTo_old hash hw (back _ _ _ hl) hv hp ht)
-      | create a ar oid o ha ho hwf hpins =>
+        rintro s t ⟨o, v, p, hl, hv, hp, ⟨u, hu⟩, ht⟩
+        exact hdown s t (pinsTo_old hash hw hstep (back _ _ _ hl) hv hp ht hu)
+      | create a ar oid o ha ho hwf hpins _ =>
         have hnone : lookup w a oid = none := by simp [lookup, ha, ho]
         refine ⟨fun s => if s.1 = a ∧ s.2.1 = oid then N else rank s, N + 1, ?_, ?_⟩
         · rintro ⟨b, x, n⟩ ⟨o1, v, hl, hv⟩
@@ -383,10 +376,10 @@ formed (`pinsTo_old`), so the old numbering already sent them down.
             rw [if_yes hc, if_no htn]
             exact hlive _ hlt
           · rename_i hc
-            have hpt := pinsTo_old hash hw hl hv hp ht
+            have hpt := pinsTo_old hash hw hstep hl hv hp ht hu
             rw [if_no hc, if_no (htold hpt)]
             exact hdown _ _ hpt
-      | append a ar oid o x ha ho hf _ hk hpins =>
+      | append a ar oid o x ha ho hf _ hk _ hpins _ =>
         have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
         let new : Site := (a, oid, o.versions.length + 1)
         have hnew : ∀ t, Live w t → t ≠ new := by
@@ -421,7 +414,7 @@ formed (`pinsTo_old`), so the old numbering already sent them down.
             subst h1 h2
             cases hl
             rcases versionAt_append hv with hv | ⟨hn, hvx⟩
-            · have hpt := pinsTo_old hash hw hlo hv hp ht
+            · have hpt := pinsTo_old hash hw hstep hlo hv hp ht hu
               have hsn : ((b, y, n) : Site) ≠ new := hnew _ ⟨o, v, hlo, hv⟩
               have htn : t ≠ new := by
                 obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := hpt
@@ -438,7 +431,7 @@ formed (`pinsTo_old`), so the old numbering already sent them down.
               rw [if_yes hsn, if_no (hnew _ hlt)]
               exact hlive _ hlt
           · rename_i hc
-            have hpt := pinsTo_old hash hw hl hv hp ht
+            have hpt := pinsTo_old hash hw hstep hl hv hp ht hu
             have hsn : ((b, y, n) : Site) ≠ new := by
               intro h
               simp only [new, Prod.mk.injEq] at h
@@ -451,25 +444,59 @@ formed (`pinsTo_old`), so the old numbering already sent them down.
             rw [if_no hsn, if_no htn]
             exact hdown _ _ hpt
 
-The empty world is ranked, trivially, and so, by induction, is every world
-built from it by valid steps.
+A takedown keeps the numbering: it removes versions, and the pins that still
+resolve after it resolved before it, to the same versions.
 
-    theorem ValidSteps.ranked {w : World D}
-        (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) :
-        WFWorld hash w ∧ Ranked hash w := by
+    theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+        (hl : lookup w a oid = some (.live o)) (hr : Ranked hash w) :
+        Ranked hash (takedown hash w a oid o) := by
+      obtain ⟨rank, N, hlive, hdown⟩ := hr
+      refine ⟨rank, N, fun s ⟨o', v, h, hv⟩ =>
+        hlive s ⟨o', v, (lookup_takedown hash hl h).2, hv⟩, ?_⟩
+      rintro s t ⟨o', v, p, h, hv, hp, ⟨u, hu⟩, ht⟩
+      have hpa : ¬ (p.archive = a ∧ p.object = oid) := by
+        intro hpa; rw [takedown_removed hash hl hpa] at hu; cases hu
+      rw [takedown_other hash hl hpa] at hu
+      exact hdown s t ⟨o', v, p, (lookup_takedown hash hl h).2, hv, hp, ⟨u, hu⟩, ht⟩
+
+The empty world is ranked, trivially, and so, by induction, is every world
+built from it by events: valid steps and takedowns.
+
+    theorem Events.ranked {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
+        SoundWorld hash w ∧ Ranked hash w := by
       induction hs with
       | refl =>
-        refine ⟨WFWorld.empty hash, fun _ => 0, 0, ?_, ?_⟩
+        refine ⟨⟨(WFWorld.empty hash).1, fun _ _ _ h => by simp [lookup] at h⟩,
+          fun _ => 0, 0, ?_, ?_⟩
         · rintro s ⟨o, v, hl, _⟩; simp [lookup] at hl
         · rintro s t ⟨o, v, p, hl, _⟩; simp [lookup] at hl
-      | tail _ hstep ih => exact ⟨hstep.wf hash ih.1, hstep.ranked hash ih.1 ih.2⟩
+      | tail _ he ih =>
+        cases he with
+        | step hs => exact ⟨hs.sound hash ih.1, hs.ranked hash ih.1 ih.2⟩
+        | takedown a oid o hl => exact ⟨takedown_sound hash hl ih.1, takedown_ranked hash hl ih.2⟩
 
-    /-- **Pins cannot form cycles** (section 10.2), in any world built by valid
-    steps, whatever the digest function. -/
+    /-- **Pins cannot form cycles** (section 10.2), in any world built by events
+    (valid steps and takedowns), whatever the digest function. -/
+    theorem no_cycles_events {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) (s : Site) :
+        ¬ Chain (PinsTo hash w) s s :=
+      (hs.ranked hash).2.no_cycle hash s
+
+Valid steps are events, so the same holds of worlds built by valid steps
+alone.
+
+    theorem ValidSteps.toEvents {w w' : World D} (hs : ValidSteps hash w w') :
+        Events hash w w' := by
+      induction hs with
+      | refl => exact .refl _
+      | tail _ hstep ih => exact .tail ih (.step hstep)
+
+    /-- **Pins cannot form cycles**, in any world built by valid steps. -/
     theorem no_cycles {w : World D}
         (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) (s : Site) :
         ¬ Chain (PinsTo hash w) s s :=
-      (hs.ranked hash).2.no_cycle hash s
+      no_cycles_events hash hs.toEvents s
 
 In particular a version cannot pin itself, and two collections cannot pin
 each other: both would be cycles. Section 10.2 attributes this to the

@@ -74,6 +74,15 @@ written with it.
           (w b).map fun ar => { ar with entries := fun x => if x = oid then some e else ar.entries x }
         else w b
 
+Two small helpers for `if`, whose library names (`if_pos`, `if_neg`) this
+version of Lean deprecates:
+
+    theorem if_yes {α : Type} {c : Prop} [Decidable c] {x y : α} (h : c) :
+        (if c then x else y) = x := by simp [h]
+
+    theorem if_no {α : Type} {c : Prop} [Decidable c] {x y : α} (h : ¬ c) :
+        (if c then x else y) = y := by simp [h]
+
 After replacing the entry of `oid` in `a`, looking up `oid` in `a` gives the
 new entry, and looking up anything else gives what it gave before.
 

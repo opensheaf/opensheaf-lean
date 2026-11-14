@@ -129,4 +129,65 @@ the head, until the catalogue is updated again.
           · rfl
       · contradiction
 
+## Well-formed member lists
+
+Section 10.2 sets rules on member lists. Every member is pinned: a member of
+a catalogue has exactly one pin (`version` and `inventorySha512`), a member
+of a selection a non-empty revision set and no `follow`. The model adds what
+the specification takes for granted: the pins of a member name the
+member's own archive and object.
+
+    /-- A member obeys the rules of section 10.2 for its kind of collection. -/
+    def Member.WF (ty : CollectionType) (m : Member D) : Prop :=
+      m.pins ≠ [] ∧ (∀ p ∈ m.pins, p.archive = m.archive ∧ p.object = m.object) ∧
+        (ty = .catalogue → m.pins.length = 1) ∧ (ty = .selection → m.follow = false)
+
+    instance (ty : CollectionType) (m : Member D) : Decidable (m.WF ty) := by
+      unfold Member.WF; infer_instance
+
+    /-- A well-formed member list. -/
+    def Members.WF (c : Members D) : Prop := ∀ m ∈ c.members, m.WF c.type
+
+    instance (c : Members D) : Decidable c.WF := by
+      unfold Members.WF; infer_instance
+
+The pin of a head names the object it is the head of.
+
+    theorem headPin_names {w : World D} {a : ArchiveId} {oid : ObjectId} {p : Pin D}
+        (h : headPin hash w a oid = some p) : p.archive = a ∧ p.object = oid := by
+      unfold headPin at h
+      split at h
+      · split at h
+        · contradiction
+        · cases h; exact ⟨rfl, rfl⟩
+      · contradiction
+
+So updating a well-formed member list gives a well-formed one: the tools
+cannot break the rules by following members.
+
+    /-- **Updating keeps a member list well formed.** -/
+    theorem collect_wf (w : World D) {c : Members D} (h : c.WF) : (collect hash w c).WF := by
+      unfold collect
+      split
+      · exact h
+      · rename_i hty
+        intro m' hm'
+        obtain ⟨m, hm, rfl⟩ := List.mem_map.mp hm'
+        have hmw := h m hm
+        rw [hty] at hmw
+        show (updateMember hash w m).WF c.type
+        rw [hty]
+        unfold updateMember
+        split
+        · split
+          · rename_i p hp
+            obtain ⟨ha, ho⟩ := headPin_names hash hp
+            refine ⟨by simp, ?_, fun _ => rfl, fun h => nomatch h⟩
+            intro q hq
+            simp only [List.mem_singleton] at hq
+            subst hq
+            exact ⟨ha, ho⟩
+          · exact hmw
+        · exact hmw
+
     end OpenSheaf

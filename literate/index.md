@@ -29,10 +29,13 @@ The chapters build the model from the bottom up:
 4. [Catalogues and selections](40-collection.md): what updating a
    collection does to each kind;
 5. [Well-formed worlds](45-worlds.md): the steps the specification allows,
-   and what they guarantee: well-formed objects, identifiers never reused,
-   objects that only grow, and pins that never dangle;
-6. [Mirrors and accepted copies](48-copies.md): mirrors resolve the
-   original's pins and nothing else; any copy is authenticated by the pin;
+   and what they guarantee: well-formed objects and member lists,
+   identifiers never reused, objects that only grow, every member pinned;
+   then takedowns among the events, after which every pin held resolves or
+   reports removed;
+6. [Mirrors and accepted copies](48-copies.md): mirrors stay prefixes of
+   their originals, and resolve the original's pins and nothing else; any
+   copy is authenticated by the pin, unless the digests collide;
    resolution through mirrors (section 6.4); accepted copies survive the
    original and are never taken for it;
 7. [Draft, private and public](50-states.md): the proposal of issue #29,

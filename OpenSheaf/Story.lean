@@ -49,10 +49,12 @@ def w4 : World Nat := setEntry w3 "author" "paper" (.live paper)
 def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 
 theorem s4 : ValidStep toy w3 w4 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+    (Or.inl rfl)
 
 theorem s5 : ValidStep toy w4 w5 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
+    (Or.inl rfl)
 
 def pinV1 : Pin Nat := ⟨"author", "paper", 1, toy (paper.inventory 1)⟩
 def pinNotes : Pin Nat := ⟨"coauthor", "notes", 1, toy (notes.inventory 1)⟩
@@ -83,19 +85,22 @@ def jointObj : Obj Nat := { archive := "coauthor", id := "joint", kind := .colle
 def w7 : World Nat := setEntry w6 "coauthor" "joint" (.live jointObj)
 
 theorem s6 : ValidStep toy w5 w6 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩
-    fun v hv p hp => exists_of_isOk ((by decide :
-      ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp)
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
+    (fun v hv p hp => exists_of_isOk ((by decide :
+      ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp))
+    (Or.inl rfl)
 
 theorem s7 : ValidStep toy w6 w7 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩
-    fun v hv p hp => exists_of_isOk ((by decide :
-      ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp)
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
+    (fun v hv p hp => exists_of_isOk ((by decide :
+      ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp))
+    (Or.inl rfl)
 
 def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
 theorem s8 : ValidStep toy w7 w8 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+    (Or.inr ⟨by decide, paper, rfl, rfl, [], by simp⟩)
 
 def v2 : Version Nat :=
   Version.revise [v1] [("paper.tm", 201), ("paper.pdf", 202)] none
@@ -111,11 +116,12 @@ def w9 : World Nat := setEntry w8 "author" "paper" (.live paper2)
 def w10 : World Nat := setEntry w9 "author" "paper" (.live paper3)
 
 theorem s9 : ValidStep toy w8 w9 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+    (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl)
 
 theorem s10 : ValidStep toy w9 w10 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins])
+  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl)
 
 example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
@@ -130,19 +136,20 @@ def j2 : Version Nat :=
 def w11 : World Nat := setEntry w10 "coauthor" "joint" (.live (jointObj.append j2))
 
 theorem s11 : ValidStep toy w10 w11 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-    fun p hp => exists_of_isOk ((by decide :
-      ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)
+  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+    (fun p hp => exists_of_isOk ((by decide :
+      ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl)
 
 def w12 : World Nat := setEntry w11 "coauthor" "paper" (.live paper2)
 def w13 : World Nat := setEntry w12 "coauthor" "paper" (.live paper3)
 
 theorem s12 : ValidStep toy w11 w12 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+    (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩)
 
 theorem s13 : ValidStep toy w12 w13 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins])
+  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩)
 
 def copy : Obj Nat :=
   acceptedCopy "journal" "paper-accepted" v1 "On sheaves of documents (accepted)" "editor"
@@ -234,6 +241,22 @@ def twin : Obj Nat :=
 
 example : resolveEntry toy (some (.live twin)) pinV1 = .mismatch := by decide
 
+def twoPins : Members Nat :=
+  { type := .catalogue,
+    members := [{ archive := "author", object := "paper", pins := [pinV1, pinV3] }] }
+
+def followed : Members Nat :=
+  { type := .selection,
+    members := [{ archive := "author", object := "paper", follow := true, pins := [pinV1] }] }
+
+def unpinned : Members Nat :=
+  { type := .selection, members := [{ archive := "author", object := "paper", pins := [] }] }
+
+example : ¬ twoPins.WF ∧ ¬ followed.WF ∧ ¬ unpinned.WF := by decide
+
+example : paper3.versions ≠ paper.versions ++ v3 :: [] ∧
+    paper3.versions ≠ paper.versions ++ [v3, v3] := by decide
+
 example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
 theorem w6_to_w14 : Steps w6 w14 :=
@@ -244,6 +267,16 @@ theorem w6_to_w14 : Steps w6 w14 :=
 example : verify toy w14 issue7 = verify toy w6 issue7 ∧ collect toy w14 issue7 = issue7 :=
   selection_stable toy w6_to_w14 rfl fun p hp => exists_of_isOk ((by decide :
     ∀ p ∈ allPins issue7, (resolve toy w6 p).isOk = true) p hp)
+
+theorem story_down : Events toy w0 wDown := .tail story.toEvents (.takedown _ _ _ _ rfl)
+
+example : SoundWorld toy wDown := Events.sound toy story_down
+
+example (s : Site) : ¬ Chain (PinsTo toy wDown) s s := no_cycles_events toy story_down s
+
+example : resolveEntry toy (some (.live paper3)) pinV3 = .ok v3 :=
+  Events.mirror_resolves toy story.toEvents (b := "coauthor") (x := "paper") rfl (by decide)
+    rfl (by decide) (by decide)
 
 example : resolveVia toy wGone pinV3 ["coauthor"] = .ok v3 :=
   have hgone : resolve toy wGone pinV3 = .unavailable := by decide

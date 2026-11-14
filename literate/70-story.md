@@ -85,14 +85,16 @@ The researcher deposits a paper; the co-author deposits a note of their own.
     def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 
 Each creation is a valid step: the identifier is free, the object is well
-formed (`rfl` checks the identifier, `decide` the other three conditions),
-and its versions hold no pins.
+formed (`rfl` checks the identifier, `decide` the other four conditions),
+its versions hold no pins, and it belongs to the archive that keeps it.
 
     theorem s4 : ValidStep toy w3 w4 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+        (Or.inl rfl)
 
     theorem s5 : ValidStep toy w4 w5 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
+        (Or.inl rfl)
 
 ## The journal's issue, the co-author's catalogue
 
@@ -137,24 +139,29 @@ Creating them is valid only because every pin resolves when they are made:
 `decide` resolves each one.
 
     theorem s6 : ValidStep toy w5 w6 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩
-        fun v hv p hp => exists_of_isOk ((by decide :
-          ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp)
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
+        (fun v hv p hp => exists_of_isOk ((by decide :
+          ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp))
+        (Or.inl rfl)
 
     theorem s7 : ValidStep toy w6 w7 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩
-        fun v hv p hp => exists_of_isOk ((by decide :
-          ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp)
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
+        (fun v hv p hp => exists_of_isOk ((by decide :
+          ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp))
+        (Or.inl rfl)
 
 ## A mirror
 
 The co-author mirrors the paper: the same object, byte for byte, under the
-same identifier, in their archive (section 10.4).
+same identifier, in their archive (section 10.4). The step is valid as a
+mirror: the object belongs to another archive, where the original is live
+and extends it (here, equals it).
 
     def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
     theorem s8 : ValidStep toy w7 w8 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+        (Or.inr ⟨by decide, paper, rfl, rfl, [], by simp⟩)
 
 ## The authors revise the paper
 
@@ -181,11 +188,12 @@ Both extend the history, as `decide` checks against the rule of section
 `v1`, so it is document version 1 again.
 
     theorem s9 : ValidStep toy w8 w9 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+        (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl)
 
     theorem s10 : ValidStep toy w9 w10 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-        (by simp [v3, v1, Version.describe, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+        (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl)
 
     example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
@@ -210,21 +218,23 @@ catalogue, a new document version since its content changed.
     def w11 : World Nat := setEntry w10 "coauthor" "joint" (.live (jointObj.append j2))
 
     theorem s11 : ValidStep toy w10 w11 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-        fun p hp => exists_of_isOk ((by decide :
-          ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+        (fun p hp => exists_of_isOk ((by decide :
+          ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl)
 
-The mirror is brought up to date by copying the two new versions.
+The mirror is brought up to date by copying the two new versions. Each
+step is valid because it copies the original's next version.
 
     def w12 : World Nat := setEntry w11 "coauthor" "paper" (.live paper2)
     def w13 : World Nat := setEntry w12 "coauthor" "paper" (.live paper3)
 
     theorem s12 : ValidStep toy w11 w12 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by simp [v2, Version.revise, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+        (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩)
 
     theorem s13 : ValidStep toy w12 w13 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide)
-        (by simp [v3, v1, Version.describe, Version.pins])
+      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
+        (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩)
 
 ## The journal keeps an accepted copy
 
@@ -389,6 +399,31 @@ still names another object, so it does not resolve the original's pin.
 
     example : resolveEntry toy (some (.live twin)) pinV1 = .mismatch := by decide
 
+**A tool writes a member list that breaks section 10.2**: a catalogue
+member with two pins, a selection member with `follow`, a member with no
+pin. None is well formed, so none can be deposited by a valid step.
+
+    def twoPins : Members Nat :=
+      { type := .catalogue,
+        members := [{ archive := "author", object := "paper", pins := [pinV1, pinV3] }] }
+
+    def followed : Members Nat :=
+      { type := .selection,
+        members := [{ archive := "author", object := "paper", follow := true, pins := [pinV1] }] }
+
+    def unpinned : Members Nat :=
+      { type := .selection, members := [{ archive := "author", object := "paper", pins := [] }] }
+
+    example : ¬ twoPins.WF ∧ ¬ followed.WF ∧ ¬ unpinned.WF := by decide
+
+**The co-author changes their mirror**, appending a version the original
+does not have. It is not the original's next version: at `w11` the
+original's history is `v1, v2, v3`, and the mirror holds `v1`, so the next
+version is `v2`, not `v3`.
+
+    example : paper3.versions ≠ paper.versions ++ v3 :: [] ∧
+        paper3.versions ≠ paper.versions ++ [v3, v3] := by decide
+
 **The story's world has no cycle of pins**, by the general theorem:
 
     example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
@@ -407,6 +442,23 @@ from its report when it was made:
     example : verify toy w14 issue7 = verify toy w6 issue7 ∧ collect toy w14 issue7 = issue7 :=
       selection_stable toy w6_to_w14 rfl fun p hp => exists_of_isOk ((by decide :
         ∀ p ∈ allPins issue7, (resolve toy w6 p).isOk = true) p hp)
+
+The takedown is an event ([chapter 5](45-worlds.md)), so the world after
+it is sound: every pin held resolves or reports `removed`, and there is no
+cycle.
+
+    theorem story_down : Events toy w0 wDown := .tail story.toEvents (.takedown _ _ _ _ rfl)
+
+    example : SoundWorld toy wDown := Events.sound toy story_down
+
+    example (s : Site) : ¬ Chain (PinsTo toy wDown) s s := no_cycles_events toy story_down s
+
+The mirror kept by the co-author agrees with its original, by the theorem
+on mirrors of [chapter 6](48-copies.md):
+
+    example : resolveEntry toy (some (.live paper3)) pinV3 = .ok v3 :=
+      Events.mirror_resolves toy story.toEvents (b := "coauthor") (x := "paper") rfl (by decide)
+        rfl (by decide) (by decide)
 
 and `resolveVia_mirror` gives the answer of the mirror when the author's
 archive is gone:
