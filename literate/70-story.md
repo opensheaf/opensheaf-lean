@@ -15,7 +15,7 @@ The general theorems then apply to the story's worlds, and the chapter ends
 by comparing proof and computation.
 
     -- in OpenSheaf/Story.lean:
-    import OpenSheaf.Copies
+    import OpenSheaf.Impossible
     import OpenSheaf.Patterns
 
     namespace OpenSheaf.Story
@@ -330,6 +330,43 @@ This is a gap of the specification, not of the model: a takedown, by law,
 must reach the mirrors, and resolution should stop at a tombstone. It is
 discussed in [issue #33](https://github.com/opensheaf/opensheaf.github.io/issues/33)
 of the specification; when it is settled, this check will change.
+
+## Attempts that fail
+
+[What cannot happen](65-impossible.md) proves that some breaks of the
+protocol are impossible. Here are concrete attempts, and how they fail.
+
+**The author rewrites version 1 in place**, outside the protocol, changing
+its title. The world is not reachable by steps (`history_not_rewritten`),
+and every pin of version 1 or later stops resolving: the journal's
+verifier reports a mismatch.
+
+    def v1' : Version Nat := { v1 with description := "On sheaves of documents, revised quietly" }
+
+    def wTamper : World Nat :=
+      setEntry w14 "author" "paper" (.live { paper3 with versions := [v1', v2, v3] })
+
+    example : verify toy wTamper issue7 = [(pinV1, .mismatch)] := by decide
+
+    example : resolve toy wTamper pinV3 = .mismatch := by decide
+
+The mirror still holds the original, and resolution through it recovers the
+vetted version: integrity comes from the pin, not from the place.
+
+    example : resolveVia toy wTamper pinV1 ["coauthor"] = .ok v1 := by decide
+
+**A collection pins a version that does not exist yet**, for instance a
+version 4 of the paper, guessing its digest. The pin does not resolve, so
+the step that would deposit it is not valid. This is why pins cannot form
+cycles: a version cannot pin itself, since it does not exist when its pins
+are checked.
+
+    example : (resolve toy w14 ⟨"author", "paper", 4, toy [v1, v2, v3, v3]⟩).isOk = false := by
+      decide
+
+**The story's world has no cycle of pins**, by the general theorem:
+
+    example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
 ## Proof and computation agree
 

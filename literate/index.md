@@ -41,10 +41,15 @@ The chapters build the model from the bottom up:
    (a journal issue does not change, a co-author's catalogue follows a
    paper, a withdrawal keeps what was vetted, a takedown is reported),
    proved for every world;
-9. [A story, checked by computation](70-story.md): one world built by valid
+9. [What cannot happen](65-impossible.md): breaks of the protocol, shown
+   impossible or detected: a pin changing its meaning, history rewritten,
+   identifiers reused, document versions ambiguous or with gaps, cycles of
+   pins;
+10. [A story, checked by computation](70-story.md): one world built by valid
    steps from nothing (an author, a journal, a co-author with a catalogue
    and a mirror, an accepted copy), then an archive lost and a takedown,
-   with the verifier's reports checked by `decide`, as tests.
+   with the verifier's reports checked by `decide`, as tests, and attempts
+   to break the protocol that fail.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -61,6 +66,7 @@ every module:
     import OpenSheaf.Copies
     import OpenSheaf.States
     import OpenSheaf.Patterns
+    import OpenSheaf.Impossible
     import OpenSheaf.Story
 
 ## Modelling choices

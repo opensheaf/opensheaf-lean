@@ -1,5 +1,5 @@
 -- Generated from literate/70-story.md by opensheaf-literate: edit the document, not this file.
-import OpenSheaf.Copies
+import OpenSheaf.Impossible
 import OpenSheaf.Patterns
 
 namespace OpenSheaf.Story
@@ -205,6 +205,22 @@ example : resolve toy wDown pinCopy = resolve toy w14 pinCopy := by decide
 example : (resolve toy wDown pinCopy).isOk = true := by decide
 
 example : resolveVia toy wDown pinV1 ["coauthor"] = .ok v1 := by decide
+
+def v1' : Version Nat := { v1 with description := "On sheaves of documents, revised quietly" }
+
+def wTamper : World Nat :=
+  setEntry w14 "author" "paper" (.live { paper3 with versions := [v1', v2, v3] })
+
+example : verify toy wTamper issue7 = [(pinV1, .mismatch)] := by decide
+
+example : resolve toy wTamper pinV3 = .mismatch := by decide
+
+example : resolveVia toy wTamper pinV1 ["coauthor"] = .ok v1 := by decide
+
+example : (resolve toy w14 ⟨"author", "paper", 4, toy [v1, v2, v3, v3]⟩).isOk = false := by
+  decide
+
+example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
 theorem w6_to_w14 : Steps w6 w14 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
