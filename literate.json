@@ -1,0 +1,8 @@
+{
+  "name": "opensheaf-lean",
+  "tagline": "a formal model of <a href=\"https://opensheaf.org\">OpenSheaf</a> in Lean, a literate program",
+  "repository": "https://github.com/opensheaf/opensheaf-lean",
+  "logo": "literate/opensheaf-symbol.svg",
+  "logoDark": "invert",
+  "comments": {".lean": "-- {}"}
+}

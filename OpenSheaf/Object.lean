@@ -1,13 +1,5 @@
+-- Generated from literate/20-object.md by opensheaf-literate: edit the document, not this file.
 import OpenSheaf.Basic
-
-/-!
-# Objects and their history
-
-An object is the list of its object versions, oldest first (section 7). The
-inventory of version `n` describes versions `1` to `n` (OCFL), so it is
-modelled by the prefix of length `n` of the history, and its digest by a
-function `hash` of that prefix.
--/
 
 namespace OpenSheaf
 
@@ -46,12 +38,6 @@ theorem versionAt_bounds {o : Obj D} {n : Nat} {v : Version D}
 
 end Obj
 
-/-! ## Histories that share a prefix
-
-Appending a version, and replacing a tail of drafts (`OpenSheaf.States`),
-both keep a prefix of the history. Versions and inventories within that
-prefix do not change, whatever the digest function. -/
-
 section Prefix
 
 variable {D : Type}
@@ -76,13 +62,6 @@ theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
   rw [ho, ho', List.take_append_of_le_length hn, List.take_append_of_le_length hn]
 
 end Prefix
-
-/-! ## Document versions
-
-A document version counts the changes of the content (section 7.3): an
-object version with the same files and members as the previous one (a
-description-only version, a withdrawal) keeps its document version; any
-other adds one. -/
 
 section DocumentVersions
 

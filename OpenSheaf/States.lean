@@ -1,23 +1,5 @@
+-- Generated from literate/50-states.md by opensheaf-literate: edit the document, not this file.
 import OpenSheaf.Archive
-
-/-!
-# Draft, private and public (proposal, issue #29)
-
-This module models a proposal under discussion, not the specification:
-see <https://github.com/opensheaf/opensheaf.github.io/issues/29>.
-
-* An object version may be a **draft** (`"draft": true` in `object.json`).
-  Drafts form a tail of the history, and may be rewritten until they are
-  sealed or sent.
-* A sealed version is **private** until its archive serves the object, then
-  **public**: an archive may serve only part of its objects.
-* A version may pin only versions **at least as fixed** as itself
-  (draft < private < public).
-
-The main consequence (`sealed_pins_survive`): rewriting drafts never breaks a
-pin held by a sealed version, anywhere. And publishing an object whose sealed
-versions pin only public versions keeps the rule (`publish_fixed`).
--/
 
 namespace OpenSheaf.States
 
@@ -145,8 +127,6 @@ theorem sealed_pins_survive {w : World D} {served : Serving}
     {p : Pin D} (hp : p ∈ v.pins) {t : Version D} (hr : resolve hash w p = .ok t) :
     resolve hash (rewriteDrafts w a oid o sealed newTail) p = .ok t :=
   rewrite_keeps_sealed isDraft hash hl hv hd hr (hF.target_sealed isDraft hash hl' hv' hs hp hr)
-
-/-! ## Publication -/
 
 /-- Serve one more object. -/
 def publish (served : Serving) (a : ArchiveId) (oid : ObjectId) : Serving :=

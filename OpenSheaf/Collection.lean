@@ -1,17 +1,5 @@
+-- Generated from literate/40-collection.md by opensheaf-literate: edit the document, not this file.
 import OpenSheaf.Archive
-
-/-!
-# Catalogues and selections
-
-Updating a collection (section 10.1, `osheaf collect`) treats the two kinds
-differently:
-
-* in a **catalogue**, a member with `follow` is moved to the head of its
-  object, the newest object version; other members stay;
-* a **selection** never moves: its revision sets change only by an act of
-  its curator, a new version of the collection deposited by them. Updating
-  reports new versions, it does not add them.
--/
 
 namespace OpenSheaf
 
@@ -44,7 +32,7 @@ theorem collect_selection (w : World D) {c : Members D} (h : c.type = .selection
     collect hash w c = c := by
   simp [collect, h]
 
-/-- Updating a catalogue keeps its type. -/
+/-- Updating a collection keeps its type. -/
 theorem collect_type (w : World D) (c : Members D) : (collect hash w c).type = c.type := by
   unfold collect; split <;> rfl
 

@@ -1,21 +1,5 @@
+-- Generated from literate/30-archive.md by opensheaf-literate: edit the document, not this file.
 import OpenSheaf.Object
-
-/-!
-# Archives, resolution of pins, and what changes them
-
-A world is the set of archives, each keeping objects by identifier
-(sections 5 and 6). A pin resolves to an object version when the archive
-keeps the object and the inventory of that version has the digest of the
-pin (sections 10.2 and 14).
-
-The archives change by steps: a new archive, a new object, a new object
-version (a deposit, a description-only version, a withdrawal, a new version
-of a collection). None of them changes what a pin resolves to
-(`Step.resolve_ok`): this is the immutability on which pins rely. The one
-exception is a takedown (section 11.2), which replaces an object by a
-tombstone; verifiers can still tell that a pin named a version that was
-removed (`takedown_removed`).
--/
 
 namespace OpenSheaf
 
@@ -127,8 +111,6 @@ theorem resolveEntry_append {o : Obj D} {x : Version D} {p : Pin D} {v : Version
 
 end Resolve
 
-/-! ## Steps -/
-
 /-- The changes of the archives that keep every object version: a new
 archive, a new object, a new object version. Takedown is not a step. -/
 inductive Step : World D → World D → Prop
@@ -187,8 +169,6 @@ theorem Steps.resolve_ok {w w' : World D} (hs : Steps w w')
   induction hs with
   | refl => exact h
   | tail _ hstep ih => exact Step.resolve_ok hash hstep ih
-
-/-! ## Takedown -/
 
 /-- The digests of all the inventories of an object, kept by its tombstone. -/
 def tombstone (o : Obj D) : List D :=

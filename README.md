@@ -14,13 +14,13 @@ written into the specification.
 
 ## Contents
 
-| Module | Specification | What it proves |
+| Chapter | Specification | What it proves |
 |---|---|---|
-| [`OpenSheaf/Basic.lean`](OpenSheaf/Basic.lean) | sections 3, 7, 9, 10 | definitions: pins, member lists, object versions |
-| [`OpenSheaf/Object.lean`](OpenSheaf/Object.lean) | sections 7.3, 9, 11.1 | document versions count the changes of content: description-only versions and withdrawals keep it, new content adds one, and each keeps a history well formed |
-| [`OpenSheaf/Archive.lean`](OpenSheaf/Archive.lean) | sections 5, 10.2, 11.2, 11.3, 14 | **immutability**: no deposit, new object or new archive changes what a pin resolves to (`Step.resolve_ok`, `Steps.resolve_ok`); a takedown makes pins of the object resolve to `removed`, and changes nothing else (`takedown_removed`, `takedown_other`) |
-| [`OpenSheaf/Collection.lean`](OpenSheaf/Collection.lean) | section 10.1 | updating a **selection** leaves it unchanged (`collect_selection`); in a **catalogue**, members with `follow` move to the head, which resolves to the newest object version, and the others stay (`collect_follow`, `collect_fixed`, `headPin_resolves`) |
-| [`OpenSheaf/States.lean`](OpenSheaf/States.lean) | proposal, [#29](https://github.com/opensheaf/opensheaf.github.io/issues/29) | with drafts as a tail of the history and pins only to versions at least as fixed (draft < private < public): rewriting drafts never breaks a pin held by a sealed version (`sealed_pins_survive`), and publishing an object whose sealed versions pin only public versions keeps the rule (`publish_fixed`) |
+| [Basic](literate/10-basic.md) (`OpenSheaf/Basic.lean`) | sections 3, 7, 9, 10 | definitions: pins, member lists, object versions |
+| [Object](literate/20-object.md) (`OpenSheaf/Object.lean`) | sections 7.3, 9, 11.1 | document versions count the changes of content: description-only versions and withdrawals keep it, new content adds one, and each keeps a history well formed |
+| [Archive](literate/30-archive.md) (`OpenSheaf/Archive.lean`) | sections 5, 10.2, 11.2, 11.3, 14 | **immutability**: no deposit, new object or new archive changes what a pin resolves to (`Step.resolve_ok`, `Steps.resolve_ok`); a takedown makes pins of the object resolve to `removed`, and changes nothing else (`takedown_removed`, `takedown_other`) |
+| [Collection](literate/40-collection.md) (`OpenSheaf/Collection.lean`) | section 10.1 | updating a **selection** leaves it unchanged (`collect_selection`); in a **catalogue**, members with `follow` move to the head, which resolves to the newest object version, and the others stay (`collect_follow`, `collect_fixed`, `headPin_resolves`) |
+| [States](literate/50-states.md) (`OpenSheaf/States.lean`) | proposal, [#29](https://github.com/opensheaf/opensheaf.github.io/issues/29) | with drafts as a tail of the history and pins only to versions at least as fixed (draft < private < public): rewriting drafts never breaks a pin held by a sealed version (`sealed_pins_survive`), and publishing an object whose sealed versions pin only public versions keeps the rule (`publish_fixed`) |
 
 ## Modelling choices
 
@@ -50,9 +50,12 @@ written into the specification.
 
 ## Build
 
-Install Lean with [elan](https://github.com/leanprover/elan), then
+Install Lean with [elan](https://github.com/leanprover/elan) and the
+literate tools, then
 
-    lake build
+    pip install -r requirements-literate.txt
+    literate tangle      # write the Lean files from the chapters
+    lake build --wfail   # check every proof
 
 The model has no dependencies beyond Lean's standard library.
 

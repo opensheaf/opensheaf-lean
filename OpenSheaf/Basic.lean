@@ -1,18 +1,4 @@
-/-!
-# Basic notions
-
-Identifiers, pins, member lists and object versions (specification 0.1,
-sections 3, 7, 9 and 10).
-
-The model is abstract where the specification only describes:
-
-* the description (`datacite.json`) is an uninterpreted string;
-* files are pairs of a logical path and the digest of their content;
-* digests are values of an arbitrary type `D`. Nothing here assumes that the
-  digest function is collision-free: the theorems hold for any function, and
-  a hypothesis is added only where a statement needs it.
--/
-
+-- Generated from literate/10-basic.md by opensheaf-literate: edit the document, not this file.
 namespace OpenSheaf
 
 /-- The identifier of an archive (section 6.2). -/
