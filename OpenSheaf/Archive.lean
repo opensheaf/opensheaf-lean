@@ -24,6 +24,7 @@ inductive Resolution (D : Type)
   | removed
   | mismatch
   | missing
+  deriving DecidableEq, Repr
 
 variable {D : Type}
 

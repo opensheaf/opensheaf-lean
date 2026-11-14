@@ -49,6 +49,7 @@ or the version cannot be found.
       | removed
       | mismatch
       | missing
+      deriving DecidableEq, Repr
 
     variable {D : Type}
 

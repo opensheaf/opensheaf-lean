@@ -29,7 +29,14 @@ The chapters build the model from the bottom up:
 4. [Catalogues and selections](40-collection.md): what updating a
    collection does to each kind;
 5. [Draft, private and public](50-states.md): the proposal of issue #29,
-   and what it guarantees.
+   and what it guarantees;
+6. [Use cases as theorems](60-patterns.md): the promises of the use cases
+   (a journal issue does not change, a co-author's catalogue follows a
+   paper, a withdrawal keeps what was vetted, a takedown is reported),
+   proved for every world;
+7. [A story, checked by computation](70-story.md): one concrete world
+   followed through deposits, a correction and a takedown, with the
+   verifier's reports checked by `decide`, as tests.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -43,6 +50,8 @@ every module:
     import OpenSheaf.Archive
     import OpenSheaf.Collection
     import OpenSheaf.States
+    import OpenSheaf.Patterns
+    import OpenSheaf.Story
 
 ## Modelling choices
 

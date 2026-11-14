@@ -4,3 +4,5 @@ import OpenSheaf.Object
 import OpenSheaf.Archive
 import OpenSheaf.Collection
 import OpenSheaf.States
+import OpenSheaf.Patterns
+import OpenSheaf.Story
