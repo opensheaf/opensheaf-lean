@@ -23,20 +23,28 @@ The chapters build the model from the bottom up:
 1. [Basic notions](10-basic.md): identifiers, pins, member lists and object
    versions;
 2. [Objects and their history](20-object.md): the history of an object,
-   its inventories, and the counting of document versions;
+   its inventories, and the counting of document versions (section 7.3);
 3. [Archives and pins](30-archive.md): resolution of pins, the steps that
    change archives, immutability, and takedown;
 4. [Catalogues and selections](40-collection.md): what updating a
    collection does to each kind;
-5. [Draft, private and public](50-states.md): the proposal of issue #29,
+5. [Well-formed worlds](45-worlds.md): the steps the specification allows,
+   and what they guarantee: well-formed objects, identifiers never reused,
+   objects that only grow, and pins that never dangle;
+6. [Mirrors and accepted copies](48-copies.md): mirrors resolve the
+   original's pins and nothing else; any copy is authenticated by the pin;
+   resolution through mirrors (section 6.4); accepted copies survive the
+   original and are never taken for it;
+7. [Draft, private and public](50-states.md): the proposal of issue #29,
    and what it guarantees;
-6. [Use cases as theorems](60-patterns.md): the promises of the use cases
+8. [Use cases as theorems](60-patterns.md): the promises of the use cases
    (a journal issue does not change, a co-author's catalogue follows a
    paper, a withdrawal keeps what was vetted, a takedown is reported),
    proved for every world;
-7. [A story, checked by computation](70-story.md): one concrete world
-   followed through deposits, a correction and a takedown, with the
-   verifier's reports checked by `decide`, as tests.
+9. [A story, checked by computation](70-story.md): one world built by valid
+   steps from nothing (an author, a journal, a co-author with a catalogue
+   and a mirror, an accepted copy), then an archive lost and a takedown,
+   with the verifier's reports checked by `decide`, as tests.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -49,6 +57,8 @@ every module:
     import OpenSheaf.Object
     import OpenSheaf.Archive
     import OpenSheaf.Collection
+    import OpenSheaf.Worlds
+    import OpenSheaf.Copies
     import OpenSheaf.States
     import OpenSheaf.Patterns
     import OpenSheaf.Story
@@ -64,8 +74,9 @@ The model keeps only what the properties depend on.
   any function, even a constant one. This is worth knowing. Immutability,
   for instance, does not rest on the strength of SHA-512: it rests on the
   fact that archives only ever add versions. Collision resistance is needed
-  only for statements of the form "a pin that resolves fixes the content",
-  and will then be an explicit hypothesis.
+  only for statements about copies that come from anywhere ("a copy that
+  resolves a pin holds the original's version"), and is then an explicit
+  hypothesis ([chapter 6](48-copies.md)).
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
   the discovery document are left out. The pins of the model are those of

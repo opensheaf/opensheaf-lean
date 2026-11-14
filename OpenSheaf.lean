@@ -3,6 +3,8 @@ import OpenSheaf.Basic
 import OpenSheaf.Object
 import OpenSheaf.Archive
 import OpenSheaf.Collection
+import OpenSheaf.Worlds
+import OpenSheaf.Copies
 import OpenSheaf.States
 import OpenSheaf.Patterns
 import OpenSheaf.Story

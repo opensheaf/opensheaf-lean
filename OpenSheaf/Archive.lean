@@ -4,11 +4,11 @@ import OpenSheaf.Object
 namespace OpenSheaf
 
 /-- What an archive keeps under an object identifier: an object, or the
-tombstone of an object taken down, with the digests of its inventories
-(section 11.3). -/
+tombstone of an object taken down, with its last version and the digest of
+that version's inventory (section 11.3). -/
 inductive Entry (D : Type)
   | live (o : Obj D)
-  | tomb (digests : List D)
+  | tomb (lastVersion : Nat) (digest : D)
 
 /-- An archive (section 5). -/
 structure Archive (D : Type) where
@@ -63,7 +63,7 @@ variable [DecidableEq D] (hash : Hash D)
 /-- Resolve a pin against an entry. -/
 def resolveEntry : Option (Entry D) → Pin D → Resolution D
   | none, _ => .missing
-  | some (.tomb ds), p => if p.digest ∈ ds then .removed else .mismatch
+  | some (.tomb _ _), _ => .removed
   | some (.live o), p =>
     match o.versionAt p.version with
     | none => .missing
@@ -171,34 +171,24 @@ theorem Steps.resolve_ok {w w' : World D} (hs : Steps w w')
   | refl => exact h
   | tail _ hstep ih => exact Step.resolve_ok hash hstep ih
 
-/-- The digests of all the inventories of an object, kept by its tombstone. -/
-def tombstone (o : Obj D) : List D :=
-  (List.range o.versions.length).map fun i => hash (o.inventory (i + 1))
+/-- The tombstone of an object: its last version and that version's digest. -/
+def tombstone (o : Obj D) : Entry D :=
+  .tomb o.versions.length (hash (o.inventory o.versions.length))
 
 /-- Take an object down (section 11.2): its entry becomes a tombstone. -/
 def takedown (w : World D) (a : ArchiveId) (oid : ObjectId) (o : Obj D) : World D :=
-  setEntry w a oid (.tomb (tombstone hash o))
+  setEntry w a oid (tombstone hash o)
 
-/-- A pin of a version that was taken down resolves to `removed`: verifiers
-report it as removed, not as wrong (section 14). -/
+/-- Every pin of an object taken down resolves to `removed` (section 11.3). -/
 theorem takedown_removed {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-    (hl : lookup w a oid = some (.live o)) {p : Pin D} {v : Version D}
-    (hp : p.archive = a ∧ p.object = oid) (h : resolve hash w p = .ok v) :
+    (hl : lookup w a oid = some (.live o)) {p : Pin D}
+    (hp : p.archive = a ∧ p.object = oid) :
     resolve hash (takedown hash w a oid o) p = .removed := by
   obtain ⟨ar, ha⟩ := lookup_some_archive hl
-  unfold resolve at *
-  obtain ⟨rfl, rfl⟩ := hp
-  rw [hl] at h
-  obtain ⟨hv, hd⟩ := resolveEntry_live_ok hash h
-  obtain ⟨h1, h2⟩ := Obj.versionAt_bounds hv
-  unfold takedown
+  unfold resolve takedown tombstone
   rw [lookup_setEntry ha]
-  simp only [and_self, ite_true, resolveEntry]
-  have : p.digest ∈ tombstone hash o := by
-    unfold tombstone
-    refine List.mem_map.mpr ⟨p.version - 1, List.mem_range.mpr (by omega), ?_⟩
-    rw [Nat.sub_add_cancel h1]; exact hd
-  simp [this]
+  simp only [hp, and_self, ite_true]
+  rfl
 
 /-- A takedown changes nothing else. -/
 theorem takedown_other {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}

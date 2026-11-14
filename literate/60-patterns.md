@@ -141,18 +141,18 @@ the catalogue and leaves the selection where it was.
 
 ## A correction of the description (description-only versions)
 
-The authors correct a typo in the title ("A researcher's own archive"). The
-promise: the correction is a new object version, so it is recorded and
-pinnable, but not a new document version, so citations of the document
-version stay right; and the history stays well formed.
+The authors correct a typo in the title of a document version, the current
+one or an earlier one ("A researcher's own archive"). The promise: the
+correction is a new object version, so it is recorded and pinnable, but not
+a new document version, so citations of the document version stay right;
+and the history stays well formed.
 
     /-- **A description-only version is not a new document version.** -/
     theorem correction_same_document_version {o : Obj D} (hwf : WellFormed o.versions)
-        (hne : o.versions ≠ []) (d a m : String) :
-        let x := (o.versions.getLast hne).describe d a m
-        WellFormed (o.append x).versions ∧
-          x.documentVersion = (o.versions.getLast hne).documentVersion :=
-      ⟨WellFormed.snoc hwf hne (describe_follows _ d a m), rfl⟩
+        {v : Version D} (hv : v ∈ o.versions) (d a m : String) :
+        WellFormed (o.append (v.describe d a m)).versions ∧
+          (v.describe d a m).documentVersion = v.documentVersion :=
+      ⟨WellFormed.snoc hwf (describe_follows hv d a m), rfl⟩
 
 ## A withdrawal does not erase what was vetted (section 11.1)
 
@@ -174,19 +174,17 @@ together (section 11.1); the model shows that both remain reachable.
 ## A takedown is reported, not hidden (sections 11.2, 14)
 
 A paper vetted by a journal is taken down, by law. The promise: verifying
-the journal's selection reports the pins of that paper as removed, and every
-other pin as before.
+the journal's selection, or any collection, reports the pins of that paper
+as removed, and every other pin as before.
 
     /-- **A takedown is reported.** -/
     theorem takedown_reported {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-        (hl : lookup w a oid = some (.live o)) {c : Members D} (hok : AllOk hash w c)
-        {p : Pin D} (hp : p ∈ allPins c) :
+        (hl : lookup w a oid = some (.live o)) (p : Pin D) :
         resolve hash (takedown hash w a oid o) p =
           if p.archive = a ∧ p.object = oid then .removed else resolve hash w p := by
       split
       · rename_i h
-        obtain ⟨v, hv⟩ := hok p hp
-        exact takedown_removed hash hl h hv
+        exact takedown_removed hash hl h
       · rename_i h
         exact takedown_other hash hl h
 

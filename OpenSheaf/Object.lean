@@ -71,79 +71,83 @@ variable {D : Type} [DecidableEq D]
 def sameContent (v w : Version D) : Bool :=
   v.files == w.files && v.members == w.members
 
-/-- `w` may follow `v` in a history. -/
-def Follows (v w : Version D) : Prop :=
-  w.documentVersion = if sameContent v w then v.documentVersion else v.documentVersion + 1
+/-- The highest document version of a history. -/
+def docCount : List (Version D) → Nat
+  | [] => 0
+  | v :: l => max v.documentVersion (docCount l)
 
-/-- Each version follows the previous one. -/
-def ChainFrom : Version D → List (Version D) → Prop
-  | _, [] => True
-  | v, w :: rest => Follows v w ∧ ChainFrom w rest
+/-- `x` may follow the history `l` (section 7.3). -/
+def Follows (l : List (Version D)) (x : Version D) : Prop :=
+  (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
+    ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
 
-/-- A well-formed history: it starts at document version 1, and each version
-follows the previous one. -/
-def WellFormed : List (Version D) → Prop
-  | [] => True
-  | v :: rest => v.documentVersion = 1 ∧ ChainFrom v rest
+instance (l : List (Version D)) (x : Version D) : Decidable (Follows l x) := by
+  unfold Follows; infer_instance
 
-theorem ChainFrom.snoc {v x : Version D} {l : List (Version D)} (h : ChainFrom v l)
-    (hx : Follows ((v :: l).getLast (List.cons_ne_nil _ _)) x) :
-    ChainFrom v (l ++ [x]) := by
-  induction l generalizing v with
-  | nil => exact ⟨hx, trivial⟩
-  | cons w rest ih =>
-    obtain ⟨hvw, hrest⟩ := h
-    refine ⟨hvw, ih hrest ?_⟩
-    simpa [List.getLast_cons] using hx
+/-- A well-formed history: each version follows those before it. -/
+def WellFormed (l : List (Version D)) : Prop :=
+  ∀ i (h : i < l.length), Follows (l.take i) l[i]
 
-/-- Appending a version that follows the last one keeps a history well
-formed. -/
+instance (l : List (Version D)) : Decidable (WellFormed l) := by
+  unfold WellFormed; infer_instance
+
+/-- Appending a version that follows the history keeps it well formed. -/
 theorem WellFormed.snoc {l : List (Version D)} {x : Version D} (h : WellFormed l)
-    (hne : l ≠ []) (hx : Follows (l.getLast hne) x) : WellFormed (l ++ [x]) := by
-  match l, h, hne, hx with
-  | v :: rest, ⟨h1, hc⟩, _, hx => exact ⟨h1, ChainFrom.snoc hc hx⟩
+    (hx : Follows l x) : WellFormed (l ++ [x]) := by
+  intro i hi
+  simp only [List.length_append, List.length_singleton] at hi
+  by_cases hlt : i < l.length
+  · rw [List.take_append_of_le_length (Nat.le_of_lt hlt), List.getElem_append_left hlt]
+    exact h i hlt
+  · have hi' : i = l.length := by omega
+    subst hi'
+    simpa using hx
 
-/-- A description-only version (section 7.3): a new description, the same
-content. -/
-def Version.describe (last : Version D) (description depositor message : String) :
+theorem WellFormed.single {x : Version D} (hx : x.documentVersion = 1) :
+    WellFormed [x] := by
+  have := WellFormed.snoc (l := []) (x := x) (fun i h => absurd h (by simp))
+    (Or.inr ⟨by simp, by simp [docCount, hx]⟩)
+  simpa using this
+
+/-- A description-only version (section 7.3): a new description of the
+content of `v`. -/
+def Version.describe (v : Version D) (description depositor message : String) :
     Version D :=
-  { last with description, depositor, message }
+  { v with description, depositor, message }
 
 /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }
 
-/-- A new document version: new content. -/
-def Version.revise (last : Version D) (files : List (LogicalPath × D))
+/-- A new document version of the history `l`: new content. -/
+def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
     (members : Option (Members D)) (description depositor message : String) :
     Version D :=
-  { documentVersion := last.documentVersion + 1, files, members, description,
-    status := last.status, depositor, message }
+  { documentVersion := docCount l + 1, files, members, description, depositor, message }
 
 theorem sameContent_self (v : Version D) : sameContent v v = true := by
   simp [sameContent]
 
-theorem describe_follows (last : Version D) (d a m : String) :
-    Follows last (last.describe d a m) := by
-  simp [Follows, Version.describe, sameContent]
+theorem describe_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+    (d a m : String) : Follows l (v.describe d a m) :=
+  Or.inl ⟨v, hv, by simp [sameContent, Version.describe], rfl⟩
 
-theorem withdraw_follows (last : Version D) (a m : String) :
-    Follows last (last.withdraw a m) := by
-  simp [Follows, Version.withdraw, sameContent]
+theorem withdraw_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+    (a m : String) : Follows l (v.withdraw a m) :=
+  Or.inl ⟨v, hv, by simp [sameContent, Version.withdraw], rfl⟩
 
-theorem revise_follows (last : Version D) (fs : List (LogicalPath × D))
+theorem revise_follows (l : List (Version D)) (fs : List (LogicalPath × D))
     (ms : Option (Members D)) (d a m : String)
-    (hnew : sameContent last (last.revise fs ms d a m) = false) :
-    Follows last (last.revise fs ms d a m) := by
-  simp only [Follows, hnew]
-  rfl
+    (hnew : ∀ v ∈ l, sameContent v (Version.revise l fs ms d a m) = false) :
+    Follows l (Version.revise l fs ms d a m) :=
+  Or.inr ⟨hnew, rfl⟩
 
 omit [DecidableEq D] in
 /-- A description-only version keeps the document version and the content. -/
-theorem describe_keeps (last : Version D) (d a m : String) :
-    (last.describe d a m).documentVersion = last.documentVersion ∧
-    (last.describe d a m).files = last.files ∧
-    (last.describe d a m).members = last.members :=
+theorem describe_keeps (v : Version D) (d a m : String) :
+    (v.describe d a m).documentVersion = v.documentVersion ∧
+    (v.describe d a m).files = v.files ∧
+    (v.describe d a m).members = v.members :=
   ⟨rfl, rfl, rfl⟩
 
 end DocumentVersions

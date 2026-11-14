@@ -8,7 +8,7 @@ which archives change, and proves the two properties on which pins rely:
 
 - **immutability**: no step changes what a pin resolves to;
 - **takedown is detected**: the one change that removes versions (section
-  11.2) leaves a tombstone, and pins of the removed versions resolve to
+  11.2) leaves a tombstone, and pins of the object taken down resolve to
   `removed`, not to an error.
 
     -- in OpenSheaf/Archive.lean:
@@ -19,16 +19,16 @@ which archives change, and proves the two properties on which pins rely:
 ## Archives and the world
 
 Under an object identifier, an archive keeps either the object or, after a
-takedown, its tombstone (section 11.3). The tombstone keeps the digests of
-the object's inventories, so that verifiers can recognise the pins of what
-was removed.
+takedown, its tombstone (section 11.3). The tombstone records the last
+object version and the digest of its inventory (and, in the specification,
+the identifier, the kind, a date and a reason, which the model leaves out).
 
     /-- What an archive keeps under an object identifier: an object, or the
-    tombstone of an object taken down, with the digests of its inventories
-    (section 11.3). -/
+    tombstone of an object taken down, with its last version and the digest of
+    that version's inventory (section 11.3). -/
     inductive Entry (D : Type)
       | live (o : Obj D)
-      | tomb (digests : List D)
+      | tomb (lastVersion : Nat) (digest : D)
 
     /-- An archive (section 5). -/
     structure Archive (D : Type) where
@@ -100,7 +100,7 @@ it needs the digest function `hash`.
     /-- Resolve a pin against an entry. -/
     def resolveEntry : Option (Entry D) → Pin D → Resolution D
       | none, _ => .missing
-      | some (.tomb ds), p => if p.digest ∈ ds then .removed else .mismatch
+      | some (.tomb _ _), _ => .removed
       | some (.live o), p =>
         match o.versionAt p.version with
         | none => .missing
@@ -242,41 +242,33 @@ pinned.
 ## Takedown
 
 A takedown (section 11.2) deletes an object, by law or to erase personal
-data, and leaves a tombstone (section 11.3). The tombstone keeps the digests
-of all the object's inventories.
+data, and leaves a tombstone (section 11.3).
 
-    /-- The digests of all the inventories of an object, kept by its tombstone. -/
-    def tombstone (o : Obj D) : List D :=
-      (List.range o.versions.length).map fun i => hash (o.inventory (i + 1))
+    /-- The tombstone of an object: its last version and that version's digest. -/
+    def tombstone (o : Obj D) : Entry D :=
+      .tomb o.versions.length (hash (o.inventory o.versions.length))
 
     /-- Take an object down (section 11.2): its entry becomes a tombstone. -/
     def takedown (w : World D) (a : ArchiveId) (oid : ObjectId) (o : Obj D) : World D :=
-      setEntry w a oid (.tomb (tombstone hash o))
+      setEntry w a oid (tombstone hash o)
 
-A pin that resolved to a version of the object now resolves to `removed`:
-its digest is among those of the tombstone. Verifiers can then report the
-member as removed, not as wrong (section 14).
+"Verifiers report a pin to a tombstoned object as removed, not as a
+corruption" (section 11.3): every pin of the object now resolves to
+`removed`, whatever its version and digest. The tombstone keeps only the
+last digest, so a verifier cannot tell a pin of a version that existed from
+a pin that never named one. The model follows the specification here; an
+earlier version of the model kept every digest, and could tell them apart.
 
-    /-- A pin of a version that was taken down resolves to `removed`: verifiers
-    report it as removed, not as wrong (section 14). -/
+    /-- Every pin of an object taken down resolves to `removed` (section 11.3). -/
     theorem takedown_removed {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-        (hl : lookup w a oid = some (.live o)) {p : Pin D} {v : Version D}
-        (hp : p.archive = a ∧ p.object = oid) (h : resolve hash w p = .ok v) :
+        (hl : lookup w a oid = some (.live o)) {p : Pin D}
+        (hp : p.archive = a ∧ p.object = oid) :
         resolve hash (takedown hash w a oid o) p = .removed := by
       obtain ⟨ar, ha⟩ := lookup_some_archive hl
-      unfold resolve at *
-      obtain ⟨rfl, rfl⟩ := hp
-      rw [hl] at h
-      obtain ⟨hv, hd⟩ := resolveEntry_live_ok hash h
-      obtain ⟨h1, h2⟩ := Obj.versionAt_bounds hv
-      unfold takedown
+      unfold resolve takedown tombstone
       rw [lookup_setEntry ha]
-      simp only [and_self, ite_true, resolveEntry]
-      have : p.digest ∈ tombstone hash o := by
-        unfold tombstone
-        refine List.mem_map.mpr ⟨p.version - 1, List.mem_range.mpr (by omega), ?_⟩
-        rw [Nat.sub_add_cancel h1]; exact hd
-      simp [this]
+      simp only [hp, and_self, ite_true]
+      rfl
 
 And a takedown changes nothing else: pins of other objects resolve as
 before.

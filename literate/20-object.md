@@ -3,7 +3,7 @@
 An object is the list of its object versions, oldest first (section 7). This
 chapter defines objects, their versions and inventories, proves that a
 history which keeps a prefix keeps the versions and inventories within it,
-and gives the rules by which document versions are counted.
+and gives the rule by which document versions are counted.
 
     -- in OpenSheaf/Object.lean:
     import OpenSheaf.Basic
@@ -65,7 +65,7 @@ If version `n` exists, then `n` is between 1 and the length of the history.
 ## Histories that share a prefix
 
 Two changes of an object keep a prefix of its history: appending a version
-keeps the whole history, and rewriting drafts ([chapter 5](50-states.md))
+keeps the whole history, and rewriting drafts ([chapter 7](50-states.md))
 keeps the versions before the drafts. The two lemmas below say that, within
 the prefix, versions and inventories are unchanged. They hold whatever the
 digest function, since they are about the versions themselves; this is the
@@ -99,10 +99,17 @@ heart of every immutability result of the model.
 ## Document versions
 
 The specification distinguishes object versions, which OCFL counts, from
-document versions, which count the changes of the content (section 7.3). A
-new object version with the same files and members as the previous one (a
-description-only version, a withdrawal) keeps the document version; any
-other adds one.
+document versions, which count the changes of the content (section 7.3). Its
+rule: a new document version number is assigned exactly when files are
+added that were not deposited before. An object version that holds the same
+content as an earlier one keeps that one's number. This is the case of a
+description-only version, which "MAY hold any document version, not only the
+current one", and of a withdrawal.
+
+Two parts of section 7.3 are not modelled: the completion of a version
+deposited without its sources, which keeps its number while adding files,
+and `history`, which orders document versions deposited out of order. The
+model has no `sourcesMissing` and no `history` yet.
 
     section DocumentVersions
 
@@ -112,102 +119,109 @@ other adds one.
     def sameContent (v w : Version D) : Bool :=
       v.files == w.files && v.members == w.members
 
-    /-- `w` may follow `v` in a history. -/
-    def Follows (v w : Version D) : Prop :=
-      w.documentVersion = if sameContent v w then v.documentVersion else v.documentVersion + 1
+    /-- The highest document version of a history. -/
+    def docCount : List (Version D) → Nat
+      | [] => 0
+      | v :: l => max v.documentVersion (docCount l)
 
-A history is well formed when it starts at document version 1 and each
-version follows the previous one. `ChainFrom v l` says that the versions of
-`l` follow each other, starting after `v`.
+A new object version `x` may follow a history `l` in two ways: it holds the
+content of an earlier version, and has its document version; or its content
+is new, and its document version is the next number.
 
-    /-- Each version follows the previous one. -/
-    def ChainFrom : Version D → List (Version D) → Prop
-      | _, [] => True
-      | v, w :: rest => Follows v w ∧ ChainFrom w rest
+    /-- `x` may follow the history `l` (section 7.3). -/
+    def Follows (l : List (Version D)) (x : Version D) : Prop :=
+      (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
+        ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
 
-    /-- A well-formed history: it starts at document version 1, and each version
-    follows the previous one. -/
-    def WellFormed : List (Version D) → Prop
-      | [] => True
-      | v :: rest => v.documentVersion = 1 ∧ ChainFrom v rest
+    instance (l : List (Version D)) (x : Version D) : Decidable (Follows l x) := by
+      unfold Follows; infer_instance
 
-Appending a version that follows the last one keeps a history well formed.
-The proof goes along the history to its last version.
+A history is well formed when each version follows the versions before it.
+The first version has new content, so it is document version 1.
 
-    theorem ChainFrom.snoc {v x : Version D} {l : List (Version D)} (h : ChainFrom v l)
-        (hx : Follows ((v :: l).getLast (List.cons_ne_nil _ _)) x) :
-        ChainFrom v (l ++ [x]) := by
-      induction l generalizing v with
-      | nil => exact ⟨hx, trivial⟩
-      | cons w rest ih =>
-        obtain ⟨hvw, hrest⟩ := h
-        refine ⟨hvw, ih hrest ?_⟩
-        simpa [List.getLast_cons] using hx
+    /-- A well-formed history: each version follows those before it. -/
+    def WellFormed (l : List (Version D)) : Prop :=
+      ∀ i (h : i < l.length), Follows (l.take i) l[i]
 
-    /-- Appending a version that follows the last one keeps a history well
-    formed. -/
+    instance (l : List (Version D)) : Decidable (WellFormed l) := by
+      unfold WellFormed; infer_instance
+
+Appending a version that follows the history keeps it well formed: the
+versions before it see the same prefixes as before.
+
+    /-- Appending a version that follows the history keeps it well formed. -/
     theorem WellFormed.snoc {l : List (Version D)} {x : Version D} (h : WellFormed l)
-        (hne : l ≠ []) (hx : Follows (l.getLast hne) x) : WellFormed (l ++ [x]) := by
-      match l, h, hne, hx with
-      | v :: rest, ⟨h1, hc⟩, _, hx => exact ⟨h1, ChainFrom.snoc hc hx⟩
+        (hx : Follows l x) : WellFormed (l ++ [x]) := by
+      intro i hi
+      simp only [List.length_append, List.length_singleton] at hi
+      by_cases hlt : i < l.length
+      · rw [List.take_append_of_le_length (Nat.le_of_lt hlt), List.getElem_append_left hlt]
+        exact h i hlt
+      · have hi' : i = l.length := by omega
+        subst hi'
+        simpa using hx
+
+    theorem WellFormed.single {x : Version D} (hx : x.documentVersion = 1) :
+        WellFormed [x] := by
+      have := WellFormed.snoc (l := []) (x := x) (fun i h => absurd h (by simp))
+        (Or.inr ⟨by simp, by simp [docCount, hx]⟩)
+      simpa using this
 
 ## The three kinds of new version
 
 An author's archive makes new object versions in three ways: a
-**description-only version** (section 7.3) changes the description; a
-**withdrawal** (section 11.1) changes the status; a **revision** changes the
-content and adds a document version. Each is built from the last version of
-the history.
+**description-only version** (section 7.3) changes the description of a
+document version, any of them; a **withdrawal** (section 11.1) changes the
+status; a **revision** adds new content, and a new document version.
 
-    /-- A description-only version (section 7.3): a new description, the same
-    content. -/
-    def Version.describe (last : Version D) (description depositor message : String) :
+    /-- A description-only version (section 7.3): a new description of the
+    content of `v`. -/
+    def Version.describe (v : Version D) (description depositor message : String) :
         Version D :=
-      { last with description, depositor, message }
+      { v with description, depositor, message }
 
     /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }
 
-    /-- A new document version: new content. -/
-    def Version.revise (last : Version D) (files : List (LogicalPath × D))
+    /-- A new document version of the history `l`: new content. -/
+    def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
         (members : Option (Members D)) (description depositor message : String) :
         Version D :=
-      { documentVersion := last.documentVersion + 1, files, members, description,
-        status := last.status, depositor, message }
+      { documentVersion := docCount l + 1, files, members, description, depositor, message }
 
-Each of them follows the last version, so that, by `WellFormed.snoc`, each
-keeps a history well formed. A revision follows only if its content is
-really new: depositing the same content again with a new document version
-would break the count, and is excluded by the hypothesis `hnew`.
+Each follows the history it is added to: a description or a withdrawal of
+any version of the history, since it holds that version's content; a
+revision, if its content is really new. Depositing the same content again
+as a revision would break the count, and is excluded by the hypothesis
+`hnew`.
 
     theorem sameContent_self (v : Version D) : sameContent v v = true := by
       simp [sameContent]
 
-    theorem describe_follows (last : Version D) (d a m : String) :
-        Follows last (last.describe d a m) := by
-      simp [Follows, Version.describe, sameContent]
+    theorem describe_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+        (d a m : String) : Follows l (v.describe d a m) :=
+      Or.inl ⟨v, hv, by simp [sameContent, Version.describe], rfl⟩
 
-    theorem withdraw_follows (last : Version D) (a m : String) :
-        Follows last (last.withdraw a m) := by
-      simp [Follows, Version.withdraw, sameContent]
+    theorem withdraw_follows {l : List (Version D)} {v : Version D} (hv : v ∈ l)
+        (a m : String) : Follows l (v.withdraw a m) :=
+      Or.inl ⟨v, hv, by simp [sameContent, Version.withdraw], rfl⟩
 
-    theorem revise_follows (last : Version D) (fs : List (LogicalPath × D))
+    theorem revise_follows (l : List (Version D)) (fs : List (LogicalPath × D))
         (ms : Option (Members D)) (d a m : String)
-        (hnew : sameContent last (last.revise fs ms d a m) = false) :
-        Follows last (last.revise fs ms d a m) := by
-      simp only [Follows, hnew]
-      rfl
+        (hnew : ∀ v ∈ l, sameContent v (Version.revise l fs ms d a m) = false) :
+        Follows l (Version.revise l fs ms d a m) :=
+      Or.inr ⟨hnew, rfl⟩
 
 Finally, the statement of section 7.3 itself: a description-only version
-keeps the document version and the content.
+keeps the document version and the content of the version it describes.
 
     omit [DecidableEq D] in
     /-- A description-only version keeps the document version and the content. -/
-    theorem describe_keeps (last : Version D) (d a m : String) :
-        (last.describe d a m).documentVersion = last.documentVersion ∧
-        (last.describe d a m).files = last.files ∧
-        (last.describe d a m).members = last.members :=
+    theorem describe_keeps (v : Version D) (d a m : String) :
+        (v.describe d a m).documentVersion = v.documentVersion ∧
+        (v.describe d a m).files = v.files ∧
+        (v.describe d a m).members = v.members :=
       ⟨rfl, rfl, rfl⟩
 
     end DocumentVersions

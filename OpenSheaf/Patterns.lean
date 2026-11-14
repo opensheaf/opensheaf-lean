@@ -82,11 +82,10 @@ theorem follow_after_deposit {w : World D} {a : ArchiveId} {ar : Archive D}
 
 /-- **A description-only version is not a new document version.** -/
 theorem correction_same_document_version {o : Obj D} (hwf : WellFormed o.versions)
-    (hne : o.versions ≠ []) (d a m : String) :
-    let x := (o.versions.getLast hne).describe d a m
-    WellFormed (o.append x).versions ∧
-      x.documentVersion = (o.versions.getLast hne).documentVersion :=
-  ⟨WellFormed.snoc hwf hne (describe_follows _ d a m), rfl⟩
+    {v : Version D} (hv : v ∈ o.versions) (d a m : String) :
+    WellFormed (o.append (v.describe d a m)).versions ∧
+      (v.describe d a m).documentVersion = v.documentVersion :=
+  ⟨WellFormed.snoc hwf (describe_follows hv d a m), rfl⟩
 
 /-- **Withdrawal keeps the vetted revision.** -/
 theorem withdrawal_keeps_vetted {w : World D} {a : ArchiveId} {ar : Archive D}
@@ -100,14 +99,12 @@ theorem withdrawal_keeps_vetted {w : World D} {a : ArchiveId} {ar : Archive D}
 
 /-- **A takedown is reported.** -/
 theorem takedown_reported {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-    (hl : lookup w a oid = some (.live o)) {c : Members D} (hok : AllOk hash w c)
-    {p : Pin D} (hp : p ∈ allPins c) :
+    (hl : lookup w a oid = some (.live o)) (p : Pin D) :
     resolve hash (takedown hash w a oid o) p =
       if p.archive = a ∧ p.object = oid then .removed else resolve hash w p := by
   split
   · rename_i h
-    obtain ⟨v, hv⟩ := hok p hp
-    exact takedown_removed hash hl h hv
+    exact takedown_removed hash hl h
   · rename_i h
     exact takedown_other hash hl h
 
