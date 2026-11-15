@@ -57,6 +57,8 @@ This repository holds two literate programs, published together at
 | [Verification is lifting](literate-sheaf/72-lifting.md) | `Sheaf.Lifting` | the inventories of a world glue (`inventory_sheaf`); the digest morphism is mono without collisions (`digests_mono`); every copy gives the same verdict (`copies_same_verdict`); a pin resolves exactly when it lifts (`lifts_iff`), uniquely (`lift_unique`) |
 | [Verification is local](literate-sheaf/74-local.md) | `Sheaf.Local` | restricting a world restricts its sheaf (`restrict_glue`); a collection verifies in its support as in the whole world (`verify_local`) |
 | [Federation](literate-sheaf/76-federation.md) | `Sheaf.Federation` | the sheaf is flasque (`flasque`); two worlds built separately glue when shared copies agree (`federation`), exactly when pairs across agree (`federation_iff`), and each keeps its section (`union_restricts`) |
+| [Descriptions are the fibres](literate-sheaf/78-fibres.md) | `Sheaf.Fibres` | the map from object versions to named document versions: its image is what the world holds (`proj_image`), content is pushed forward (`content_pushforward`), the fibres are the contents (`proj_fibre`), description-only versions are the later points of the fibres (`descOnly_iff`), and descriptions do not glue (`descriptions_incompatible`) |
+| [The citable sheaf](literate-sheaf/79-citable.md) | `Sheaf.Citable` | the worlds of a run glue over time into one section over everything ever held (`citable_sheaf`); each name is held during one interval (`held_interval`), after which it is reported removed (`gone_removed`) |
 
 ## Modelling choices
 

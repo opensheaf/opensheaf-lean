@@ -11,3 +11,5 @@ import Sheaf.Eternal
 import Sheaf.Lifting
 import Sheaf.Local
 import Sheaf.Federation
+import Sheaf.Fibres
+import Sheaf.Citable

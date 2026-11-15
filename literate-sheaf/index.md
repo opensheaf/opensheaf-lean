@@ -87,7 +87,14 @@ shows which rules of the specification make the pieces agree:
    sheaf, and a collection verifies in its support as in the whole world;
 12. [Federation](76-federation.md): two worlds built separately glue when
    the copies they share agree, only pairs across need checking, and each
-   world keeps its section.
+   world keeps its section;
+13. [Descriptions are the fibres](78-fibres.md): the map from object
+   versions to the document versions they hold; content is pushed forward,
+   the fibres are the contents, description-only versions are the later
+   points of the fibres, and descriptions do not glue;
+14. [The citable sheaf](79-citable.md): the worlds of a run glue over time
+   into one section over everything ever held; each name is held during one
+   interval, after which it is reported removed.
 
 Each chapter writes one module of the library, `Sheaf/*.lean`, which
 imports the modules of the model it needs. The root of the library imports
@@ -106,6 +113,8 @@ every module:
     import Sheaf.Lifting
     import Sheaf.Local
     import Sheaf.Federation
+    import Sheaf.Fibres
+    import Sheaf.Citable
 
 ## What does not glue
 
@@ -116,7 +125,10 @@ descriptions do not agree, and are not meant to. The specification settles
 them by authority, not by agreement: the head of the object describes it,
 and earlier object versions keep the description as it was known when they
 were made. So descriptions are values of object versions, ordered by time,
-not values of named document versions, and the sheaf leaves them out. This
+not values of named document versions, and the sheaf leaves them out.
+Chapter [Descriptions are the fibres](78-fibres.md) makes this a theorem:
+descriptions vary exactly along the fibres of the map from object versions
+to named document versions, and do not glue. This
 is a feature of the design: what is fixed (the content) glues, and what may
 be corrected (the description) has an owner instead.
 
