@@ -150,6 +150,13 @@ A pin held by a version resolves, or reports `removed`:
 
 The check on followed members. A member whose object has no head (it was
 taken down) keeps its pin, as `collect` does ([chapter 4](40-collection.md)).
+The check applies to every new version of an archive's own catalogue, as
+section 10.2 reads ("when the collection version was made"). So once a
+followed member has moved, the catalogue can get no description-only
+version, nor a withdrawal: the new version would have to pin the new head,
+which changes its member list, its content. The specification has the same
+tension, raised as
+[issue #45](https://github.com/opensheaf/opensheaf.github.io/issues/45).
 
     /-- A followed member pins the head of its object in `w`, if any. -/
     def Member.FollowsHead (w : World D) (m : Member D) : Prop :=
