@@ -32,15 +32,25 @@ the identifier, the kind, a date and a reason, which the model leaves out).
       | tomb (lastVersion : Nat) (digest : D)
 
 An archive is "a set of objects kept by one owner (a person, group or
-institution)" (section 3). The owner acts through agents: the owner
-themselves, the staff of an institution, the authors who deposit in an
-institutional repository. The model records them as the archive's
-**writers**, named as depositors are named in inventories (section 7.1).
-How a reader learns who the writers are is not said by the specification;
-[chapter 7](49-acts.md) says what the list is for. The list is fixed when
-the archive is created: the model has no change of writers, and writers
-belong to the archive, not to each object, as issue #13 of the
-specification proposes ([model issue 5](https://github.com/opensheaf/opensheaf-lean/issues/5)).
+institution)" (section 3). The specification says no more about how the
+owner acts. It records, for each object version, who deposited it (the
+`user` of the inventory, section 7.1), but not who may deposit; and it
+speaks of the "curator" of a selection (section 10.2) without saying who
+that is.
+
+The model fills the gap with a notion of its own, **not in the
+specification**: the **writers** of an archive, the agents who may act for
+its owner (the owner themselves, the staff of an institution, the authors
+who deposit in an institutional repository), named as depositors are named
+in inventories. The word comes from issue #13 of the specification, whose
+principle of a "single writer" per object is, in version 0.1, the archive
+that holds it; the writers are the agents through whom that archive acts.
+PR #30 of the specification proposes owners named by keys, whose
+signatures would make the authority checkable; it says nothing yet of
+agents. [Chapter 7](49-acts.md) says what the list is for. The list is
+fixed when the archive is created: the model has no change of writers, and
+writers belong to the archive, not to each object
+([model issue 5](https://github.com/opensheaf/opensheaf-lean/issues/5)).
 
     /-- An agent: a depositor, named as in the inventory (section 7.1). -/
     abbrev Agent := String

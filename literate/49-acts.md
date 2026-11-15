@@ -7,12 +7,16 @@ an explicit act of its curator, which is a new version of the selection",
 recorded "in the inventory (who and when)" (section 10.2); a mirror is
 brought up to date "only by copying the new versions of the original"
 (section 10.4). Issue #13 names the rule: a **single writer** per object,
-which in version 0.1 is the archive that holds it.
+which in version 0.1 is the archive that holds it. The specification does
+not say through whom an archive acts, nor who may be recorded as the
+depositor of a version (section 7.1), nor who a curator is.
 
-This chapter models it. Every change is an **act** of one agent. An agent
-may act on an archive only if it is one of its writers
-([chapter 3](30-archive.md)), and the versions an archive adds to its own
-objects record the agent as their depositor. Copies are the exception that
+This chapter models the rule with a construction of its own, the
+**writers** of an archive ([chapter 3](30-archive.md)): the agents who may
+act for its owner. Every change is an **act** of one agent. An agent may
+act on an archive only if it is one of its writers, and the versions an
+archive adds to its own objects record the agent as their depositor. A
+curator is a writer of the selection's archive. Copies are the exception that
 proves the rule: a custodian's agents act on the custodian's archive, but
 the versions of a mirror are the original's, byte for byte, with the
 original's depositors.
@@ -28,7 +32,10 @@ deposited by the curator: the half of section 10.2 that
 The model does not say how writers are authorised, nor how a reader checks
 it: the specification does not either. PR #30 of the specification proposes
 owners named by keys, whose signatures would make the check possible; the
-model's writers are the place where that would plug in.
+model's writers are the place where that would plug in. The theorems hold
+for any choice of writers: they say what follows if versions are deposited
+only by the archive's agents, which is the rule the specification implies
+but does not state.
 
     -- in OpenSheaf/Acts.lean:
     import OpenSheaf.Worlds
