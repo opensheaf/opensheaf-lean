@@ -95,31 +95,9 @@ mirror's.
         ∀ o, lookup w m.archive m.id = some (.live o) →
           o.archive = m.archive ∧ ∃ t, o.versions = m.versions ++ t
 
-Two facts about every step: an entry that is not empty stays so, and a live
-entry after the step is the one before, or it with one more version.
-
-    omit [DecidableEq D] in
-    theorem Step.ne_none {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-        (h : lookup w b x ≠ none) : lookup w' b x ≠ none := by
-      rcases hs.lookup_cases b x with h1 | h1 | ⟨o, v, _, h2⟩
-      · rw [h1]; exact h
-      · exact absurd h1 h
-      · rw [h2]; simp
-
-    omit [DecidableEq D] in
-    theorem Step.live_back {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-        {o' : Obj D} (h : lookup w' b x = some (.live o')) (hne : lookup w b x ≠ none) :
-        lookup w b x = some (.live o') ∨
-          ∃ o v, lookup w b x = some (.live o) ∧ o' = o.append v := by
-      rcases hs.lookup_cases b x with h1 | h1 | ⟨o, v, h1, h2⟩
-      · left; rw [← h1]; exact h
-      · exact absurd h1 hne
-      · right
-        rw [h2] at h
-        exact ⟨o, v, h1, (Entry.live.inj (Option.some.inj h)).symm⟩
-
 A mirror that the step did not touch stays a prefix of its original, which
-can only have grown.
+can only have grown (`Step.ne_none` and `Step.live_back`,
+[chapter 5](45-worlds.md)).
 
     omit [DecidableEq D] in
     theorem Step.mirror_kept {w w' : World D} (hs : Step w w') (hw : MirrorsOk w)
@@ -135,6 +113,24 @@ can only have grown.
       · obtain ⟨harch, t, ht⟩ := hpre o0 h1
         exact ⟨harch, t ++ [v], by simp [Obj.append, ht]⟩
 
+A mirror that the step wrote, created or appended to, is a copy of a prefix
+of its original: the step checked it (`MirrorOf`), and did not touch the
+original, which is in another archive.
+
+    omit [DecidableEq D] in
+    theorem mirror_written {w : World D} {b : ArchiveId} {ar : Archive D} {x : ObjectId}
+        (ha : w b = some ar) {m : Obj D} (hb : m.archive ≠ b) (hm : MirrorOf w m) :
+        lookup (setEntry w b x (.live m)) m.archive m.id ≠ none ∧
+        ∀ o, lookup (setEntry w b x (.live m)) m.archive m.id = some (.live o) →
+          o.archive = m.archive ∧ ∃ t, o.versions = m.versions ++ t := by
+      obtain ⟨orig, hlo, harch, t, ht⟩ := hm
+      have hlo' : lookup (setEntry w b x (.live m)) m.archive m.id = some (.live orig) := by
+        rw [lookup_setEntry ha, if_no fun h => hb h.1]; exact hlo
+      refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
+      rw [hlo'] at ho2
+      cases ho2
+      exact ⟨harch, t, ht⟩
+
     /-- **Valid steps keep mirrors mirrors.** -/
     theorem ValidStep.mirrorsOk {w w' : World D} (hs : ValidStep hash w w') (hw : MirrorsOk w) :
         MirrorsOk w' := by
@@ -142,25 +138,15 @@ can only have grown.
       have hstep := hs.toStep hash
       cases hs with
       | newArchive a ar ha hempty =>
-        by_cases hba : b = a
-        · subst hba; simp [lookup, hempty] at hl
-        · have hl0 : lookup w b x = some (.live m) := by simpa [lookup, hba] using hl
-          exact hstep.mirror_kept hw hl0 hb
+        rw [lookup_newArchive ha hempty] at hl
+        exact hstep.mirror_kept hw hl hb
       | create a ar oid o ha ho _ _ hhome =>
         rw [lookup_setEntry ha] at hl
         split at hl
         · rename_i hc
           obtain ⟨rfl, rfl⟩ := hc
           cases hl
-          rcases hhome with h | ⟨_, orig, hlo, harch, t, ht⟩
-          · exact absurd h hb
-          · have hsite : ¬ (m.archive = b ∧ m.id = x) := fun h => hb h.1
-            have hlo' : lookup (setEntry w b x (.live m)) m.archive m.id = some (.live orig) := by
-              rw [lookup_setEntry ha, if_no hsite]; exact hlo
-            refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
-            rw [hlo'] at ho2
-            cases ho2
-            exact ⟨harch, t, ht⟩
+          exact mirror_written ha hb (hhome.resolve_left hb)
         · exact hstep.mirror_kept hw hl hb
       | append a ar oid o y ha ho _ _ _ _ _ hhome =>
         rw [lookup_setEntry ha] at hl
@@ -168,16 +154,7 @@ can only have grown.
         · rename_i hc
           obtain ⟨rfl, rfl⟩ := hc
           cases hl
-          rcases hhome with h | ⟨orig, hlo, harch, t, ht⟩
-          · exact absurd h hb
-          · have hsite : ¬ ((o.append y).archive = b ∧ (o.append y).id = x) := fun h => hb h.1
-            have hlo' : lookup (setEntry w b x (.live (o.append y))) (o.append y).archive
-                (o.append y).id = some (.live orig) := by
-              rw [lookup_setEntry ha, if_no hsite]; exact hlo
-            refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
-            rw [hlo'] at ho2
-            cases ho2
-            exact ⟨harch, t, by simp [Obj.append, ht]⟩
+          exact mirror_written ha hb (hhome.resolve_left hb)
         · exact hstep.mirror_kept hw hl hb
 
 A takedown keeps the invariant as well: it leaves every other entry as it
@@ -187,13 +164,11 @@ was, and the entry it changes becomes a tombstone, which is not empty.
     theorem takedown_mirrorsOk {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
         (hl : lookup w a oid = some (.live o)) (hw : MirrorsOk w) :
         MirrorsOk (takedown hash w a oid o) := by
-      obtain ⟨ar, ha⟩ := lookup_some_archive hl
       intro b x m hm hb
       obtain ⟨_, hm0⟩ := lookup_takedown hash hl hm
       obtain ⟨hne, hpre⟩ := hw b x m hm0 hb
       refine ⟨?_, fun o2 ho2 => hpre o2 (lookup_takedown hash hl ho2).2⟩
-      unfold takedown tombstone
-      rw [lookup_setEntry ha]
+      rw [lookup_takedown_eq hash hl]
       split
       · simp
       · exact hne
@@ -205,10 +180,8 @@ was, and the entry it changes becomes a tombstone, which is not empty.
       | takedown a oid o hl => exact takedown_mirrorsOk hash hl hw
 
     theorem Events.mirrorsOk {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) : MirrorsOk w := by
-      induction hs with
-      | refl => intro b x m h; simp [lookup] at h
-      | tail _ he ih => exact he.mirrorsOk hash ih
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) : MirrorsOk w :=
+      hs.invariant _ (·.mirrorsOk hash) fun b x m h => by simp [lookup] at h
 
 The theorem the invariant is for: in any world built by events, a mirror
 resolves the pins of its live original that it has copied, to the same
@@ -242,16 +215,7 @@ original. This is the use of SHA-512 in the specification.
       obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
       obtain ⟨hvc, hdc⟩ := resolveEntry_live_ok hash hc
       have heq : c.inventory p.version = o.inventory p.version := hcol (hdc.trans hdo.symm)
-      have heqv : c.versions.take p.version = o.versions.take p.version :=
-        congrArg Inventory.versions heq
-      obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
-      unfold Obj.versionAt at hvo hvc
-      have hne : p.version ≠ 0 := by omega
-      simp only [hne, ite_false] at hvo hvc
-      have key : ∀ l : List (Version D), l[p.version - 1]? = (l.take p.version)[p.version - 1]? := by
-        intro l; rw [List.getElem?_take]; simp; omega
-      rw [key, heqv, ← key] at hvc
-      rw [hvo] at hvc
+      rw [versionAt_congr_take (congrArg Inventory.versions heq), hvo] at hvc
       cases hvc
       rfl
 
@@ -321,15 +285,9 @@ version found.
 
 Whatever copy answers, the answer is right: a version found through the
 mirrors is the version of the original, unless one of the copies consulted
-collides with it (`copy_authentic`). A tombstone never gives a version, so
-every answer comes from a live copy.
-
-    theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
-        (h : resolveEntry hash e p = .ok u) : ∃ c, e = some (.live c) := by
-      match e, h with
-      | some (.live c), _ => exact ⟨c, rfl⟩
-      | none, h => simp [resolveEntry] at h
-      | some (.tomb _ _), h => simp [resolveEntry] at h
+collides with it (`copy_authentic`). Every answer comes from a live copy
+(`resolveEntry_ok_live`, [chapter 3](30-archive.md)), and the first version
+found is one of the results.
 
     omit [DecidableEq D] in
     theorem firstOk_mem {rs : List (Resolution D)} {u : Version D}

@@ -77,7 +77,7 @@ takedown made by `u`.
       | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
           (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t)
-          (hhome : o.archive = a ∨ MirrorOf w a o) (hu : u ∈ ar.writers)
+          (hhome : o.archive = a ∨ MirrorOf w o) (hu : u ∈ ar.writers)
           (hdep : o.archive = a → ∀ v ∈ o.versions, v.depositor ∈ ar.writers) :
           StepBy u w (setEntry w a oid (.live o))
       | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
@@ -85,7 +85,7 @@ takedown made by `u`.
           (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
           (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
           (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t)
-          (hhome : o.archive = a ∨ MirrorNext w o x) (hu : u ∈ ar.writers)
+          (hhome : o.archive = a ∨ MirrorOf w (o.append x)) (hu : u ∈ ar.writers)
           (hdep : o.archive = a → x.depositor = u) :
           StepBy u w (setEntry w a oid (.live (o.append x)))
 
@@ -96,10 +96,11 @@ takedown made by `u`.
           (ha : w a = some ar) (hl : lookup w a oid = some (.live o)) (hu : u ∈ ar.writers) :
           Act u w (takedown hash w a oid o)
 
+    /-- An act of some agent. -/
+    def AnyAct (w w' : World D) : Prop := ∃ u, Act hash u w w'
+
     /-- Acts, by any agents. -/
-    inductive Acts : World D → World D → Prop
-      | refl (w : World D) : Acts w w
-      | tail {w w' w'' : World D} {u : Agent} : Acts w w' → Act hash u w' w'' → Acts w w''
+    abbrev Acts : World D → World D → Prop := Star (AnyAct hash)
 
 A step made by an agent is a valid step, and an act is an event, so
 everything proved about valid steps and events holds of them.
@@ -117,10 +118,8 @@ everything proved about valid steps and events holds of them.
       | step hs => exact .step hs.toValidStep
       | takedown a ar oid o _ hl _ => exact .takedown w a oid o hl
 
-    theorem Acts.toEvents {w w' : World D} (h : Acts hash w w') : Events hash w w' := by
-      induction h with
-      | refl => exact .refl _
-      | tail _ ha ih => exact .tail ih ha.toEvent
+    theorem Acts.toEvents {w w' : World D} (h : Acts hash w w') : Events hash w w' :=
+      h.mono fun ⟨_, ha⟩ => ha.toEvent
 
 ## Outsiders change nothing
 
@@ -136,9 +135,7 @@ archive is not a change of an existing one; it starts empty.
       | step hs =>
         cases hs with
         | newArchive b ar hb hempty _ =>
-          by_cases hab : a = b
-          · subst hab; simp [lookup, hb, hempty]
-          · simp [lookup, hab]
+          rw [lookup_newArchive hb hempty]
         | create b ar oid o hb _ _ _ _ hu _ =>
           rw [lookup_setEntry hb]
           split
@@ -149,9 +146,8 @@ archive is not a change of an existing one; it starts empty.
           split
           · rename_i hc; obtain ⟨rfl, rfl⟩ := hc; exact absurd hu (hout ar hb)
           · rfl
-      | takedown b ar oid o hb _ hu =>
-        unfold OpenSheaf.takedown tombstone
-        rw [lookup_setEntry hb]
+      | takedown b ar oid o hb hl hu =>
+        rw [lookup_takedown_eq hash hl]
         split
         · rename_i hc; obtain ⟨rfl, rfl⟩ := hc; exact absurd hu (hout ar hb)
         · rfl
@@ -183,13 +179,11 @@ version. A takedown removes an object.
       intro b x o' hl
       cases h with
       | newArchive a ar ha hempty _ =>
-        by_cases hba : b = a
-        · subst hba; simp [lookup, hempty] at hl
-        · have hl0 : lookup w b x = some (.live o') := by simpa [lookup, hba] using hl
-          obtain ⟨ws, hws, hdep⟩ := hw b x o' hl0
-          have hna : o'.archive ≠ a := by
-            intro he; rw [he] at hws; simp [writersOf, ha] at hws
-          exact ⟨ws, by simpa [writersOf, hna] using hws, hdep⟩
+        rw [lookup_newArchive ha hempty] at hl
+        obtain ⟨ws, hws, hdep⟩ := hw b x o' hl
+        have hna : o'.archive ≠ a := by
+          intro he; rw [he] at hws; simp [writersOf, ha] at hws
+        exact ⟨ws, by simpa [writersOf, hna] using hws, hdep⟩
       | create a ar oid o ha ho _ _ hhome _ hdep =>
         rw [writersOf_setEntry]
         rw [lookup_setEntry ha] at hl
@@ -197,7 +191,7 @@ version. A takedown removes an object.
         · rename_i hc
           obtain ⟨rfl, rfl⟩ := hc
           cases hl
-          rcases hhome with hown | ⟨_, orig, hlo, harch, t, ht⟩
+          rcases hhome with hown | ⟨orig, hlo, harch, t, ht⟩
           · refine ⟨ar.writers, by simp [writersOf, hown, ha], fun v hv => hdep hown v hv⟩
           · obtain ⟨ws, hws, hd⟩ := hw _ _ _ hlo
             rw [harch] at hws
@@ -222,9 +216,9 @@ version. A takedown removes an object.
                 rw [hown] at hws; simp [writersOf, ha] at hws; exact hws.symm
               rw [this]; exact hu
             · obtain ⟨ws', hws', hd'⟩ := hw _ _ _ hlor
-              rw [harch, hws] at hws'
+              rw [harch, show (o.append _).archive = o.archive from rfl, hws] at hws'
               cases hws'
-              exact hd' _ (by rw [ht]; simp)
+              exact hd' _ (by rw [ht]; simp [Obj.append])
         · exact hw _ _ _ hl
 
     theorem Act.depositors {u : Agent} {w w' : World D} (h : Act hash u w w')
@@ -238,27 +232,15 @@ version. A takedown removes an object.
         exact ⟨ws, by unfold OpenSheaf.takedown tombstone; rw [writersOf_setEntry]; exact hws, hd⟩
 
     theorem Acts.depositors {w : World D}
-        (h : Acts hash (fun _ => (none : Option (Archive D))) w) : DepositorsOk w := by
-      induction h with
-      | refl => intro b x o hl; simp [lookup] at hl
-      | tail _ ha ih => exact ha.depositors hash ih
+        (h : Acts hash (fun _ => (none : Option (Archive D))) w) : DepositorsOk w :=
+      h.invariant _ (fun ⟨_, ha⟩ => ha.depositors hash) fun b x o hl => by simp [lookup] at hl
 
 ## Consequences
 
-**Custodians cannot speak for authors.** A mirror kept by a journal or a
-library holds only versions deposited by the writers of the original
-archive: whatever the custodian's agents do, they cannot add a version in
-the authors' name.
-
-    /-- **A mirror holds only the original archive's deposits.** -/
-    theorem Acts.mirror_depositors {w : World D}
-        (h : Acts hash (fun _ => (none : Option (Archive D))) w) {b x : _} {m : Obj D}
-        (hl : lookup w b x = some (.live m)) :
-        ∃ ws, writersOf w m.archive = some ws ∧ ∀ v ∈ m.versions, v.depositor ∈ ws :=
-      Acts.depositors hash h b x m hl
-
-The statement is the invariant itself, read for mirrors: it holds of every
-object, wherever it is kept.
+**Custodians cannot speak for authors.** `Acts.depositors`, read for
+mirrors: a mirror kept by a journal or a library holds only versions
+deposited by the writers of the original archive. Whatever the custodian's
+agents do, they cannot add a version in the authors' name.
 
 **A selection changes only by its curator.** A selection kept in its own
 archive holds only versions deposited by that archive's writers, its

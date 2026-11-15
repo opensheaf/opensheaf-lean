@@ -21,19 +21,29 @@ checked by computation.
 ## Verifying a collection
 
 A verifier checks a collection version by resolving every pin of its member
-list (section 14). The report pairs each pin with its result.
-
-    /-- Every pin of a member list. -/
-    def allPins (c : Members D) : List (Pin D) :=
-      c.members.flatMap (·.pins)
+list (section 14), `Members.pins` of [chapter 1](10-basic.md). The report
+pairs each pin with its result.
 
     /-- What a verifier reports for a member list: each pin with its result. -/
     def verify (w : World D) (c : Members D) : List (Pin D × Resolution D) :=
-      (allPins c).map fun p => (p, resolve hash w p)
+      c.pins.map fun p => (p, resolve hash w p)
 
     /-- Every pin of the member list resolves. -/
     def AllOk (w : World D) (c : Members D) : Prop :=
-      ∀ p ∈ allPins c, ∃ v, resolve hash w p = .ok v
+      ∀ p ∈ c.pins, ∃ v, resolve hash w p = .ok v
+
+A member list whose pins all resolve verifies the same way after any number
+of steps: this is immutability, pin by pin. The two use cases below rest on
+it.
+
+    /-- A member list that verified verifies the same after any steps. -/
+    theorem verify_stable {w w' : World D} (hs : Steps w w') {c : Members D}
+        (hok : AllOk hash w c) : verify hash w' c = verify hash w c := by
+      unfold verify
+      apply List.map_congr_left
+      intro p hp
+      obtain ⟨v, hv⟩ := hok p hp
+      rw [Steps.resolve_ok hash hs hv, hv]
 
 ## A journal issue does not change (overlay journal, review journal)
 
@@ -48,13 +58,8 @@ such changes, and updating it never adds the new versions.
     updating the selection leaves it as it is. -/
     theorem selection_stable {w w' : World D} (hs : Steps w w') {c : Members D}
         (hsel : c.type = .selection) (hok : AllOk hash w c) :
-        verify hash w' c = verify hash w c ∧ collect hash w' c = c := by
-      refine ⟨?_, collect_selection hash w' hsel⟩
-      unfold verify
-      apply List.map_congr_left
-      intro p hp
-      obtain ⟨v, hv⟩ := hok p hp
-      rw [Steps.resolve_ok hash hs hv, hv]
+        verify hash w' c = verify hash w c ∧ collect hash w' c = c :=
+      ⟨verify_stable hash hs hok, collect_selection hash w' hsel⟩
 
 The same holds of a review journal's selection of reviewed papers, of the
 record of a peer review, and of a learning record: the property is about
@@ -77,13 +82,8 @@ list verifies as before.
         (hq : resolve hash w q = .ok cv)
         (hok : ∀ c, cv.members = some c → AllOk hash w c) :
         resolve hash w' q = .ok cv ∧
-          ∀ c, cv.members = some c → verify hash w' c = verify hash w c := by
-      refine ⟨Steps.resolve_ok hash hs hq, fun c hc => ?_⟩
-      unfold verify
-      apply List.map_congr_left
-      intro p hp
-      obtain ⟨v, hv⟩ := hok c hc p hp
-      rw [Steps.resolve_ok hash hs hv, hv]
+          ∀ c, cv.members = some c → verify hash w' c = verify hash w c :=
+      ⟨Steps.resolve_ok hash hs hq, fun c hc => verify_stable hash hs (hok c hc)⟩
 
 ## A co-author follows a paper (catalogues)
 

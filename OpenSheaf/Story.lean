@@ -109,7 +109,7 @@ def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
 theorem s8 : StepBy toy "coauthor" w7 w8 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
-    (Or.inr ⟨by decide, paper, rfl, rfl, [], by simp⟩) (by decide)
+    (Or.inr ⟨paper, rfl, rfl, [], by simp⟩) (by decide)
     (by decide)
 
 def v2 : Version Nat :=
@@ -179,23 +179,26 @@ theorem s14 : StepBy toy "editor" w13 w14 :=
 
 def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩
 
-theorem _root_.OpenSheaf.StepBy.v {u : Agent} {w w' : World Nat} (h : StepBy toy u w w') : ValidStep toy w w' :=
-  h.toValidStep toy
+/-- A step made by some agent. -/
+abbrev ByAgent (w w' : World Nat) : Prop := ∃ u, StepBy toy u w w'
+
+theorem upToIssue : Star ByAgent w0 w6 :=
+  .tail (.tail (.tail (.tail (.tail (.tail (.refl _)
+    ⟨_, s1⟩) ⟨_, s2⟩) ⟨_, s3⟩) ⟨_, s4⟩) ⟨_, s5⟩) ⟨_, s6⟩
+
+theorem afterIssue : Star ByAgent w6 w14 :=
+  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
+    ⟨_, s7⟩) ⟨_, s8⟩) ⟨_, s9⟩) ⟨_, s10⟩) ⟨_, s11⟩) ⟨_, s12⟩) ⟨_, s13⟩) ⟨_, s14⟩
 
 theorem story : ValidSteps toy w0 w14 :=
-  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
-    (.tail (.refl _) s1.v) s2.v) s3.v) s4.v) s5.v) s6.v) s7.v) s8.v) s9.v) s10.v) s11.v) s12.v)
-    s13.v) s14.v
+  (upToIssue.trans afterIssue).mono fun ⟨_, h⟩ => h.toValidStep toy
 
 theorem story_wf : WFWorld toy w14 := story.wf toy (WFWorld.empty toy)
 
 theorem story_pins : PinsOk toy w14 := story.pins_ok toy
 
 theorem story_acts : Acts toy w0 w14 :=
-  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
-    (.tail (.refl _) (.step s1)) (.step s2)) (.step s3)) (.step s4)) (.step s5))
-    (.step s6)) (.step s7)) (.step s8)) (.step s9)) (.step s10)) (.step s11))
-    (.step s12)) (.step s13)) (.step s14)
+  (upToIssue.trans afterIssue).mono fun ⟨u, h⟩ => ⟨u, .step h⟩
 
 example : ∀ v ∈ issue.versions, v.depositor ∈ ["editor"] :=
   Acts.curated toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
@@ -304,13 +307,11 @@ example : paper3.versions ≠ paper.versions ++ v3 :: [] ∧
 example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
 theorem w6_to_w14 : Steps w6 w14 :=
-  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
-    (s7.v.toStep toy)) (s8.v.toStep toy)) (s9.v.toStep toy)) (s10.v.toStep toy))
-    (s11.v.toStep toy)) (s12.v.toStep toy)) (s13.v.toStep toy)) (s14.v.toStep toy)
+  ValidSteps.toSteps toy (afterIssue.mono fun ⟨_, h⟩ => h.toValidStep toy)
 
 example : verify toy w14 issue7 = verify toy w6 issue7 ∧ collect toy w14 issue7 = issue7 :=
   selection_stable toy w6_to_w14 rfl fun p hp => exists_of_isOk ((by decide :
-    ∀ p ∈ allPins issue7, (resolve toy w6 p).isOk = true) p hp)
+    ∀ p ∈ issue7.pins, (resolve toy w6 p).isOk = true) p hp)
 
 theorem story_down : Events toy w0 wDown := .tail story.toEvents (.takedown _ _ _ _ rfl)
 

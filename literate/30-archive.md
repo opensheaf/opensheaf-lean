@@ -114,6 +114,16 @@ new entry, and looking up anything else gives what it gave before.
       · contradiction
       · exact ⟨_, by assumption⟩
 
+Adding an empty archive under a free identifier changes no lookup.
+
+    theorem lookup_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w a = none)
+        (hempty : ∀ x, ar.entries x = none) :
+        lookup (fun b => if b = a then some ar else w b) = lookup w := by
+      funext b x
+      by_cases hb : b = a
+      · subst hb; simp [lookup, h, hempty]
+      · simp [lookup, hb]
+
 ## Resolution
 
 Resolution compares digests, so it needs `D` to have decidable equality, and
@@ -157,6 +167,16 @@ and the digest matches. The two directions are used throughout.
         (hv : o.versionAt p.version = some v) (hd : hash (o.inventory p.version) = p.digest) :
         resolveEntry hash (some (.live o)) p = .ok v := by
       simp [resolveEntry, hv, hd]
+
+A tombstone, or no entry, never gives a version: every version found comes
+from a live object.
+
+    theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
+        (h : resolveEntry hash e p = .ok u) : ∃ c, e = some (.live c) := by
+      match e, h with
+      | some (.live c), _ => exact ⟨c, rfl⟩
+      | none, h => simp [resolveEntry] at h
+      | some (.tomb _ _), h => simp [resolveEntry] at h
 
 With the lemmas of [chapter 2](20-object.md): a pin of a version within a
 kept prefix of the same object still resolves, to the same version.
@@ -206,10 +226,41 @@ withdrawal, a new version of a collection, a mirror or an accepted copy
           (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o)) :
           Step w (setEntry w a oid (.live (o.append x)))
 
+The model has several kinds of step (valid steps, takedowns, acts of an
+agent, in the next chapters), and for each it needs sequences of them. One
+definition serves for all: `Star r` is any number of steps of the relation
+`r`, the last one added at the end.
+
+    /-- Any number of steps of the relation `r`. -/
+    inductive Star {α : Type} (r : α → α → Prop) : α → α → Prop
+      | refl (a : α) : Star r a a
+      | tail {a b c : α} : Star r a b → r b c → Star r a c
+
     /-- Any number of steps. -/
-    inductive Steps : World D → World D → Prop
-      | refl (w : World D) : Steps w w
-      | tail {w w' w'' : World D} : Steps w w' → Step w' w'' → Steps w w''
+    abbrev Steps : World D → World D → Prop := Star Step
+
+Three facts about sequences, used for every kind of step. A property kept
+by each step is kept by any number of them; sequences can be joined; and a
+sequence of steps of one kind is a sequence of another, when each step of
+the first kind is one of the second.
+
+    theorem Star.invariant {α : Type} {r : α → α → Prop} (P : α → Prop)
+        (hP : ∀ {a b}, r a b → P a → P b) {a b : α} (h : Star r a b) (ha : P a) : P b := by
+      induction h with
+      | refl => exact ha
+      | tail _ hr ih => exact hP hr ih
+
+    theorem Star.trans {α : Type} {r : α → α → Prop} {a b c : α} (h1 : Star r a b)
+        (h2 : Star r b c) : Star r a c := by
+      induction h2 with
+      | refl => exact h1
+      | tail _ hr ih => exact .tail ih hr
+
+    theorem Star.mono {α : Type} {r s : α → α → Prop} (hrs : ∀ {a b}, r a b → s a b)
+        {a b : α} (h : Star r a b) : Star s a b := by
+      induction h with
+      | refl => exact .refl _
+      | tail _ hr ih => exact .tail ih (hrs hr)
 
 ## Immutability
 
@@ -257,10 +308,8 @@ By induction, the same holds over any number of steps.
 
     /-- Immutability over any number of steps. -/
     theorem Steps.resolve_ok {w w' : World D} (hs : Steps w w')
-        {p : Pin D} {v : Version D} (h : resolve hash w p = .ok v) : resolve hash w' p = .ok v := by
-      induction hs with
-      | refl => exact h
-      | tail _ hstep ih => exact Step.resolve_ok hash hstep ih
+        {p : Pin D} {v : Version D} (h : resolve hash w p = .ok v) : resolve hash w' p = .ok v :=
+      hs.invariant (fun w => resolve hash w p = .ok v) (fun hs => Step.resolve_ok hash hs) h
 
 Note what the proof did not use: any property of `hash`. Pins stay valid
 because archives only add versions, not because digests are hard to forge.
@@ -281,6 +330,27 @@ data, and leaves a tombstone (section 11.3).
     def takedown (w : World D) (a : ArchiveId) (oid : ObjectId) (o : Obj D) : World D :=
       setEntry w a oid (tombstone hash o)
 
+A takedown replaces the entry of the object taken down by its tombstone, and
+leaves every other entry as it was.
+
+    omit [DecidableEq D] in
+    theorem lookup_takedown_eq {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+        (hl : lookup w a oid = some (.live o)) (b : ArchiveId) (x : ObjectId) :
+        lookup (takedown hash w a oid o) b x =
+          if b = a ∧ x = oid then some (tombstone hash o) else lookup w b x := by
+      obtain ⟨ar, ha⟩ := lookup_some_archive hl
+      exact lookup_setEntry ha b x
+
+    omit [DecidableEq D] in
+    theorem lookup_takedown {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+        (hl : lookup w a oid = some (.live o)) {b : ArchiveId} {x : ObjectId} {o' : Obj D}
+        (h : lookup (takedown hash w a oid o) b x = some (.live o')) :
+        ¬ (b = a ∧ x = oid) ∧ lookup w b x = some (.live o') := by
+      rw [lookup_takedown_eq hash hl] at h
+      split at h
+      · cases h
+      · rename_i hc; exact ⟨hc, h⟩
+
 "Verifiers report a pin to a tombstoned object as removed, not as a
 corruption" (section 11.3): every pin of the object now resolves to
 `removed`, whatever its version and digest. The tombstone keeps only the
@@ -293,10 +363,8 @@ earlier version of the model kept every digest, and could tell them apart.
         (hl : lookup w a oid = some (.live o)) {p : Pin D}
         (hp : p.archive = a ∧ p.object = oid) :
         resolve hash (takedown hash w a oid o) p = .removed := by
-      obtain ⟨ar, ha⟩ := lookup_some_archive hl
-      unfold resolve takedown tombstone
-      rw [lookup_setEntry ha]
-      simp only [hp, and_self, ite_true]
+      unfold resolve
+      rw [lookup_takedown_eq hash hl, if_yes hp]
       rfl
 
 And a takedown changes nothing else: pins of other objects resolve as
@@ -307,12 +375,8 @@ before.
         (hl : lookup w a oid = some (.live o)) {p : Pin D}
         (hp : ¬ (p.archive = a ∧ p.object = oid)) :
         resolve hash (takedown hash w a oid o) p = resolve hash w p := by
-      obtain ⟨ar, ha⟩ := lookup_some_archive hl
-      unfold resolve takedown
-      rw [lookup_setEntry ha]
-      split
-      · rename_i hc; exact absurd hc hp
-      · rfl
+      unfold resolve
+      rw [lookup_takedown_eq hash hl, if_no hp]
 
     end Immutability
 

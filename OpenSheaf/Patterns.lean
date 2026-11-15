@@ -7,30 +7,30 @@ open OpenSheaf
 
 variable {D : Type} [DecidableEq D] (hash : Hash D)
 
-/-- Every pin of a member list. -/
-def allPins (c : Members D) : List (Pin D) :=
-  c.members.flatMap (·.pins)
-
 /-- What a verifier reports for a member list: each pin with its result. -/
 def verify (w : World D) (c : Members D) : List (Pin D × Resolution D) :=
-  (allPins c).map fun p => (p, resolve hash w p)
+  c.pins.map fun p => (p, resolve hash w p)
 
 /-- Every pin of the member list resolves. -/
 def AllOk (w : World D) (c : Members D) : Prop :=
-  ∀ p ∈ allPins c, ∃ v, resolve hash w p = .ok v
+  ∀ p ∈ c.pins, ∃ v, resolve hash w p = .ok v
+
+/-- A member list that verified verifies the same after any steps. -/
+theorem verify_stable {w w' : World D} (hs : Steps w w') {c : Members D}
+    (hok : AllOk hash w c) : verify hash w' c = verify hash w c := by
+  unfold verify
+  apply List.map_congr_left
+  intro p hp
+  obtain ⟨v, hv⟩ := hok p hp
+  rw [Steps.resolve_ok hash hs hv, hv]
 
 /-- **A vetted selection is stable.** If every pin of a selection resolves,
 then after any number of steps the verifier reports exactly the same, and
 updating the selection leaves it as it is. -/
 theorem selection_stable {w w' : World D} (hs : Steps w w') {c : Members D}
     (hsel : c.type = .selection) (hok : AllOk hash w c) :
-    verify hash w' c = verify hash w c ∧ collect hash w' c = c := by
-  refine ⟨?_, collect_selection hash w' hsel⟩
-  unfold verify
-  apply List.map_congr_left
-  intro p hp
-  obtain ⟨v, hv⟩ := hok p hp
-  rw [Steps.resolve_ok hash hs hv, hv]
+    verify hash w' c = verify hash w c ∧ collect hash w' c = c :=
+  ⟨verify_stable hash hs hok, collect_selection hash w' hsel⟩
 
 /-- **Nested pins are stable.** If a pin resolves to a collection version
 whose pins all resolve, then after any number of steps it resolves to the
@@ -39,13 +39,8 @@ theorem nested_stable {w w' : World D} (hs : Steps w w') {q : Pin D} {cv : Versi
     (hq : resolve hash w q = .ok cv)
     (hok : ∀ c, cv.members = some c → AllOk hash w c) :
     resolve hash w' q = .ok cv ∧
-      ∀ c, cv.members = some c → verify hash w' c = verify hash w c := by
-  refine ⟨Steps.resolve_ok hash hs hq, fun c hc => ?_⟩
-  unfold verify
-  apply List.map_congr_left
-  intro p hp
-  obtain ⟨v, hv⟩ := hok c hc p hp
-  rw [Steps.resolve_ok hash hs hv, hv]
+      ∀ c, cv.members = some c → verify hash w' c = verify hash w c :=
+  ⟨Steps.resolve_ok hash hs hq, fun c hc => verify_stable hash hs (hok c hc)⟩
 
 /-- After a deposit, the head of the object resolves to the version
 deposited. -/

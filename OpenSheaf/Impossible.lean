@@ -53,43 +53,6 @@ theorem no_reuse {w w' : World D} (hs : Steps w w') {a : ArchiveId} {oid : Objec
   intro h'
   cases h'
 
-section Numbers
-
-omit [DecidableEq D] in
-theorem snoc_induction {α : Type} {motive : List α → Prop} (nil : motive [])
-    (snoc : ∀ l x, motive l → motive (l ++ [x])) (l : List α) : motive l := by
-  rw [← List.reverse_reverse l]
-  induction l.reverse with
-  | nil => exact nil
-  | cons x r ih => rw [List.reverse_cons]; exact snoc _ _ ih
-
-theorem WellFormed.init {l : List (Version D)} {x : Version D}
-    (h : WellFormed (l ++ [x])) : WellFormed l ∧ Extends l x := by
-  constructor
-  · intro i hi
-    have := h i (by simp; omega)
-    rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
-  · have := h l.length (by simp)
-    simpa using this
-
-omit [DecidableEq D] in
-theorem docCount_append (l : List (Version D)) (x : Version D) :
-    docCount (l ++ [x]) = max (docCount l) x.documentVersion := by
-  induction l with
-  | nil => simp [docCount]
-  | cons v l ih => simp only [List.cons_append, docCount, ih, Nat.max_assoc]
-
-omit [DecidableEq D] in
-theorem le_docCount {l : List (Version D)} {v : Version D} (h : v ∈ l) :
-    v.documentVersion ≤ docCount l := by
-  induction l with
-  | nil => cases h
-  | cons y l ih =>
-    simp only [docCount]
-    rcases List.mem_cons.mp h with rfl | h
-    · exact Nat.le_max_left _ _
-    · exact Nat.le_trans (ih h) (Nat.le_max_right _ _)
-
 /-- **One document version, one content.** -/
 theorem one_number_one_content {l : List (Version D)} (h : WellFormed l)
     {v u : Version D} (hv : v ∈ l) (hu : u ∈ l)
@@ -128,8 +91,6 @@ theorem no_gaps {l : List (Version D)} (h : WellFormed l) {k : Nat} (hk1 : 1 ≤
     · rcases hx with ⟨z, hz, _, hxz⟩ | ⟨_, hxn⟩
       · have := le_docCount hz; omega
       · exact ⟨x, by simp, by omega⟩
-
-end Numbers
 
 /-- Version `n` of object `oid` of archive `a`. -/
 abbrev Site := ArchiveId × ObjectId × Nat
@@ -173,50 +134,6 @@ theorem Ranked.no_cycle {w : World D} (hr : Ranked hash w) (s : Site) :
   intro h
   exact Nat.lt_irrefl _ (Ranked.chain_lt hash hdown h)
 
-omit [DecidableEq D] in
-theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
-    (h : (o.append x).versionAt n = some v) :
-    o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
-  unfold Obj.versionAt Obj.append at *
-  split at h
-  · contradiction
-  · rename_i hn
-    simp only [hn, ite_false]
-    by_cases hlt : n - 1 < o.versions.length
-    · left; rwa [List.getElem?_append_left hlt] at h
-    · right
-      rw [List.getElem?_append_right (by omega)] at h
-      have : n - 1 - o.versions.length = 0 := by
-        cases hk : n - 1 - o.versions.length with
-        | zero => rfl
-        | succ k => rw [hk] at h; simp at h
-      rw [this] at h
-      simp at h
-      exact ⟨by omega, h.symm⟩
-
-omit [DecidableEq D] in
-theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
-    v ∈ o.versions := by
-  unfold Obj.versionAt at h
-  split at h
-  · contradiction
-  · exact List.mem_of_getElem? h
-
-omit [DecidableEq D] in
-theorem not_live_next {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-    (hl : lookup w a oid = some (.live o)) : ¬ Live w (a, oid, o.versions.length + 1) := by
-  rintro ⟨o', v, hl', hv⟩
-  rw [hl] at hl'
-  cases hl'
-  simp [Obj.versionAt] at hv
-
-omit [DecidableEq D] in
-theorem not_live_empty {w : World D} {a : ArchiveId} {oid : ObjectId}
-    (hl : lookup w a oid = none) (n : Nat) : ¬ Live w (a, oid, n) := by
-  rintro ⟨o', v, hl', _⟩
-  rw [hl] at hl'
-  cases hl'
-
 theorem pinsTo_old {w w' : World D} (hw : SoundWorld hash w) (hstep : Step w w')
     {s t : Site} {o : Obj D} {v : Version D} {p : Pin D}
     (hl : lookup w s.1 s.2.1 = some (.live o)) (hv : o.versionAt s.2.2 = some v)
@@ -226,127 +143,58 @@ theorem pinsTo_old {w w' : World D} (hw : SoundWorld hash w) (hstep : Step w w')
   · exact ⟨o, v, p, hl, hv, hp, ⟨u', hu'⟩, ht⟩
   · rw [Step.resolve_removed hash hstep hr] at hu; cases hu
 
-theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
-    (hr : Ranked hash w) : Ranked hash w' := by
-  obtain ⟨rank, N, hlive, hdown⟩ := hr
-  have hstep := hs.toStep hash
+theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
+    {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
+    (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
+    (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
+    ∃ t, resolve hash w p = .ok t := by
   cases hs with
   | newArchive a ar ha hempty =>
-    have back : ∀ b x e, lookup (fun c => if c = a then some ar else w c) b x = some e →
-        lookup w b x = some e := by
-      intro b x e h
-      by_cases hb : b = a
-      · subst hb; simp [lookup, hempty] at h
-      · simpa [lookup, hb] using h
-    refine ⟨rank, N, fun s ⟨o, v, hl, hv⟩ => hlive s ⟨o, v, back _ _ _ hl, hv⟩, ?_⟩
-    rintro s t ⟨o, v, p, hl, hv, hp, ⟨u, hu⟩, ht⟩
-    exact hdown s t (pinsTo_old hash hw hstep (back _ _ _ hl) hv hp ht hu)
-  | create a ar oid o ha ho hwf hpins _ =>
-    have hnone : lookup w a oid = none := by simp [lookup, ha, ho]
-    refine ⟨fun s => if s.1 = a ∧ s.2.1 = oid then N else rank s, N + 1, ?_, ?_⟩
-    · rintro ⟨b, x, n⟩ ⟨o1, v, hl, hv⟩
-      rw [lookup_setEntry ha] at hl
-      dsimp only
-      split
-      · omega
-      · rename_i hc
-        rw [if_no hc] at hl
-        exact Nat.lt_succ_of_lt (hlive _ ⟨o1, v, hl, hv⟩)
-    · rintro ⟨b, x, n⟩ t ⟨o1, v, p, hl, hv, hp, ⟨u, hu⟩, ht⟩
-      rw [lookup_setEntry ha] at hl
-      have htold : ∀ (h : PinsTo hash w (b, x, n) t),
-          ¬ (t.1 = a ∧ t.2.1 = oid) := by
-        rintro h ⟨h1, h2⟩
-        obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := h
-        have := live_of_resolve hash hu'
-        rw [← hq] at this
-        obtain ⟨t1, t2, t3⟩ := t
-        simp only at h1 h2
-        subst h1 h2
-        exact not_live_empty hnone _ this
-      dsimp only
-      split at hl
-      · rename_i hc
-        cases hl
-        obtain ⟨u0, hu0⟩ := hpins v (versionAt_mem hv) p hp
-        have hlt := live_of_resolve hash hu0
-        rw [← ht] at hlt
-        have htn : ¬ (t.1 = a ∧ t.2.1 = oid) := by
-          rintro ⟨h1, h2⟩
-          obtain ⟨t1, t2, t3⟩ := t
-          simp only at h1 h2
-          subst h1 h2
-          exact not_live_empty hnone _ hlt
-        rw [if_yes hc, if_no htn]
-        exact hlive _ hlt
-      · rename_i hc
-        have hpt := pinsTo_old hash hw hstep hl hv hp ht hu
-        rw [if_no hc, if_no (htold hpt)]
-        exact hdown _ _ hpt
-  | append a ar oid o x ha ho hf _ hk _ hpins _ =>
-    have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
-    let new : Site := (a, oid, o.versions.length + 1)
-    have hnew : ∀ t, Live w t → t ≠ new := by
-      rintro t h rfl
-      exact not_live_next hlo h
-    refine ⟨fun s => if s = new then N else rank s, N + 1, ?_, ?_⟩
-    · rintro ⟨b, y, n⟩ ⟨o1, v, hl, hv⟩
-      rw [lookup_setEntry ha] at hl
-      dsimp only
-      split
-      · omega
-      · rename_i hsn
-        apply Nat.lt_succ_of_lt
-        apply hlive
-        split at hl
-        · rename_i hc
-          cases hl
-          rcases versionAt_append hv with hv | ⟨hn, _⟩
-          · obtain ⟨h1, h2⟩ := hc
-            subst h1 h2
-            exact ⟨o, v, hlo, hv⟩
-          · obtain ⟨h1, h2⟩ := hc
-            subst h1 h2 hn
-            exact absurd rfl hsn
-        · exact ⟨o1, v, hl, hv⟩
-    · rintro ⟨b, y, n⟩ t ⟨o1, v, p, hl, hv, hp, ⟨u, hu⟩, ht⟩
-      rw [lookup_setEntry ha] at hl
-      dsimp only
-      split at hl
-      · rename_i hc
-        obtain ⟨h1, h2⟩ := hc
-        subst h1 h2
-        cases hl
-        rcases versionAt_append hv with hv | ⟨hn, hvx⟩
-        · have hpt := pinsTo_old hash hw hstep hlo hv hp ht hu
-          have hsn : ((b, y, n) : Site) ≠ new := hnew _ ⟨o, v, hlo, hv⟩
-          have htn : t ≠ new := by
-            obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := hpt
-            have := live_of_resolve hash hu'
-            rw [← hq] at this
-            exact hnew _ this
-          rw [if_no hsn, if_no htn]
-          exact hdown _ _ hpt
-        · subst hvx
-          obtain ⟨u0, hu0⟩ := hpins p hp
-          have hlt := live_of_resolve hash hu0
-          rw [← ht] at hlt
-          have hsn : ((b, y, n) : Site) = new := by simp only at hn; simp [new, hn]
-          rw [if_yes hsn, if_no (hnew _ hlt)]
-          exact hlive _ hlt
-      · rename_i hc
-        have hpt := pinsTo_old hash hw hstep hl hv hp ht hu
-        have hsn : ((b, y, n) : Site) ≠ new := by
-          intro h
-          simp only [new, Prod.mk.injEq] at h
-          exact hc ⟨h.1, h.2.1⟩
-        have htn : t ≠ new := by
-          obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := hpt
-          have := live_of_resolve hash hu'
-          rw [← hq] at this
-          exact hnew _ this
-        rw [if_no hsn, if_no htn]
-        exact hdown _ _ hpt
+    rw [lookup_newArchive ha hempty] at hl'
+    exact absurd ⟨o', v, hl', hv⟩ hnew
+  | create a ar oid o ha ho _ hpins _ =>
+    rw [lookup_setEntry ha] at hl'
+    split at hl'
+    · cases hl'; exact hpins v (versionAt_mem hv) p hp
+    · exact absurd ⟨o', v, hl', hv⟩ hnew
+  | append a ar oid o y ha ho _ _ _ _ hpins _ =>
+    rw [lookup_setEntry ha] at hl'
+    split at hl'
+    · rename_i hc
+      obtain ⟨rfl, rfl⟩ := hc
+      cases hl'
+      rcases versionAt_append hv with hv | ⟨_, rfl⟩
+      · exact absurd ⟨o, v, by simp [lookup, ha, ho], hv⟩ hnew
+      · exact hpins p hp
+    · exact absurd ⟨o', v, hl', hv⟩ hnew
+
+theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
+    (hr : Ranked hash w) : Ranked hash w' := by
+  classical
+  obtain ⟨rank, N, hlive, hdown⟩ := hr
+  have hstep := hs.toStep hash
+  refine ⟨fun s => if Live w s then rank s else N, N + 1, fun s _ => ?_, ?_⟩
+  · dsimp only; split
+    · exact Nat.lt_succ_of_lt (hlive s ‹_›)
+    · exact Nat.lt_succ_self N
+  · rintro ⟨b, x, n⟩ t ⟨o', v, p, hl', hv, hp, ⟨u, hu⟩, ht⟩
+    dsimp only
+    by_cases hold : Live w (b, x, n)
+    · obtain ⟨o, v0, hl, hv0⟩ := hold
+      obtain ⟨o2, h2, _, _, t2, ht2⟩ := hstep.live_grows hl
+      rw [hl'] at h2; cases h2
+      have := versionAt_prefix (t := []) (by simp) ht2 (Obj.versionAt_bounds hv0).2 hv0
+      rw [hv] at this; cases this
+      have hpt := pinsTo_old hash hw hstep hl hv0 hp ht hu
+      have htl : Live w t := by
+        obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := hpt
+        rw [hq]; exact live_of_resolve hash hu'
+      rw [if_yes htl, if_yes (show Live w (b, x, n) from ⟨o, v, hl, hv0⟩)]
+      exact hdown _ _ hpt
+    · obtain ⟨u0, hu0⟩ := hs.new_pins hash hl' hv hold hp
+      have htl : Live w t := ht ▸ live_of_resolve hash hu0
+      rw [if_yes htl, if_no hold]
+      exact hlive t htl
 
 theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
     (hl : lookup w a oid = some (.live o)) (hr : Ranked hash w) :
@@ -363,16 +211,14 @@ theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj 
 theorem Events.ranked {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
     SoundWorld hash w ∧ Ranked hash w := by
-  induction hs with
-  | refl =>
-    refine ⟨⟨(WFWorld.empty hash).1, fun _ _ _ h => by simp [lookup] at h⟩,
-      fun _ => 0, 0, ?_, ?_⟩
-    · rintro s ⟨o, v, hl, _⟩; simp [lookup] at hl
-    · rintro s t ⟨o, v, p, hl, _⟩; simp [lookup] at hl
-  | tail _ he ih =>
+  refine hs.invariant (fun w => SoundWorld hash w ∧ Ranked hash w) ?_
+    ⟨SoundWorld.empty hash, fun _ => 0, 0, ?_, ?_⟩
+  · intro _ _ he ih
     cases he with
     | step hs => exact ⟨hs.sound hash ih.1, hs.ranked hash ih.1 ih.2⟩
     | takedown a oid o hl => exact ⟨takedown_sound hash hl ih.1, takedown_ranked hash hl ih.2⟩
+  · rintro s ⟨o, v, hl, _⟩; simp [lookup] at hl
+  · rintro s t ⟨o, v, p, hl, _⟩; simp [lookup] at hl
 
 /-- **Pins cannot form cycles** (section 10.2), in any world built by events
 (valid steps and takedowns), whatever the digest function. -/
@@ -382,10 +228,8 @@ theorem no_cycles_events {w : World D}
   (hs.ranked hash).2.no_cycle hash s
 
 theorem ValidSteps.toEvents {w w' : World D} (hs : ValidSteps hash w w') :
-    Events hash w w' := by
-  induction hs with
-  | refl => exact .refl _
-  | tail _ hstep ih => exact .tail ih (.step hstep)
+    Events hash w w' :=
+  hs.mono .step
 
 /-- **Pins cannot form cycles**, in any world built by valid steps. -/
 theorem no_cycles {w : World D}
@@ -402,11 +246,8 @@ theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep hash w w')
     {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
   obtain ⟨o, hl, hst⟩ := h
   cases hs with
-  | newArchive b ar hb _ =>
-    refine ⟨o, ?_, hst⟩
-    by_cases hab : a = b
-    · subst hab; simp [lookup, hb] at hl
-    · simpa [lookup, hab] using hl
+  | newArchive b ar hb hempty =>
+    exact ⟨o, by rw [lookup_newArchive hb hempty]; exact hl, hst⟩
   | create b ar c o' hb hc _ _ =>
     refine ⟨o, ?_, hst⟩
     rw [lookup_setEntry hb]
@@ -427,9 +268,7 @@ theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep hash w w')
     · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
 
 theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps hash w w')
-    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
-  induction hs with
-  | refl => exact h
-  | tail _ hstep ih => exact hstep.withdrawn_stays hash ih
+    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid :=
+  hs.invariant _ (·.withdrawn_stays hash) h
 
 end OpenSheaf

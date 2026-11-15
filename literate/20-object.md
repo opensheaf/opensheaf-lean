@@ -80,7 +80,7 @@ If version `n` exists, then `n` is between 1 and the length of the history.
 Two changes of an object keep a prefix of its history: appending a version
 keeps the whole history, and rewriting drafts ([chapter 8](50-states.md))
 keeps the versions before the drafts. Neither changes the identity of the
-object. The two lemmas below say that, within the prefix, versions and
+object. The first two lemmas below say that, within the prefix, versions and
 inventories are unchanged. They hold whatever the digest function, since
 they are about the versions themselves; this is the heart of every
 immutability result of the model.
@@ -102,6 +102,18 @@ immutability result of the model.
         rw [List.getElem?_append_left (by omega)] at h ⊢
         exact h
 
+Version `n` depends only on the first `n` versions: two objects whose
+histories agree that far have the same version `n`.
+
+    theorem versionAt_congr_take {o o' : Obj D} {n : Nat}
+        (h : o'.versions.take n = o.versions.take n) : o'.versionAt n = o.versionAt n := by
+      unfold Obj.versionAt
+      split
+      · rfl
+      · have key : ∀ l : List (Version D), l[n - 1]? = (l.take n)[n - 1]? := by
+          intro l; rw [List.getElem?_take]; simp; omega
+        rw [key, h, ← key]
+
     theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
         (hid : o'.archive = o.archive ∧ o'.id = o.id)
         (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
@@ -109,6 +121,37 @@ immutability result of the model.
       unfold Obj.inventory
       rw [hid.1, hid.2, ho, ho', List.take_append_of_le_length hn,
         List.take_append_of_le_length hn]
+
+Three facts about versions by number: a version found at a number is a
+version of the object; after an append, a version is an old one or the one
+appended, at the next number.
+
+    theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
+        v ∈ o.versions := by
+      unfold Obj.versionAt at h
+      split at h
+      · contradiction
+      · exact List.mem_of_getElem? h
+
+    theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
+        (h : (o.append x).versionAt n = some v) :
+        o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
+      unfold Obj.versionAt Obj.append at *
+      split at h
+      · contradiction
+      · rename_i hn
+        simp only [hn, ite_false]
+        by_cases hlt : n - 1 < o.versions.length
+        · left; rwa [List.getElem?_append_left hlt] at h
+        · right
+          rw [List.getElem?_append_right (by omega)] at h
+          have : n - 1 - o.versions.length = 0 := by
+            cases hk : n - 1 - o.versions.length with
+            | zero => rfl
+            | succ k => rw [hk] at h; simp at h
+          rw [this] at h
+          simp at h
+          exact ⟨by omega, h.symm⟩
 
     end Prefix
 
@@ -208,6 +251,49 @@ versions before it see the same prefixes as before.
       have := WellFormed.snoc (l := []) (x := x) (fun i h => absurd h (by simp))
         (Or.inr ⟨by simp, by simp [docCount, hx]⟩)
       simpa using this
+
+The converse of `snoc` takes a well-formed history apart from the end.
+Proofs about histories go along it from the end, and Lean's core library
+has no induction from the end of a list; it follows from induction on the
+reversed list.
+
+    omit [DecidableEq D] in
+    theorem snoc_induction {α : Type} {motive : List α → Prop} (nil : motive [])
+        (snoc : ∀ l x, motive l → motive (l ++ [x])) (l : List α) : motive l := by
+      rw [← List.reverse_reverse l]
+      induction l.reverse with
+      | nil => exact nil
+      | cons x r ih => rw [List.reverse_cons]; exact snoc _ _ ih
+
+    theorem WellFormed.init {l : List (Version D)} {x : Version D}
+        (h : WellFormed (l ++ [x])) : WellFormed l ∧ Extends l x := by
+      constructor
+      · intro i hi
+        have := h i (by simp; omega)
+        rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
+      · have := h l.length (by simp)
+        simpa using this
+
+Two facts about the count: appending a version takes the maximum, and the
+count bounds every document version of the history.
+
+    omit [DecidableEq D] in
+    theorem docCount_append (l : List (Version D)) (x : Version D) :
+        docCount (l ++ [x]) = max (docCount l) x.documentVersion := by
+      induction l with
+      | nil => simp [docCount]
+      | cons v l ih => simp only [List.cons_append, docCount, ih, Nat.max_assoc]
+
+    omit [DecidableEq D] in
+    theorem le_docCount {l : List (Version D)} {v : Version D} (h : v ∈ l) :
+        v.documentVersion ≤ docCount l := by
+      induction l with
+      | nil => cases h
+      | cons y l ih =>
+        simp only [docCount]
+        rcases List.mem_cons.mp h with rfl | h
+        · exact Nat.le_max_left _ _
+        · exact Nat.le_trans (ih h) (Nat.le_max_right _ _)
 
 ## Status
 

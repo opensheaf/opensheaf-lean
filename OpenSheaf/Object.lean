@@ -62,6 +62,15 @@ theorem versionAt_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
     rw [List.getElem?_append_left (by omega)] at h ⊢
     exact h
 
+theorem versionAt_congr_take {o o' : Obj D} {n : Nat}
+    (h : o'.versions.take n = o.versions.take n) : o'.versionAt n = o.versionAt n := by
+  unfold Obj.versionAt
+  split
+  · rfl
+  · have key : ∀ l : List (Version D), l[n - 1]? = (l.take n)[n - 1]? := by
+      intro l; rw [List.getElem?_take]; simp; omega
+    rw [key, h, ← key]
+
 theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
     (hid : o'.archive = o.archive ∧ o'.id = o.id)
     (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
@@ -69,6 +78,33 @@ theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
   unfold Obj.inventory
   rw [hid.1, hid.2, ho, ho', List.take_append_of_le_length hn,
     List.take_append_of_le_length hn]
+
+theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
+    v ∈ o.versions := by
+  unfold Obj.versionAt at h
+  split at h
+  · contradiction
+  · exact List.mem_of_getElem? h
+
+theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
+    (h : (o.append x).versionAt n = some v) :
+    o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
+  unfold Obj.versionAt Obj.append at *
+  split at h
+  · contradiction
+  · rename_i hn
+    simp only [hn, ite_false]
+    by_cases hlt : n - 1 < o.versions.length
+    · left; rwa [List.getElem?_append_left hlt] at h
+    · right
+      rw [List.getElem?_append_right (by omega)] at h
+      have : n - 1 - o.versions.length = 0 := by
+        cases hk : n - 1 - o.versions.length with
+        | zero => rfl
+        | succ k => rw [hk] at h; simp at h
+      rw [this] at h
+      simp at h
+      exact ⟨by omega, h.symm⟩
 
 end Prefix
 
@@ -132,6 +168,41 @@ theorem WellFormed.single {x : Version D} (hx : x.documentVersion = 1) :
   have := WellFormed.snoc (l := []) (x := x) (fun i h => absurd h (by simp))
     (Or.inr ⟨by simp, by simp [docCount, hx]⟩)
   simpa using this
+
+omit [DecidableEq D] in
+theorem snoc_induction {α : Type} {motive : List α → Prop} (nil : motive [])
+    (snoc : ∀ l x, motive l → motive (l ++ [x])) (l : List α) : motive l := by
+  rw [← List.reverse_reverse l]
+  induction l.reverse with
+  | nil => exact nil
+  | cons x r ih => rw [List.reverse_cons]; exact snoc _ _ ih
+
+theorem WellFormed.init {l : List (Version D)} {x : Version D}
+    (h : WellFormed (l ++ [x])) : WellFormed l ∧ Extends l x := by
+  constructor
+  · intro i hi
+    have := h i (by simp; omega)
+    rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
+  · have := h l.length (by simp)
+    simpa using this
+
+omit [DecidableEq D] in
+theorem docCount_append (l : List (Version D)) (x : Version D) :
+    docCount (l ++ [x]) = max (docCount l) x.documentVersion := by
+  induction l with
+  | nil => simp [docCount]
+  | cons v l ih => simp only [List.cons_append, docCount, ih, Nat.max_assoc]
+
+omit [DecidableEq D] in
+theorem le_docCount {l : List (Version D)} {v : Version D} (h : v ∈ l) :
+    v.documentVersion ≤ docCount l := by
+  induction l with
+  | nil => cases h
+  | cons y l ih =>
+    simp only [docCount]
+    rcases List.mem_cons.mp h with rfl | h
+    · exact Nat.le_max_left _ _
+    · exact Nat.le_trans (ih h) (Nat.le_max_right _ _)
 
 omit [DecidableEq D] in
 /-- The status of the object: that of the head, `active` before any version. -/

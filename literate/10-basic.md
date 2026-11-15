@@ -129,10 +129,14 @@ document has none in this model; relations in `datacite.json` that point to
 exact object versions would be pins too, and can be added here when the
 model needs them.
 
+    /-- Every pin of a member list. -/
+    def Members.pins {D : Type} (c : Members D) : List (Pin D) :=
+      c.members.flatMap (·.pins)
+
     /-- The pins held by an object version: those of its member list. -/
     def Version.pins {D : Type} (v : Version D) : List (Pin D) :=
       match v.members with
       | none => []
-      | some ms => ms.members.flatMap (·.pins)
+      | some ms => ms.pins
 
     end OpenSheaf

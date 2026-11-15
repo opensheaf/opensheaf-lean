@@ -34,26 +34,6 @@ def MirrorsOk (w : World D) : Prop :=
       o.archive = m.archive ∧ ∃ t, o.versions = m.versions ++ t
 
 omit [DecidableEq D] in
-theorem Step.ne_none {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-    (h : lookup w b x ≠ none) : lookup w' b x ≠ none := by
-  rcases hs.lookup_cases b x with h1 | h1 | ⟨o, v, _, h2⟩
-  · rw [h1]; exact h
-  · exact absurd h1 h
-  · rw [h2]; simp
-
-omit [DecidableEq D] in
-theorem Step.live_back {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-    {o' : Obj D} (h : lookup w' b x = some (.live o')) (hne : lookup w b x ≠ none) :
-    lookup w b x = some (.live o') ∨
-      ∃ o v, lookup w b x = some (.live o) ∧ o' = o.append v := by
-  rcases hs.lookup_cases b x with h1 | h1 | ⟨o, v, h1, h2⟩
-  · left; rw [← h1]; exact h
-  · exact absurd h1 hne
-  · right
-    rw [h2] at h
-    exact ⟨o, v, h1, (Entry.live.inj (Option.some.inj h)).symm⟩
-
-omit [DecidableEq D] in
 theorem Step.mirror_kept {w w' : World D} (hs : Step w w') (hw : MirrorsOk w)
     {b : ArchiveId} {x : ObjectId} {m : Obj D} (hl : lookup w b x = some (.live m))
     (hb : m.archive ≠ b) :
@@ -67,6 +47,20 @@ theorem Step.mirror_kept {w w' : World D} (hs : Step w w') (hw : MirrorsOk w)
   · obtain ⟨harch, t, ht⟩ := hpre o0 h1
     exact ⟨harch, t ++ [v], by simp [Obj.append, ht]⟩
 
+omit [DecidableEq D] in
+theorem mirror_written {w : World D} {b : ArchiveId} {ar : Archive D} {x : ObjectId}
+    (ha : w b = some ar) {m : Obj D} (hb : m.archive ≠ b) (hm : MirrorOf w m) :
+    lookup (setEntry w b x (.live m)) m.archive m.id ≠ none ∧
+    ∀ o, lookup (setEntry w b x (.live m)) m.archive m.id = some (.live o) →
+      o.archive = m.archive ∧ ∃ t, o.versions = m.versions ++ t := by
+  obtain ⟨orig, hlo, harch, t, ht⟩ := hm
+  have hlo' : lookup (setEntry w b x (.live m)) m.archive m.id = some (.live orig) := by
+    rw [lookup_setEntry ha, if_no fun h => hb h.1]; exact hlo
+  refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
+  rw [hlo'] at ho2
+  cases ho2
+  exact ⟨harch, t, ht⟩
+
 /-- **Valid steps keep mirrors mirrors.** -/
 theorem ValidStep.mirrorsOk {w w' : World D} (hs : ValidStep hash w w') (hw : MirrorsOk w) :
     MirrorsOk w' := by
@@ -74,25 +68,15 @@ theorem ValidStep.mirrorsOk {w w' : World D} (hs : ValidStep hash w w') (hw : Mi
   have hstep := hs.toStep hash
   cases hs with
   | newArchive a ar ha hempty =>
-    by_cases hba : b = a
-    · subst hba; simp [lookup, hempty] at hl
-    · have hl0 : lookup w b x = some (.live m) := by simpa [lookup, hba] using hl
-      exact hstep.mirror_kept hw hl0 hb
+    rw [lookup_newArchive ha hempty] at hl
+    exact hstep.mirror_kept hw hl hb
   | create a ar oid o ha ho _ _ hhome =>
     rw [lookup_setEntry ha] at hl
     split at hl
     · rename_i hc
       obtain ⟨rfl, rfl⟩ := hc
       cases hl
-      rcases hhome with h | ⟨_, orig, hlo, harch, t, ht⟩
-      · exact absurd h hb
-      · have hsite : ¬ (m.archive = b ∧ m.id = x) := fun h => hb h.1
-        have hlo' : lookup (setEntry w b x (.live m)) m.archive m.id = some (.live orig) := by
-          rw [lookup_setEntry ha, if_no hsite]; exact hlo
-        refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
-        rw [hlo'] at ho2
-        cases ho2
-        exact ⟨harch, t, ht⟩
+      exact mirror_written ha hb (hhome.resolve_left hb)
     · exact hstep.mirror_kept hw hl hb
   | append a ar oid o y ha ho _ _ _ _ _ hhome =>
     rw [lookup_setEntry ha] at hl
@@ -100,29 +84,18 @@ theorem ValidStep.mirrorsOk {w w' : World D} (hs : ValidStep hash w w') (hw : Mi
     · rename_i hc
       obtain ⟨rfl, rfl⟩ := hc
       cases hl
-      rcases hhome with h | ⟨orig, hlo, harch, t, ht⟩
-      · exact absurd h hb
-      · have hsite : ¬ ((o.append y).archive = b ∧ (o.append y).id = x) := fun h => hb h.1
-        have hlo' : lookup (setEntry w b x (.live (o.append y))) (o.append y).archive
-            (o.append y).id = some (.live orig) := by
-          rw [lookup_setEntry ha, if_no hsite]; exact hlo
-        refine ⟨by rw [hlo']; simp, fun o2 ho2 => ?_⟩
-        rw [hlo'] at ho2
-        cases ho2
-        exact ⟨harch, t, by simp [Obj.append, ht]⟩
+      exact mirror_written ha hb (hhome.resolve_left hb)
     · exact hstep.mirror_kept hw hl hb
 
 omit [DecidableEq D] in
 theorem takedown_mirrorsOk {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
     (hl : lookup w a oid = some (.live o)) (hw : MirrorsOk w) :
     MirrorsOk (takedown hash w a oid o) := by
-  obtain ⟨ar, ha⟩ := lookup_some_archive hl
   intro b x m hm hb
   obtain ⟨_, hm0⟩ := lookup_takedown hash hl hm
   obtain ⟨hne, hpre⟩ := hw b x m hm0 hb
   refine ⟨?_, fun o2 ho2 => hpre o2 (lookup_takedown hash hl ho2).2⟩
-  unfold takedown tombstone
-  rw [lookup_setEntry ha]
+  rw [lookup_takedown_eq hash hl]
   split
   · simp
   · exact hne
@@ -134,10 +107,8 @@ theorem Event.mirrorsOk {w w' : World D} (he : Event hash w w') (hw : MirrorsOk 
   | takedown a oid o hl => exact takedown_mirrorsOk hash hl hw
 
 theorem Events.mirrorsOk {w : World D}
-    (hs : Events hash (fun _ => (none : Option (Archive D))) w) : MirrorsOk w := by
-  induction hs with
-  | refl => intro b x m h; simp [lookup] at h
-  | tail _ he ih => exact he.mirrorsOk hash ih
+    (hs : Events hash (fun _ => (none : Option (Archive D))) w) : MirrorsOk w :=
+  hs.invariant _ (·.mirrorsOk hash) fun b x m h => by simp [lookup] at h
 
 /-- **Mirrors agree with their originals**, in every world built by events. -/
 theorem Events.mirror_resolves {w : World D}
@@ -159,16 +130,7 @@ theorem copy_authentic {o c : Obj D} {p : Pin D} {v u : Version D}
   obtain ⟨hvo, hdo⟩ := resolveEntry_live_ok hash ho
   obtain ⟨hvc, hdc⟩ := resolveEntry_live_ok hash hc
   have heq : c.inventory p.version = o.inventory p.version := hcol (hdc.trans hdo.symm)
-  have heqv : c.versions.take p.version = o.versions.take p.version :=
-    congrArg Inventory.versions heq
-  obtain ⟨h1, _⟩ := Obj.versionAt_bounds hvo
-  unfold Obj.versionAt at hvo hvc
-  have hne : p.version ≠ 0 := by omega
-  simp only [hne, ite_false] at hvo hvc
-  have key : ∀ l : List (Version D), l[p.version - 1]? = (l.take p.version)[p.version - 1]? := by
-    intro l; rw [List.getElem?_take]; simp; omega
-  rw [key, heqv, ← key] at hvc
-  rw [hvo] at hvc
+  rw [versionAt_congr_take (congrArg Inventory.versions heq), hvo] at hvc
   cases hvc
   rfl
 
@@ -217,13 +179,6 @@ theorem resolveVia_mirror {w : World D} {p : Pin D} {b : ArchiveId}
       obtain ⟨b', hb', rfl⟩ := List.mem_map.mp hr
       exact hbefore b' hb' u)]
   simp [firstOk, h2]
-
-theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
-    (h : resolveEntry hash e p = .ok u) : ∃ c, e = some (.live c) := by
-  match e, h with
-  | some (.live c), _ => exact ⟨c, rfl⟩
-  | none, h => simp [resolveEntry] at h
-  | some (.tomb _ _), h => simp [resolveEntry] at h
 
 omit [DecidableEq D] in
 theorem firstOk_mem {rs : List (Resolution D)} {u : Version D}
