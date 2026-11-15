@@ -290,7 +290,7 @@ step.
       | create a ar oid o ha ho _ hpins _ =>
         rw [lookup_setEntry ha] at hl'
         split at hl'
-        · cases hl'; exact hpins v (versionAt_mem hv) p hp
+        · cases hl'; exact (hpins v (versionAt_mem hv) p hp).held
         · exact absurd ⟨o', v, hl', hv⟩ hnew
       | append a ar oid o y ha ho _ _ _ _ hpins _ =>
         rw [lookup_setEntry ha] at hl'
@@ -300,7 +300,7 @@ step.
           cases hl'
           rcases versionAt_append hv with hv | ⟨_, rfl⟩
           · exact absurd ⟨o, v, by simp [lookup, ha, ho], hv⟩ hnew
-          · exact hpins p hp
+          · exact (hpins p hp).held
         · exact absurd ⟨o', v, hl', hv⟩ hnew
 
 The main lemma: a valid step keeps a numbering in which pins go down. The

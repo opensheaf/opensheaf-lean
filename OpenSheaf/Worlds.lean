@@ -81,6 +81,37 @@ def HeadFollows (w : World D) (l : List (Version D)) : Prop :=
 instance (w : World D) (l : List (Version D)) : Decidable (HeadFollows hash w l) := by
   unfold HeadFollows; split <;> infer_instance
 
+omit [DecidableEq D] in
+/-- Some version of a live object of the world holds the pin. -/
+def HeldBy (w : World D) (p : Pin D) : Prop :=
+  ∃ b i c v, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ p ∈ v.pins
+
+/-- A pin a new version may hold: it resolves, or it reports `removed` and
+is carried over from a version the world already holds. -/
+def PinOk (w : World D) (p : Pin D) : Prop :=
+  (∃ t, resolve hash w p = .ok t) ∨ (resolve hash w p = .removed ∧ HeldBy w p)
+
+theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk hash w p) : Held hash w p :=
+  h.elim Or.inl fun h => Or.inr h.1
+
+/-- The source a version records, if any, is checked (sections 10.5, 14). -/
+def SourceOk (w : World D) (x : Version D) : Prop :=
+  ∀ src, x.source = some src →
+    (∃ u, resolve hash w src = .ok u ∧ x.files = u.files) ∨
+    (resolve hash w src = .removed ∧
+      ∃ b i c y, lookup w b i = some (.live c) ∧ y ∈ c.versions ∧ y.source = some src)
+
+theorem sourceOk_none {w : World D} {x : Version D} (h : x.source = none) :
+    SourceOk hash w x := by
+  intro src hs; rw [h] at hs; cases hs
+
+theorem sourceOk_all_none {w : World D} {l : List (Version D)}
+    (h : (l.all fun v => v.source.isNone) = true) : ∀ v ∈ l, SourceOk hash w v := by
+  intro v hv
+  apply sourceOk_none
+  have := List.all_eq_true.mp h v hv
+  simpa using this
+
 /-- The steps that the specification allows. -/
 inductive ValidStep : World D → World D → Prop
   | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
@@ -88,17 +119,19 @@ inductive ValidStep : World D → World D → Prop
       ValidStep w (fun b => if b = a then some ar else w b)
   | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
-      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p)
+      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, PinOk hash w p)
       (hhome : o.archive = a ∨ MirrorOf w o)
-      (hfollow : o.archive = a → HeadFollows hash w o.versions) :
+      (hfollow : o.archive = a → HeadFollows hash w o.versions)
+      (hsrc : ∀ v ∈ o.versions, SourceOk hash w v) :
       ValidStep w (setEntry w a oid (.live o))
   | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
       (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
       (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
-      (hpins : ∀ p ∈ x.pins, Held hash w p)
+      (hpins : ∀ p ∈ x.pins, PinOk hash w p)
       (hhome : o.archive = a ∨ MirrorOf w (o.append x))
-      (hfollow : o.archive = a → x.FollowsHeads hash w) :
+      (hfollow : o.archive = a → x.FollowsHeads hash w)
+      (hsrc : SourceOk hash w x) :
       ValidStep w (setEntry w a oid (.live (o.append x)))
 
 /-- Any number of valid steps. -/
@@ -212,7 +245,7 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
     · rename_i hc
       obtain ⟨rfl, rfl⟩ := hc
       cases h
-      exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp)⟩
+      exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp).held⟩
     · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
   | append a ar oid o y ha ho hf hst hk hm hpins _ =>
     rw [lookup_setEntry ha] at h
@@ -227,7 +260,7 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
       · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.kinds, hk⟩
       · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.members, hm⟩
       · simpa [Obj.append, or_imp, forall_and] using
-          ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp)⟩
+          ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp).held⟩
     · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
 
 theorem ValidStep.noTombs {w w' : World D} (hs : ValidStep hash w w') (h : NoTombs w) :

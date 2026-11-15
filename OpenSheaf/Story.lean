@@ -22,9 +22,9 @@ theorem exists_of_isOk {D : Type} {r : Resolution D} (h : r.isOk = true) :
     ∃ t, r = .ok t := by
   cases r <;> simp_all [Resolution.isOk]
 
-/-- The form valid steps ask for: the pin resolves (or reports `removed`). -/
-theorem held_of_isOk {D : Type} [DecidableEq D] {hash : Hash D} {w : World D} {p : Pin D}
-    (h : (resolve hash w p).isOk = true) : Held hash w p :=
+/-- The form valid steps ask for: the pin resolves. -/
+theorem pinOk_of_isOk {D : Type} [DecidableEq D] {hash : Hash D} {w : World D} {p : Pin D}
+    (h : (resolve hash w p).isOk = true) : PinOk hash w p :=
   Or.inl (exists_of_isOk h)
 
 def emptyArchive (writers : List Agent) : Archive Nat :=
@@ -61,12 +61,12 @@ def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 theorem s4 : StepBy toy "author" w3 w4 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
     (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem s5 : StepBy toy "coauthor" w4 w5 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
     (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinV1 : Pin Nat := ⟨"author", "paper", 1, toy (paper.inventory 1)⟩
 def pinNotes : Pin Nat := ⟨"coauthor", "notes", 1, toy (notes.inventory 1)⟩
@@ -98,24 +98,24 @@ def w7 : World Nat := setEntry w6 "coauthor" "joint" (.live jointObj)
 
 theorem s6 : StepBy toy "editor" w5 w6 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp))
     (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem s7 : StepBy toy "coauthor" w6 w7 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp))
     (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
 theorem s8 : StepBy toy "coauthor" w7 w8 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
     (Or.inr ⟨paper, rfl, rfl, [], by simp⟩) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def v2 : Version Nat :=
   Version.revise [v1] [("paper.tm", 201), ("paper.pdf", 202)] none
@@ -133,12 +133,12 @@ def w10 : World Nat := setEntry w9 "author" "paper" (.live paper3)
 theorem s9 : StepBy toy "author" w8 w9 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 theorem s10 : StepBy toy "author" w9 w10 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
@@ -154,9 +154,9 @@ def w11 : World Nat := setEntry w10 "coauthor" "joint" (.live (jointObj.append j
 
 theorem s11 : StepBy toy "coauthor" w10 w11 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (fun p hp => held_of_isOk ((by decide :
+    (fun p hp => pinOk_of_isOk ((by decide :
       ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 example : j2.FollowsHeads toy w10 ∧ ¬ j1.FollowsHeads toy w10 := by decide
 
@@ -166,12 +166,12 @@ def w13 : World Nat := setEntry w12 "coauthor" "paper" (.live paper3)
 theorem s12 : StepBy toy "coauthor" w11 w12 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 theorem s13 : StepBy toy "coauthor" w12 w13 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 def copy : Obj Nat :=
   acceptedCopy "journal" "paper-accepted" pinV1 v1 "On sheaves of documents (accepted)" "editor"
@@ -183,6 +183,13 @@ theorem s14 : StepBy toy "editor" w13 w14 :=
   .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _ _ _)
     (by simp [copy, acceptedCopy, copyVersion, Version.pins, v1]) (Or.inl rfl) (by decide)
     (by decide) (by decide)
+    (by
+      intro x hx src hs
+      simp only [copy, acceptedCopy, List.mem_singleton] at hx
+      subst hx
+      simp only [copyVersion, Option.some.injEq] at hs
+      subst hs
+      exact Or.inl ⟨v1, by decide, rfl⟩)
 
 def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩
 
@@ -274,9 +281,11 @@ def wDown2 : World Nat := setEntry wDown "journal" "issue-7" (.live (issue.appen
 
 theorem s15 : StepBy toy "editor" wDown wDown2 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (fun p hp => Or.inr ((by decide :
-      ∀ p ∈ i2.pins, resolve toy wDown p = .removed) p hp)) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (fun p hp => Or.inr ⟨(by decide :
+      ∀ p ∈ i2.pins, resolve toy wDown p = .removed) p hp,
+      "journal", "issue-7", issue, i1, rfl, by decide, (show p ∈ i1.pins from hp)⟩)
+    (Or.inl rfl) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 example : verify toy wDown2 issue7 = [(pinV1, .removed)] := by decide
 
@@ -313,6 +322,18 @@ example : resolveEntry toy (some (.live twin)) pinV1 = .mismatch := by decide
 
 example : CopyChecks toy w14 copy :=
   acceptedCopy_checks toy (.refl _) (src := pinV1) (v := v1) (by decide) rfl
+
+def forgedCopy : Version Nat :=
+  { copyVersion v1 pinV1 "forged" "editor" "a forged copy" with
+    files := [("paper.tm", 999), ("paper.pdf", 102)] }
+
+example : ¬ SourceOk toy w14 forgedCopy := by
+  have hres : resolve toy w14 pinV1 = .ok v1 := by decide
+  intro h
+  rcases h pinV1 rfl with ⟨u, hu, hf⟩ | ⟨hr, _⟩
+  · rw [hres] at hu; cases hu
+    revert hf; decide
+  · rw [hres] at hr; cases hr
 
 def twoPins : Members Nat :=
   { type := .catalogue,

@@ -356,7 +356,8 @@ theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Vers
 
 theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
     (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
-    (d c m : String) (hrefs : ∀ r ∈ v.refs, Held hash w r.pin) :
+    (d c m : String) (hsrc : resolve hash w src = .ok v)
+    (hrefs : ∀ r ∈ v.refs, PinOk hash w r.pin) :
     ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
   .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)
     (by
@@ -367,22 +368,115 @@ theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid :
       obtain ⟨r, hr, rfl⟩ := hp
       exact hrefs r hr)
     (Or.inl rfl) (fun _ => by simp [HeadFollows, acceptedCopy, copyVersion, Version.FollowsHeads])
+    (by
+      intro x hx p hp
+      simp only [acceptedCopy, List.mem_singleton] at hx
+      subst hx
+      simp only [copyVersion, Option.some.injEq] at hp
+      subst hp
+      exact Or.inl ⟨v, hsrc, rfl⟩)
 
-/-- The first version of `c` holds exactly the files of its source. -/
+/-- When its source resolves, the first version of `c` holds exactly its
+files. -/
 def CopyChecks (w : World D) (c : Obj D) : Prop :=
   ∀ x src, c.versionAt 1 = some x → x.source = some src →
-    ∃ v, resolve hash w src = .ok v ∧ x.files = v.files
+    ∀ v, resolve hash w src = .ok v → x.files = v.files
 
 /-- **An accepted copy passes the check of section 14.** -/
 theorem acceptedCopy_checks {w w' : World D} (hs : Steps w w') {src : Pin D} {v : Version D}
     (hsrc : resolve hash w src = .ok v) {c : Obj D} {d cu m : String}
     (h1 : c.versionAt 1 = some (copyVersion v src d cu m)) : CopyChecks hash w' c := by
-  intro x p hx hp
+  intro x p hx hp u hu
   rw [h1] at hx
   cases hx
   simp only [copyVersion, Option.some.injEq] at hp
   subst hp
-  exact ⟨v, Steps.resolve_ok hash hs hsrc, rfl⟩
+  rw [Steps.resolve_ok hash hs hsrc] at hu
+  cases hu
+  rfl
+
+/-- Every version that records a source holds the source's files when the
+source resolves, and its source resolves or reports `removed`. -/
+def SourcesOk (w : World D) : Prop :=
+  ∀ b i c, lookup w b i = some (.live c) → ∀ x ∈ c.versions, ∀ src, x.source = some src →
+    Held hash w src ∧ ∀ u, resolve hash w src = .ok u → x.files = u.files
+
+theorem Step.held {w w' : World D} (hs : Step w w') {p : Pin D} (h : Held hash w p) :
+    Held hash w' p :=
+  h.elim (fun ⟨t, ht⟩ => Or.inl ⟨t, Step.resolve_ok hash hs ht⟩)
+    (fun hr => Or.inr (Step.resolve_removed hash hs hr))
+
+theorem Step.ok_back {w w' : World D} (hs : Step w w') {p : Pin D} (h : Held hash w p)
+    {u : Version D} (hu : resolve hash w' p = .ok u) : resolve hash w p = .ok u := by
+  rcases h with ⟨t, ht⟩ | hr
+  · rw [Step.resolve_ok hash hs ht] at hu; cases hu; exact ht
+  · rw [Step.resolve_removed hash hs hr] at hu; cases hu
+
+theorem sourceOk_kept {w w' : World D} (hs : Step w w') {x : Version D}
+    (h : SourceOk hash w x) (src : Pin D) (hx : x.source = some src) :
+    Held hash w' src ∧ ∀ u, resolve hash w' src = .ok u → x.files = u.files := by
+  rcases h src hx with ⟨u0, hu0, hf⟩ | ⟨hr, _⟩
+  · refine ⟨Step.held hash hs (Or.inl ⟨u0, hu0⟩), fun u hu => ?_⟩
+    rw [Step.ok_back hash hs (Or.inl ⟨u0, hu0⟩) hu] at hu0; cases hu0; exact hf
+  · refine ⟨Step.held hash hs (Or.inr hr), fun u hu => ?_⟩
+    rw [Step.resolve_removed hash hs hr] at hu; cases hu
+
+theorem old_kept {w w' : World D} (hs : Step w w') (hw : SourcesOk hash w)
+    {b : ArchiveId} {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c))
+    {x : Version D} (hx : x ∈ c.versions) (src : Pin D) (hsx : x.source = some src) :
+    Held hash w' src ∧ ∀ u, resolve hash w' src = .ok u → x.files = u.files := by
+  obtain ⟨hh, hf⟩ := hw b i c hl x hx src hsx
+  exact ⟨Step.held hash hs hh, fun u hu => hf u (Step.ok_back hash hs hh hu)⟩
+
+theorem ValidStep.sourcesOk {w w' : World D} (hs : ValidStep hash w w')
+    (hw : SourcesOk hash w) : SourcesOk hash w' := by
+  have hstep := hs.toStep hash
+  intro b i c hl x hx src hsx
+  cases hs with
+  | newArchive a ar ha hempty =>
+    rw [lookup_newArchive ha hempty] at hl
+    exact old_kept hash hstep hw hl hx src hsx
+  | create a ar oid o ha ho _ _ _ _ hsrc =>
+    rw [lookup_setEntry ha] at hl
+    split at hl
+    · cases hl; exact sourceOk_kept hash hstep (hsrc x hx) src hsx
+    · exact old_kept hash hstep hw hl hx src hsx
+  | append a ar oid o y ha ho _ _ _ _ _ _ _ hsrc =>
+    rw [lookup_setEntry ha] at hl
+    split at hl
+    · cases hl
+      have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
+      simp only [Obj.append, List.mem_append, List.mem_singleton] at hx
+      rcases hx with hx | rfl
+      · exact old_kept hash hstep hw hlo hx src hsx
+      · exact sourceOk_kept hash hstep hsrc src hsx
+    · exact old_kept hash hstep hw hl hx src hsx
+
+theorem takedown_sourcesOk {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+    (hl0 : lookup w a oid = some (.live o)) (hw : SourcesOk hash w) :
+    SourcesOk hash (takedown hash w a oid o) := by
+  intro b i c hl x hx src hsx
+  obtain ⟨hh, hf⟩ := hw b i c (lookup_takedown hash hl0 hl).2 x hx src hsx
+  by_cases hp : src.archive = a ∧ src.object = oid
+  · exact ⟨Or.inr (takedown_removed hash hl0 hp), fun u hu => by
+      rw [takedown_removed hash hl0 hp] at hu; cases hu⟩
+  · simp only [Held, takedown_other hash hl0 hp]
+    exact ⟨hh, hf⟩
+
+theorem Events.sourcesOk {w : World D}
+    (hs : Events hash (fun _ => (none : Option (Archive D))) w) : SourcesOk hash w :=
+  hs.invariant _ (fun he hw => by
+      cases he with
+      | step h => exact h.sourcesOk hash hw
+      | takedown a oid o hl => exact takedown_sourcesOk hash hl hw)
+    (fun _ _ _ h => by simp [lookup] at h)
+
+/-- **Every copy passes the check of section 14**, in every world built by
+events. -/
+theorem Events.copyChecks {w : World D}
+    (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
+    {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) : CopyChecks hash w c :=
+  fun x src h1 hsx u hu => (Events.sourcesOk hash hs b i c hl x (versionAt_mem h1) src hsx).2 u hu
 
 /-- **An accepted copy survives the original.** -/
 theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}

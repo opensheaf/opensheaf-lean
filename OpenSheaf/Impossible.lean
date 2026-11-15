@@ -199,7 +199,7 @@ theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : Arch
   | create a ar oid o ha ho _ hpins _ =>
     rw [lookup_setEntry ha] at hl'
     split at hl'
-    · cases hl'; exact hpins v (versionAt_mem hv) p hp
+    · cases hl'; exact (hpins v (versionAt_mem hv) p hp).held
     · exact absurd ⟨o', v, hl', hv⟩ hnew
   | append a ar oid o y ha ho _ _ _ _ hpins _ =>
     rw [lookup_setEntry ha] at hl'
@@ -209,7 +209,7 @@ theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : Arch
       cases hl'
       rcases versionAt_append hv with hv | ⟨_, rfl⟩
       · exact absurd ⟨o, v, by simp [lookup, ha, ho], hv⟩ hnew
-      · exact hpins p hp
+      · exact (hpins p hp).held
     · exact absurd ⟨o', v, hl', hv⟩ hnew
 
 theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)

@@ -26,11 +26,13 @@ specification. Section 10.2 asks that every member be pinned, not that every
 pin resolve when it is made: section 14 reports pins as "unavailable", and
 issue #29 discusses pins of objects that readers cannot reach. The model
 asks that a tool resolve every pin it writes, as the reference tools do.
-A pin that reports `removed` is accepted: after a takedown, a collection
+A pin that reports `removed` is accepted only when it is carried over,
+held already by a version of the world: after a takedown, a collection
 keeps the pins of the object taken down in its later versions (a
 withdrawal, a description, an update), and a mirror copies them (sections
-10.2 and 11.3). Such a pin names an object that never comes back, so it
-never resolves again. The freedom from cycles of
+10.2 and 11.3). A pin made afresh into an object taken down is refused.
+Such a pin names an object that never comes back, so it never resolves
+again. The freedom from cycles of
 [chapter 10](65-impossible.md) rests on this choice; for pins of versions
 that cannot be reached, it rests on the hashes, which the model does not
 use there.
@@ -100,13 +102,16 @@ A valid step is a step with the checks of the specification:
 - a new archive is empty;
 - a new object is well formed (its history does not reinstate a withdrawn
   object, the choice of [chapter 2](20-object.md) on issue #25), and the
-  pins of its versions resolve, or report `removed`, at the time it is
-  created, so that it pins only versions that already exist;
+  pins of its versions resolve, or report `removed` and are carried over,
+  at the time it is created, so that it pins only versions that already
+  exist;
 - a new object version extends the history (section 7.3, with the choice
   of chapter 2), does not make a withdrawn object active again, has a
   member list exactly if the object is a collection, and then a
   well-formed one, and pins only versions that resolve, or report
-  `removed`;
+  `removed` and are carried over;
+- a version that records the version it copies (an accepted copy, section
+  10.5) holds exactly its files, when the source resolves;
 - in a version that an archive makes of its own catalogue (a new object
   version, or the head of a new object), every member with `follow` pins
   the head of its object, when the object has one: "A followed member pins
@@ -136,7 +141,7 @@ to the pinned version) ([model issue 6](https://github.com/opensheaf/opensheaf-l
       ∃ orig, lookup w o.archive o.id = some (.live orig) ∧
         orig.archive = o.archive ∧ ∃ t, orig.versions = o.versions ++ t
 
-A pin written by a step resolves, or reports `removed`:
+A pin held by a version resolves, or reports `removed`:
 
     /-- The pin resolves, or reports `removed`. -/
     abbrev Held (w : World D) (p : Pin D) : Prop :=
@@ -173,6 +178,50 @@ taken down) keeps its pin, as `collect` does ([chapter 4](40-collection.md)).
     instance (w : World D) (l : List (Version D)) : Decidable (HeadFollows hash w l) := by
       unfold HeadFollows; split <;> infer_instance
 
+A new version may hold a pin that reports `removed`, but only one that the
+world already holds: a description-only version of a collection after one of
+its members was taken down keeps that member's pin, and a mirror copies the
+pins of its original. A pin made afresh must resolve. Without this rule a
+step could write a pin, with any number and any digest, into an object taken
+down, which no verifier could ever check.
+
+    omit [DecidableEq D] in
+    /-- Some version of a live object of the world holds the pin. -/
+    def HeldBy (w : World D) (p : Pin D) : Prop :=
+      ∃ b i c v, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ p ∈ v.pins
+
+    /-- A pin a new version may hold: it resolves, or it reports `removed` and
+    is carried over from a version the world already holds. -/
+    def PinOk (w : World D) (p : Pin D) : Prop :=
+      (∃ t, resolve hash w p = .ok t) ∨ (resolve hash w p = .removed ∧ HeldBy w p)
+
+    theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk hash w p) : Held hash w p :=
+      h.elim Or.inl fun h => Or.inr h.1
+
+A version that records the version it copies (an accepted copy, section
+10.5) holds exactly that version's files, when the source resolves. Section
+14 asks the verifier to check this "when the source is available"; the
+model asks the step to. A source that reports `removed` is accepted only if
+a version of the world already records it, as for pins.
+
+    /-- The source a version records, if any, is checked (sections 10.5, 14). -/
+    def SourceOk (w : World D) (x : Version D) : Prop :=
+      ∀ src, x.source = some src →
+        (∃ u, resolve hash w src = .ok u ∧ x.files = u.files) ∨
+        (resolve hash w src = .removed ∧
+          ∃ b i c y, lookup w b i = some (.live c) ∧ y ∈ c.versions ∧ y.source = some src)
+
+    theorem sourceOk_none {w : World D} {x : Version D} (h : x.source = none) :
+        SourceOk hash w x := by
+      intro src hs; rw [h] at hs; cases hs
+
+    theorem sourceOk_all_none {w : World D} {l : List (Version D)}
+        (h : (l.all fun v => v.source.isNone) = true) : ∀ v ∈ l, SourceOk hash w v := by
+      intro v hv
+      apply sourceOk_none
+      have := List.all_eq_true.mp h v hv
+      simpa using this
+
     /-- The steps that the specification allows. -/
     inductive ValidStep : World D → World D → Prop
       | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
@@ -180,17 +229,19 @@ taken down) keeps its pin, as `collect` does ([chapter 4](40-collection.md)).
           ValidStep w (fun b => if b = a then some ar else w b)
       | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
-          (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p)
+          (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, PinOk hash w p)
           (hhome : o.archive = a ∨ MirrorOf w o)
-          (hfollow : o.archive = a → HeadFollows hash w o.versions) :
+          (hfollow : o.archive = a → HeadFollows hash w o.versions)
+          (hsrc : ∀ v ∈ o.versions, SourceOk hash w v) :
           ValidStep w (setEntry w a oid (.live o))
       | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
           (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
           (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
-          (hpins : ∀ p ∈ x.pins, Held hash w p)
+          (hpins : ∀ p ∈ x.pins, PinOk hash w p)
           (hhome : o.archive = a ∨ MirrorOf w (o.append x))
-          (hfollow : o.archive = a → x.FollowsHeads hash w) :
+          (hfollow : o.archive = a → x.FollowsHeads hash w)
+          (hsrc : SourceOk hash w x) :
           ValidStep w (setEntry w a oid (.live (o.append x)))
 
     /-- Any number of valid steps. -/
@@ -343,7 +394,7 @@ before, so that it serves twice: here, and for takedowns below.
         · rename_i hc
           obtain ⟨rfl, rfl⟩ := hc
           cases h
-          exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp)⟩
+          exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp).held⟩
         · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
       | append a ar oid o y ha ho hf hst hk hm hpins _ =>
         rw [lookup_setEntry ha] at h
@@ -358,7 +409,7 @@ before, so that it serves twice: here, and for takedowns below.
           · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.kinds, hk⟩
           · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.members, hm⟩
           · simpa [Obj.append, or_imp, forall_and] using
-              ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp)⟩
+              ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp).held⟩
         · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
 
 Valid steps create no tombstone: a new archive is empty, and the other

@@ -25,12 +25,12 @@ def r4 : World Nat := setEntry r3 "dept" "thesis" (.live thesis1)
 
 theorem a3 : StepBy toy "student" r2 r3 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [thesis1, t1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide)
+    (by simp [thesis1, t1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem a4 : StepBy toy "registry" r3 r4 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
     (by simp [thesis1, t1, Version.pins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
-    (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def c1 : Version Nat :=
   { documentVersion := 1, files := [("comments.pdf", 41)],
@@ -43,7 +43,7 @@ def r5 : World Nat := setEntry r4 "dept" "comments-1" (.live comments)
 
 theorem a5 : StepBy toy "supervisor" r4 r5 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [comments, c1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide)
+    (by simp [comments, c1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
 def pinC1 : Pin Nat := ⟨"dept", "comments-1", 1, toy (comments.inventory 1)⟩
@@ -64,9 +64,9 @@ def r6 : World Nat := setEntry r5 "dept" "record" (.live record1)
 
 theorem a6 : StepBy toy "registry" r5 r6 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ record1.versions, ∀ p ∈ v.pins, (resolve toy r5 p).isOk = true) v hv p hp))
-    (Or.inl rfl) (by decide) (by decide) (by decide)
+    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def t2 : Version Nat :=
   Version.revise [t1] [("thesis.tm", 21), ("thesis.pdf", 22)] none "A thesis" "student"
@@ -79,12 +79,12 @@ def r8 : World Nat := setEntry r7 "dept" "thesis" (.live thesis2)
 
 theorem a7 : StepBy toy "student" r6 r7 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [t2, Version.revise, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide)
+    (by simp [t2, Version.revise, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
 theorem a8 : StepBy toy "registry" r7 r8 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (by simp [t2, Version.revise, Version.pins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
-    (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
 def e1 : Version Nat :=
   { documentVersion := 1, files := [("report.pdf", 51)],
@@ -97,7 +97,7 @@ def r9 : World Nat := setEntry r8 "dept" "report-1" (.live report)
 
 theorem a9 : StepBy toy "examiner" r8 r9 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [report, e1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide)
+    (by simp [report, e1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinT2 : Pin Nat := ⟨"student", "thesis", 2, toy (thesis2.inventory 2)⟩
 def pinE1 : Pin Nat := ⟨"dept", "report-1", 1, toy (report.inventory 1)⟩
@@ -117,9 +117,9 @@ def r10 : World Nat := setEntry r9 "dept" "record" (.live record2)
 
 theorem a10 : StepBy toy "registry" r9 r10 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (fun p hp => held_of_isOk ((by decide :
+    (fun p hp => pinOk_of_isOk ((by decide :
       ∀ p ∈ g2.pins, (resolve toy r9 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 theorem record_acts : Star ByAgent r0 r10 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)

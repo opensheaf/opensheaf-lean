@@ -97,7 +97,7 @@ def y3 : World Nat := setEntry y2 "author" "kpz-details" (.live details2)
 theorem b3 : StepBy toy "author" y2 y3 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
     (by simp [details2, d1, d2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinD2 : Pin Nat := ⟨"author", "kpz-details", 2, toy (details2.inventory 2)⟩
 
@@ -112,9 +112,9 @@ def y4 : World Nat := setEntry y3 "author" "kpz-account" (.live account)
 
 theorem b4 : StepBy toy "author" y3 y4 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y3 p).isOk = true) v hv p hp))
-    (Or.inl rfl) (by decide) (by decide) (by decide)
+    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinA1 : Pin Nat := ⟨"author", "kpz-account", 1, toy (account.inventory 1)⟩
 
@@ -128,9 +128,9 @@ def y5 : World Nat := setEntry y4 "author" "kpz-details" (.live details3)
 
 theorem b5 : StepBy toy "author" y4 y5 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (fun p hp => held_of_isOk ((by decide :
+    (fun p hp => pinOk_of_isOk ((by decide :
       ∀ p ∈ d3.pins, (resolve toy y4 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-    (by decide) (by decide)
+    (by decide) (by decide) (sourceOk_none toy rfl)
 
 example : d3.documentVersion = d2.documentVersion := by decide
 
@@ -150,15 +150,15 @@ def y7 : World Nat := setEntry y6 "journal" "kpz-account" (.live account)
 
 theorem b6 : StepBy toy "editor" y5 y6 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ issueObj.versions, ∀ p ∈ v.pins, (resolve toy y5 p).isOk = true) v hv p hp))
-    (Or.inl rfl) (by decide) (by decide) (by decide)
+    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem b7 : StepBy toy "editor" y6 y7 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => held_of_isOk ((by decide :
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
       ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y6 p).isOk = true) v hv p hp))
-    (Or.inr ⟨account, rfl, rfl, [], (List.append_nil _).symm⟩) (by decide) (by decide) (by decide)
+    (Or.inr ⟨account, rfl, rfl, [], (List.append_nil _).symm⟩) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem steps : Star ByAgent y0 y7 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)

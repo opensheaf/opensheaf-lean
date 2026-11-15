@@ -225,7 +225,7 @@ before the step (the premise `hpins` of the model's valid steps).
       | create a ar oid o ha ho _ hpins _ =>
         rw [lookup_setEntry ha] at hl
         split at hl
-        · cases hl; exact hpins v hv p hp
+        · cases hl; exact (hpins v hv p hp).held
         · exact absurd (heldIn_of_live hash hw hl hv) hnew
       | append a ar oid o y ha ho _ _ _ _ hpins _ =>
         rw [lookup_setEntry ha] at hl
@@ -235,7 +235,7 @@ before the step (the premise `hpins` of the model's valid steps).
           simp only [Obj.append, List.mem_append, List.mem_singleton] at hv
           rcases hv with hv | rfl
           · exact absurd (heldIn_of_live hash hw hlo hv) hnew
-          · exact hpins p hp
+          · exact (hpins p hp).held
         · exact absurd (heldIn_of_live hash hw hl hv) hnew
 
 Two versions that hold the same named document version have the same

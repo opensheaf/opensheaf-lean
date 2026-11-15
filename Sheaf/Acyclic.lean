@@ -152,7 +152,7 @@ theorem ValidStep.new_held {w w' : World D} (hs : ValidStep hash w w') (hw : Sou
   | create a ar oid o ha ho _ hpins _ =>
     rw [lookup_setEntry ha] at hl
     split at hl
-    · cases hl; exact hpins v hv p hp
+    · cases hl; exact (hpins v hv p hp).held
     · exact absurd (heldIn_of_live hash hw hl hv) hnew
   | append a ar oid o y ha ho _ _ _ _ hpins _ =>
     rw [lookup_setEntry ha] at hl
@@ -162,7 +162,7 @@ theorem ValidStep.new_held {w w' : World D} (hs : ValidStep hash w w') (hw : Sou
       simp only [Obj.append, List.mem_append, List.mem_singleton] at hv
       rcases hv with hv | rfl
       · exact absurd (heldIn_of_live hash hw hlo hv) hnew
-      · exact hpins p hp
+      · exact (hpins p hp).held
     · exact absurd (heldIn_of_live hash hw hl hv) hnew
 
 /-- Two versions holding the same named document version, in a world whose

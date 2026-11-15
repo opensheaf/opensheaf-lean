@@ -113,7 +113,8 @@ The model keeps only what the properties depend on.
   open, the model makes a choice and says so: the numbering of document
   versions that remove or rename files or revert content (issue #23),
   withdrawals that cannot be undone (issue #25), pins that must resolve
-  when they are made (or report `removed`), mirrors that may start as a
+  when they are made (or report `removed`, if carried over from a version
+  already held), mirrors that may start as a
   partial copy (issue #13), the states of issue #29, and pinned references
   between documents (issues #21 and #28), which accepted copies keep. Each
   is marked in its chapter.

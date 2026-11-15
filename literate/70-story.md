@@ -49,9 +49,9 @@ result is a version is decidable, and enough.
         ∃ t, r = .ok t := by
       cases r <;> simp_all [Resolution.isOk]
 
-    /-- The form valid steps ask for: the pin resolves (or reports `removed`). -/
-    theorem held_of_isOk {D : Type} [DecidableEq D] {hash : Hash D} {w : World D} {p : Pin D}
-        (h : (resolve hash w p).isOk = true) : Held hash w p :=
+    /-- The form valid steps ask for: the pin resolves. -/
+    theorem pinOk_of_isOk {D : Type} [DecidableEq D] {hash : Hash D} {w : World D} {p : Pin D}
+        (h : (resolve hash w p).isOk = true) : PinOk hash w p :=
       Or.inl (exists_of_isOk h)
 
 ## The cast
@@ -101,12 +101,12 @@ its versions hold no pins, and it belongs to the archive that keeps it.
     theorem s4 : StepBy toy "author" w3 w4 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
         (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
     theorem s5 : StepBy toy "coauthor" w4 w5 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
         (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 ## The journal's issue, the co-author's catalogue
 
@@ -152,17 +152,17 @@ Creating them is valid only because every pin resolves when they are made:
 
     theorem s6 : StepBy toy "editor" w5 w6 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => held_of_isOk ((by decide :
+        (fun v hv p hp => pinOk_of_isOk ((by decide :
           ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp))
         (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
     theorem s7 : StepBy toy "coauthor" w6 w7 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => held_of_isOk ((by decide :
+        (fun v hv p hp => pinOk_of_isOk ((by decide :
           ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp))
         (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 ## A mirror
 
@@ -176,7 +176,7 @@ and extends it (here, equals it).
     theorem s8 : StepBy toy "coauthor" w7 w8 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
         (Or.inr ⟨paper, rfl, rfl, [], by simp⟩) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 ## The authors revise the paper
 
@@ -205,12 +205,12 @@ Both extend the history, as `decide` checks against the rule of section
     theorem s9 : StepBy toy "author" w8 w9 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
         (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
     theorem s10 : StepBy toy "author" w9 w10 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
         (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
     example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
@@ -236,9 +236,9 @@ catalogue, a new document version since its content changed.
 
     theorem s11 : StepBy toy "coauthor" w10 w11 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (fun p hp => held_of_isOk ((by decide :
+        (fun p hp => pinOk_of_isOk ((by decide :
           ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
 The last check of the step is the rule of section 10.2 that a followed
 member pins the head: `j2` does, and keeping the catalogue's first member
@@ -255,12 +255,12 @@ step is valid because it copies the original's next version.
     theorem s12 : StepBy toy "coauthor" w11 w12 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
         (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
     theorem s13 : StepBy toy "coauthor" w12 w13 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
         (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩) (by decide)
-        (by decide) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
 ## The journal keeps an accepted copy
 
@@ -276,6 +276,13 @@ The journal keeps its own copy of the revision it vetted (section 10.5).
       .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _ _ _)
         (by simp [copy, acceptedCopy, copyVersion, Version.pins, v1]) (Or.inl rfl) (by decide)
         (by decide) (by decide)
+        (by
+          intro x hx src hs
+          simp only [copy, acceptedCopy, List.mem_singleton] at hx
+          subst hx
+          simp only [copyVersion, Option.some.injEq] at hs
+          subst hs
+          exact Or.inl ⟨v1, by decide, rfl⟩)
 
     def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩
 
@@ -424,9 +431,11 @@ collection keeps the pins of members taken down (sections 10.2 and 11.3).
 
     theorem s15 : StepBy toy "editor" wDown wDown2 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (fun p hp => Or.inr ((by decide :
-          ∀ p ∈ i2.pins, resolve toy wDown p = .removed) p hp)) (Or.inl rfl) (by decide)
-        (by decide) (by decide)
+        (fun p hp => Or.inr ⟨(by decide :
+          ∀ p ∈ i2.pins, resolve toy wDown p = .removed) p hp,
+          "journal", "issue-7", issue, i1, rfl, by decide, (show p ∈ i1.pins from hp)⟩)
+        (Or.inl rfl) (by decide)
+        (by decide) (by decide) (sourceOk_none toy rfl)
 
     example : verify toy wDown2 issue7 = [(pinV1, .removed)] := by decide
 
@@ -508,6 +517,22 @@ The journal's real accepted copy passes the check of section 14: its
 
     example : CopyChecks toy w14 copy :=
       acceptedCopy_checks toy (.refl _) (src := pinV1) (v := v1) (by decide) rfl
+
+**The editor deposits a forged copy**: a version that records version 1 of
+the paper as its source, with other bytes for its source file. No valid
+step can write it: its source resolves, and the files differ.
+
+    def forgedCopy : Version Nat :=
+      { copyVersion v1 pinV1 "forged" "editor" "a forged copy" with
+        files := [("paper.tm", 999), ("paper.pdf", 102)] }
+
+    example : ¬ SourceOk toy w14 forgedCopy := by
+      have hres : resolve toy w14 pinV1 = .ok v1 := by decide
+      intro h
+      rcases h pinV1 rfl with ⟨u, hu, hf⟩ | ⟨hr, _⟩
+      · rw [hres] at hu; cases hu
+        revert hf; decide
+      · rw [hres] at hr; cases hr
 
 **A tool writes a member list that breaks section 10.2**: a catalogue
 member with two pins, a selection member with `follow`, a member with no
