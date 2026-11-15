@@ -76,7 +76,18 @@ shows which rules of the specification make the pieces agree:
 8. [A story, as a sheaf](60-story.md): the story of the model, read as a
    sheaf and checked by computation (the journal's issue and the paper it
    vetted among them), and two broken worlds that do not glue: a forged
-   copy, and a number reused.
+   copy, and a number reused;
+9. [Names are eternal](70-eternal.md): a named document version keeps its
+   content through every later event, and once held nowhere is never held
+   again; the glued sections of a world and of any later one agree;
+10. [Verification is lifting](72-lifting.md): pins are points of a sheaf of
+   digests, verification lifts them to the sheaf of inventories, the lift is
+   unique without collisions, and every copy gives the same verdict;
+11. [Verification is local](74-local.md): restricting a world restricts its
+   sheaf, and a collection verifies in its support as in the whole world;
+12. [Federation](76-federation.md): two worlds built separately glue when
+   the copies they share agree, only pairs across need checking, and each
+   world keeps its section.
 
 Each chapter writes one module of the library, `Sheaf/*.lean`, which
 imports the modules of the model it needs. The root of the library imports
@@ -91,6 +102,10 @@ every module:
     import Sheaf.Collections
     import Sheaf.Acyclic
     import Sheaf.Story
+    import Sheaf.Eternal
+    import Sheaf.Lifting
+    import Sheaf.Local
+    import Sheaf.Federation
 
 ## What does not glue
 

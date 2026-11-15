@@ -7,3 +7,7 @@ import Sheaf.Pins
 import Sheaf.Collections
 import Sheaf.Acyclic
 import Sheaf.Story
+import Sheaf.Eternal
+import Sheaf.Lifting
+import Sheaf.Local
+import Sheaf.Federation

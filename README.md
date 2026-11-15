@@ -53,6 +53,10 @@ This repository holds two literate programs, published together at
 | [Collections and what they pin](literate-sheaf/55-collections.md) | `Sheaf.Collections` | the pins of member lists in the order; what a world holds stays open (`heldIn_open_byPins`); below a collection version lies each member it pins, with the content its pin fixes, unless taken down (`members_below`, `collection_stalk`) |
 | [The order with pins](literate-sheaf/57-acyclic.md) | `Sheaf.Acyclic` | in every world built by events the order with pins is a partial order, by a rank of named document versions kept by every event (`Events.nameRanked`, `byPins_antisymm`); steps keep its edges (`Steps.le`), and a takedown adds none (`takedown_pinStep`) |
 | [A story, as a sheaf](literate-sheaf/60-story.md) | `Sheaf.Story` | the model's story as a sheaf, by computation; a forged copy and a reused number do not glue |
+| [Names are eternal](literate-sheaf/70-eternal.md) | `Sheaf.Eternal` | a named document version keeps its content in every later world (`names_eternal`), is never held again once held nowhere (`no_resurrection`), and the glued sections of a world and of a later one agree (`glue_eternal`) |
+| [Verification is lifting](literate-sheaf/72-lifting.md) | `Sheaf.Lifting` | the inventories of a world glue (`inventory_sheaf`); the digest morphism is mono without collisions (`digests_mono`); every copy gives the same verdict (`copies_same_verdict`); a pin resolves exactly when it lifts (`lifts_iff`), uniquely (`lift_unique`) |
+| [Verification is local](literate-sheaf/74-local.md) | `Sheaf.Local` | restricting a world restricts its sheaf (`restrict_glue`); a collection verifies in its support as in the whole world (`verify_local`) |
+| [Federation](literate-sheaf/76-federation.md) | `Sheaf.Federation` | the sheaf is flasque (`flasque`); two worlds built separately glue when shared copies agree (`federation`), exactly when pairs across agree (`federation_iff`), and each keeps its section (`union_restricts`) |
 
 ## Modelling choices
 
