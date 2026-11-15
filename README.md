@@ -16,7 +16,7 @@ written into the specification.
 
 | Chapter | Specification | What it proves |
 |---|---|---|
-| [Basic](literate/10-basic.md) (`OpenSheaf/Basic.lean`) | sections 3, 7, 9, 10 | definitions: pins, member lists, object versions |
+| [Basic](literate/10-basic.md) (`OpenSheaf/Basic.lean`) | sections 3, 7, 9, 10; issues #21, #28 | definitions: pins, member lists, references (a role and a pin, as proposed in #21 and #28), object versions |
 | [Object](literate/20-object.md) (`OpenSheaf/Object.lean`) | sections 7.3, 9, 11.1 | inventories name their object; document versions count the changes of content (files as a set, and the member list): description-only versions and withdrawals keep the number, new content gets the next one, and each keeps a history well formed; the choices made on issues #23 (removals) and #25 (no reinstatement) |
 | [Archive](literate/30-archive.md) (`OpenSheaf/Archive.lean`) | sections 5, 10.2, 11.2, 11.3, 14 | **immutability**: once a pin resolves to a version, no deposit, new object or new archive changes that version (`Step.resolve_ok`, `Steps.resolve_ok`); a takedown makes pins of the object resolve to `removed`, and changes nothing else (`takedown_removed`, `takedown_other`) |
 | [Collection](literate/40-collection.md) (`OpenSheaf/Collection.lean`) | section 10.1 | updating a **selection** leaves it unchanged (`collect_selection`); in a **catalogue**, members with `follow` move to the head, which resolves to the newest object version, and the others stay (`collect_follow`, `collect_fixed`, `headPin_resolves`); member lists obey the rules of section 10.2 (one pin per catalogue member, non-empty revision sets, no `follow` in a selection), and updating keeps them (`collect_wf`) |
@@ -28,20 +28,22 @@ written into the specification.
 | [Impossible](literate/65-impossible.md) (`OpenSheaf/Impossible.lean`) | sections 7.3, 10.2, 11.3 | breaks of the protocol shown impossible or detected: a pin cannot change its meaning (`pin_meaning_fixed`); history cannot be rewritten by any steps (`history_not_rewritten`), and rewriting it outside the protocol is detected unless the inventories collide (`tamper_detected`); tombstoned identifiers are never reused (`no_reuse`); one document version has one content (`one_number_one_content`) and numbers have no gaps (`no_gaps`); **pins cannot form cycles** in any world built by valid steps and takedowns, whatever the digest (`no_cycles`, `no_cycles_events`); a withdrawal cannot be undone by valid steps (`ValidSteps.withdrawn_stays`, the choice on #25) |
 | [Story](literate/70-story.md) (`OpenSheaf/Story.lean`) | the use cases | tests: a world built by fourteen valid steps from nothing (an author's paper, a journal issue and accepted copy, a co-author's catalogue, note and mirror), then a lost archive, a takedown and attempts to break the protocol (an author acting on the journal's issue, a version rewritten in place, a pin of a version that does not exist yet, a reinstatement, an accepted copy posing as the original, member lists that break section 10.2, a mirror that does not copy), with each verifier report checked by `decide`, and the general theorems applied to the same worlds |
 | [Record](literate/75-record.md) (`OpenSheaf/Record.lean`) | the use case "A learning record" | tests: a student's thesis and the department's record of it, built by acts from nothing; the record verifies, comments stay tied to the version commented on while the thesis moves on, the record's history is kept, the owner decides, the department's mirror is a receipt that catches a rewrite of the first submission, and the record is deleted at the end of its retention without touching the thesis, each checked by `decide` and by the general theorems |
+| [References](literate/80-references.md) (`OpenSheaf/References.lean`) | section 8.1; issues #21, #28 | **pinned references** between documents: they never dangle (`ValidSteps.refs_resolve`, `Events.refs_held`), and no two versions refer to each other (`no_mutual_refs`), though a pinned link back from a later version is possible; a pin fixes what its version refers to (`pin_fixes_refs`); every copy carries the references (`copy_keeps_refs`), not the versions they name; a takedown behind a reference is invisible to a verifier that knows only the core (`takedown_behind_ref`); the short account and its detailed argument, computed |
 
 ## Modelling choices
 
 - **Digests.** A digest is a value of an arbitrary type `D`, and the digest
   of an inventory is `hash` applied to the versions it describes (versions
   `1` to `n`, as in OCFL), together with the archive and identifier of the
-  object. No property of `hash` is assumed, except by four theorems
+  object. No property of `hash` is assumed, except by five theorems
   (`copy_authentic`, `resolveVia_sound`, `acceptedCopy_not_mirror`,
-  `tamper_detected`), which assume that the two inventories they compare do
+  `tamper_detected`, `copy_keeps_refs`), which assume that the two inventories they compare do
   not collide. None assumes that `hash` is injective, which no real digest
   is.
 - **Abstractions.** The description (`datacite.json`) is a string; files are
   logical paths with digests; JSON, OCFL layout, HTTP and the discovery
-  document are not modelled. Pins are those of member lists.
+  document are not modelled. Pins are those of member lists and of
+  references between documents.
 - **Archives** are maps from identifiers to objects or tombstones, and the
   world is a map from archive identifiers to archives. Changes are steps of
   an inductive relation (`Step`), so that a theorem about all changes is a

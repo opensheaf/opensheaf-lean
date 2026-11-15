@@ -54,6 +54,13 @@ structure Members (D : Type) where
   members : List (Member D)
   deriving DecidableEq, Repr
 
+/-- A pinned reference from an object version to an exact version of an
+object: a pin, and its role (issues #21 and #28). -/
+structure Ref (D : Type) where
+  role : String
+  pin : Pin D
+  deriving DecidableEq, Repr
+
 /-- An object version (sections 7 and 9). Its content is its files and, for a
 collection, its member list; the description and the record of the deposit
 (depositor and message, kept in the inventory) are not content. -/
@@ -62,6 +69,7 @@ structure Version (D : Type) where
   files : List (LogicalPath × D)
   members : Option (Members D) := none
   description : String
+  refs : List (Ref D) := []
   status : Status := .active
   depositor : String
   message : String
@@ -71,10 +79,11 @@ structure Version (D : Type) where
 def Members.pins {D : Type} (c : Members D) : List (Pin D) :=
   c.members.flatMap (·.pins)
 
-/-- The pins held by an object version: those of its member list. -/
+/-- The pins held by an object version: those of its member list and of its
+references. -/
 def Version.pins {D : Type} (v : Version D) : List (Pin D) :=
-  match v.members with
-  | none => []
-  | some ms => ms.pins
+  (match v.members with
+    | none => []
+    | some ms => ms.pins) ++ v.refs.map (·.pin)
 
 end OpenSheaf

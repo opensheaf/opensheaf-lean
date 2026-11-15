@@ -93,6 +93,31 @@ The model gives both a list of pins and lets the operations of
       members : List (Member D)
       deriving DecidableEq, Repr
 
+## References
+
+A document may refer to an exact version of another document: a short
+account of a proof to the version of its detailed argument that was
+reviewed, a review to the version it reviews, an analysis to the data it
+used. The core of the specification records such links only inside the
+documents and in DataCite relations, which tools do not follow as pins
+(section 8.1 and appendix F). Issue
+[#21](https://github.com/opensheaf/opensheaf.github.io/issues/21) proposes
+one structure for them, a **pinned reference**: a pin, with a role saying
+what it means; issue
+[#28](https://github.com/opensheaf/opensheaf.github.io/issues/28) proposes a
+first extension that records such references in `object.json`. The model
+follows these proposals, which are not yet part of the specification: a
+reference is a role and a pin. Roles are left as strings (DataCite relation
+types such as `IsSupplementedBy` or `Reviews`, or the terms of another
+vocabulary), and the model never looks inside them.
+
+    /-- A pinned reference from an object version to an exact version of an
+    object: a pin, and its role (issues #21 and #28). -/
+    structure Ref (D : Type) where
+      role : String
+      pin : Pin D
+      deriving DecidableEq, Repr
+
 ## Object versions
 
 An object version holds the content of the object as of that version, its
@@ -103,13 +128,18 @@ description, and OpenSheaf's record of it (sections 7 and 9). The model keeps:
 - the **document version**, which counts the changes of the content
   ([chapter 2](20-object.md));
 - the **description**, `datacite.json`, as an uninterpreted string;
+- the **references** of the version, recorded in `object.json` by an
+  extension;
 - the **status**, active or withdrawn;
 - the **depositor** and the **message**, which OCFL keeps in the inventory
   and which the specification uses to record who made each version and why.
 
-The description, the status and the record of the deposit are not content:
-a new version that changes only them is a description-only version or a
-withdrawal, and keeps the document version.
+The description, the references, the status and the record of the deposit
+are not content: a new version that changes only them is a description-only
+version or a withdrawal, and keeps the document version. References are
+data of `object.json`, like the description: a link written in the text of
+a document is content, but the model sees only the references recorded
+beside it.
 
     /-- An object version (sections 7 and 9). Its content is its files and, for a
     collection, its member list; the description and the record of the deposit
@@ -119,24 +149,27 @@ withdrawal, and keeps the document version.
       files : List (LogicalPath × D)
       members : Option (Members D) := none
       description : String
+      refs : List (Ref D) := []
       status : Status := .active
       depositor : String
       message : String
       deriving DecidableEq, Repr
 
-The pins *held* by an object version are those of its member list. A
-document has none in this model; relations in `datacite.json` that point to
-exact object versions would be pins too, and can be added here when the
-model needs them.
+The pins *held* by an object version are those of its member list and
+those of its references. Every theorem of the model about pins held (that
+they resolve when they are made, that they never dangle without a takedown,
+that they form no cycles) is therefore about references too; the chapter
+[References](80-references.md) states what it means for them.
 
     /-- Every pin of a member list. -/
     def Members.pins {D : Type} (c : Members D) : List (Pin D) :=
       c.members.flatMap (·.pins)
 
-    /-- The pins held by an object version: those of its member list. -/
+    /-- The pins held by an object version: those of its member list and of its
+    references. -/
     def Version.pins {D : Type} (v : Version D) : List (Pin D) :=
-      match v.members with
-      | none => []
-      | some ms => ms.pins
+      (match v.members with
+        | none => []
+        | some ms => ms.pins) ++ v.refs.map (·.pin)
 
     end OpenSheaf

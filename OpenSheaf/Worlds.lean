@@ -219,7 +219,7 @@ theorem ValidSteps.members_pinned {w : World D}
   rw [hc] at hmo
   refine ⟨(hmo m hm).1, fun p hp => hw.2 _ _ _ hl v hv p ?_⟩
   simp only [Version.pins, hc, Members.pins]
-  exact List.mem_flatMap.mpr ⟨m, hm, hp⟩
+  exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
 /-- A valid step, or a takedown (section 11.2). -/
 inductive Event : World D → World D → Prop

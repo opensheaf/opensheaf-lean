@@ -220,7 +220,8 @@ theorem resolveVia_sound {w : World D} {p : Pin D} {ms : List ArchiveId} {o : Ob
 omit [DecidableEq D] in
 /-- The first version of an accepted copy of `v`. -/
 def copyVersion (v : Version D) (description curator message : String) : Version D :=
-  { documentVersion := 1, files := v.files, description, depositor := curator, message }
+  { documentVersion := 1, files := v.files, description, refs := v.refs,
+    depositor := curator, message }
 
 omit [DecidableEq D] in
 /-- The accepted copy of the revision `v`, as object `cid` of archive `s`
@@ -241,10 +242,11 @@ theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m 
     by simp [acceptedCopy, copyVersion, Version.membersOk]⟩
 
 theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
-    (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String) :
+    (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String)
+    (hrefs : ∀ r ∈ v.refs, ∃ t, resolve hash w r.pin = .ok t) :
     ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
   .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
-    (by simp [acceptedCopy, copyVersion, Version.pins]) (Or.inl rfl)
+    (by simpa [acceptedCopy, copyVersion, Version.pins] using hrefs) (Or.inl rfl)
 
 /-- **An accepted copy survives the original.** -/
 theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}

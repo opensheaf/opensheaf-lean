@@ -333,7 +333,7 @@ asks, and its pins resolve.
       rw [hc] at hmo
       refine ⟨(hmo m hm).1, fun p hp => hw.2 _ _ _ hl v hv p ?_⟩
       simp only [Version.pins, hc, Members.pins]
-      exact List.mem_flatMap.mpr ⟨m, hm, hp⟩
+      exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
 ## Takedowns among the steps
 

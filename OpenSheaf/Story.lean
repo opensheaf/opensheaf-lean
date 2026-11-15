@@ -174,7 +174,7 @@ def w14 : World Nat := setEntry w13 "journal" "paper-accepted" (.live copy)
 
 theorem s14 : StepBy toy "editor" w13 w14 :=
   .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _ _)
-    (by simp [copy, acceptedCopy, copyVersion, Version.pins]) (Or.inl rfl) (by decide)
+    (by simp [copy, acceptedCopy, copyVersion, Version.pins, v1]) (Or.inl rfl) (by decide)
     (by decide)
 
 def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩

@@ -44,9 +44,10 @@ when they accept a copy because its digest matches.
     /-- The inventories `i` and `j` do not collide. -/
     def NoCollision (i j : Inventory D) : Prop := hash i = hash j → i = j
 
-The same four theorems use it: `copy_authentic`, `resolveVia_sound`,
-`acceptedCopy_not_mirror` here, and `tamper_detected` in
-[chapter 10](65-impossible.md). No other theorem of the model assumes
+Five theorems use it: `copy_authentic`, `resolveVia_sound`,
+`acceptedCopy_not_mirror` here, `tamper_detected` in
+[chapter 10](65-impossible.md), and `copy_keeps_refs` in
+[chapter 13](80-references.md). No other theorem of the model assumes
 anything about `hash`.
 
 ## Mirrors agree with the original
@@ -331,12 +332,15 @@ found is one of the results.
 An accepted copy is a new document of the selection's archive `s`, under a
 new identifier `cid`. Its first version holds the files of the revision
 vetted, as document version 1; its description, depositor and message are
-the selection's, given as parameters.
+the selection's, given as parameters. It keeps the references of the
+revision: section 10.5 asks the copy to keep "the relations of the source",
+and a reference pins the same version whoever holds it.
 
     omit [DecidableEq D] in
     /-- The first version of an accepted copy of `v`. -/
     def copyVersion (v : Version D) (description curator message : String) : Version D :=
-      { documentVersion := 1, files := v.files, description, depositor := curator, message }
+      { documentVersion := 1, files := v.files, description, refs := v.refs,
+        depositor := curator, message }
 
     omit [DecidableEq D] in
     /-- The accepted copy of the revision `v`, as object `cid` of archive `s`
@@ -346,9 +350,10 @@ the selection's, given as parameters.
       { archive := s, id := cid, kind := .document,
         versions := [copyVersion v description curator message] }
 
-It holds exactly the files vetted. It is a well-formed object without pins,
-so creating it is a valid step whenever the identifier is free in the
-selection's archive.
+It holds exactly the files vetted. It is a well-formed object, whose only
+pins are the references of the revision; creating it is a valid step
+whenever the identifier is free in the selection's archive and those
+references resolve.
 
     omit [DecidableEq D] in
     theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
@@ -361,10 +366,11 @@ selection's archive.
         by simp [acceptedCopy, copyVersion, Version.membersOk]⟩
 
     theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
-        (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String) :
+        (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String)
+        (hrefs : ∀ r ∈ v.refs, ∃ t, resolve hash w r.pin = .ok t) :
         ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
       .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
-        (by simp [acceptedCopy, copyVersion, Version.pins]) (Or.inl rfl)
+        (by simpa [acceptedCopy, copyVersion, Version.pins] using hrefs) (Or.inl rfl)
 
 The copy is kept by the selection's archive, so a takedown of the original
 leaves it alone: its pin still resolves to its first version. This is what

@@ -62,7 +62,14 @@ The chapters build the model from the bottom up:
    story, a student's thesis and the department's record of it, with a
    receipt of each submission, comments tied to the version commented on,
    a rewrite caught by the receipt, and the record deleted at the end of
-   its retention.
+   its retention;
+13. [References between documents](80-references.md): pinned references
+   from one document to an exact version of another (the proposals of
+   issues #21 and #28): they never dangle and form no cycles, a pin fixes
+   what its version refers to, copies carry references but not what they
+   name, and a takedown behind a reference is invisible to a verifier that
+   knows only the core; the use case of a short account and its detailed
+   argument, computed.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -83,6 +90,7 @@ every module:
     import OpenSheaf.Impossible
     import OpenSheaf.Story
     import OpenSheaf.Record
+    import OpenSheaf.References
 
 ## Modelling choices
 
@@ -95,7 +103,7 @@ The model keeps only what the properties depend on.
   to one. Almost nothing assumes a property of `hash`: those theorems hold
   for any function, even a constant one. This is worth knowing.
   Immutability, for instance, does not rest on the strength of SHA-512: it
-  rests on the fact that archives only ever add versions. Four theorems,
+  rests on the fact that archives only ever add versions. Five theorems,
   about copies that come from anywhere and about tampering, assume that the
   two inventories they compare do not collide (`NoCollision`, in
   [chapter 6](48-copies.md)). They do not assume that `hash` is injective,
@@ -103,12 +111,13 @@ The model keeps only what the properties depend on.
 - **Choices on open questions.** Where the specification leaves a question
   open, the model makes a choice and says so: the numbering of document
   versions that only remove files (issue #23), withdrawals that cannot be
-  undone (issue #25), pins that must resolve when they are made, and the
-  states of issue #29. Each is marked in its chapter.
+  undone (issue #25), pins that must resolve when they are made, the
+  states of issue #29, and pinned references between documents (issues
+  #21 and #28). Each is marked in its chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
   the discovery document are left out. The pins of the model are those of
-  member lists.
+  member lists and of references between documents.
 - **Archives** are maps from object identifiers to objects or tombstones,
   and the world is a map from archive identifiers to archives. Changes are
   the cases of one inductive relation, `Step`, so that a theorem about every
