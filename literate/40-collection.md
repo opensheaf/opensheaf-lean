@@ -13,9 +13,8 @@ The two kinds of collection differ in what updating them does (section
 
 This chapter defines the update and proves what it does to each kind,
 together with the fact that the pin given to a followed member resolves, to
-the newest version. That only the curator changes a selection is not proved
-here: the model has no notion of who makes a step (see
-[chapter 5](45-worlds.md)).
+the newest version. That only the curator changes a selection is proved in
+[chapter 7](49-acts.md), which says who may make a step.
 
     -- in OpenSheaf/Collection.lean:
     import OpenSheaf.Archive

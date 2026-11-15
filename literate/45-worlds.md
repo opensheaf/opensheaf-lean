@@ -25,7 +25,7 @@ specification. Section 10.2 asks that every member be pinned, not that every
 pin resolve when it is made: section 14 reports pins as "unavailable", and
 issue #29 discusses pins of objects that readers cannot reach. The model
 asks that a tool resolve every pin it writes, as the reference tools do.
-The freedom from cycles of [chapter 9](65-impossible.md) rests on this
+The freedom from cycles of [chapter 10](65-impossible.md) rests on this
 choice; for pins of versions that cannot be reached, it rests on the
 hashes, which the model does not use there.
 
@@ -212,8 +212,8 @@ version, which records who deposited it and why (the depositor and the
 message), and every earlier member list is kept, as a prefix of the
 history. This is half of section 10.2's "the selection changes only by an
 explicit act of its curator, which is a new version of the selection". The
-other half, that only the curator may make that version, is not modelled:
-steps have no actor, and anyone may append to any object.
+other half, that only the curator may make that version, needs to know who
+makes a step: it is proved in [chapter 7](49-acts.md).
 
     omit [DecidableEq D] in
     /-- **Objects only grow.** -/

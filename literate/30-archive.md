@@ -31,10 +31,22 @@ the identifier, the kind, a date and a reason, which the model leaves out).
       | live (o : Obj D)
       | tomb (lastVersion : Nat) (digest : D)
 
-    /-- An archive (section 5). -/
+An archive is "a set of objects kept by one owner (a person, group or
+institution)" (section 3). The owner acts through agents: the owner
+themselves, the staff of an institution, the authors who deposit in an
+institutional repository. The model records them as the archive's
+**writers**, named as depositors are named in inventories (section 7.1).
+How a reader learns who the writers are is not said by the specification;
+[chapter 7](49-acts.md) says what the list is for.
+
+    /-- An agent: a depositor, named as in the inventory (section 7.1). -/
+    abbrev Agent := String
+
+    /-- An archive (section 5), with the agents who may act for its owner. -/
     structure Archive (D : Type) where
       id : ArchiveId
       entries : ObjectId → Option (Entry D)
+      writers : List Agent := []
 
     /-- The archives, by identifier. -/
     abbrev World (D : Type) := ArchiveId → Option (Archive D)

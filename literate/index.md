@@ -38,17 +38,21 @@ The chapters build the model from the bottom up:
    copy is authenticated by the pin, unless the digests collide;
    resolution through mirrors (section 6.4); accepted copies survive the
    original and are never taken for it;
-7. [Draft, private and public](50-states.md): the proposal of issue #29,
+7. [Who may act](49-acts.md): every change is an act of a writer of the
+   archive it changes; outsiders change nothing, every version was
+   deposited by a writer of its object's own archive (mirrors included),
+   and a selection changes only by its curator;
+8. [Draft, private and public](50-states.md): the proposal of issue #29,
    and what it guarantees;
-8. [Use cases as theorems](60-patterns.md): the promises of the use cases
+9. [Use cases as theorems](60-patterns.md): the promises of the use cases
    (a journal issue does not change, a co-author's catalogue follows a
    paper, a withdrawal keeps what was vetted, a takedown is reported),
    proved for every world;
-9. [What cannot happen](65-impossible.md): breaks of the protocol, shown
+10. [What cannot happen](65-impossible.md): breaks of the protocol, shown
    impossible or detected: a pin changing its meaning, history rewritten,
    identifiers reused, document versions ambiguous or with gaps, cycles of
    pins;
-10. [A story, checked by computation](70-story.md): one world built by valid
+11. [A story, checked by computation](70-story.md): one world built by valid
    steps from nothing (an author, a journal, a co-author with a catalogue
    and a mirror, an accepted copy), then an archive lost and a takedown,
    with the verifier's reports checked by `decide`, as tests, and attempts
@@ -67,6 +71,7 @@ every module:
     import OpenSheaf.Collection
     import OpenSheaf.Worlds
     import OpenSheaf.Copies
+    import OpenSheaf.Acts
     import OpenSheaf.States
     import OpenSheaf.Patterns
     import OpenSheaf.Impossible

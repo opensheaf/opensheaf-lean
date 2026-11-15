@@ -5,6 +5,7 @@ import OpenSheaf.Archive
 import OpenSheaf.Collection
 import OpenSheaf.Worlds
 import OpenSheaf.Copies
+import OpenSheaf.Acts
 import OpenSheaf.States
 import OpenSheaf.Patterns
 import OpenSheaf.Impossible

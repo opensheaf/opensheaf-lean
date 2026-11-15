@@ -10,10 +10,14 @@ inductive Entry (D : Type)
   | live (o : Obj D)
   | tomb (lastVersion : Nat) (digest : D)
 
-/-- An archive (section 5). -/
+/-- An agent: a depositor, named as in the inventory (section 7.1). -/
+abbrev Agent := String
+
+/-- An archive (section 5), with the agents who may act for its owner. -/
 structure Archive (D : Type) where
   id : ArchiveId
   entries : ObjectId → Option (Entry D)
+  writers : List Agent := []
 
 /-- The archives, by identifier. -/
 abbrev World (D : Type) := ArchiveId → Option (Archive D)

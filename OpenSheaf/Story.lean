@@ -1,6 +1,7 @@
 -- Generated from literate/70-story.md by opensheaf-literate: edit the document, not this file.
 import OpenSheaf.Impossible
 import OpenSheaf.Patterns
+import OpenSheaf.Acts
 
 namespace OpenSheaf.Story
 
@@ -21,16 +22,20 @@ theorem exists_of_isOk {D : Type} {r : Resolution D} (h : r.isOk = true) :
     ∃ t, r = .ok t := by
   cases r <;> simp_all [Resolution.isOk]
 
-def emptyArchive (a : ArchiveId) : Archive Nat := { id := a, entries := fun _ => none }
+def emptyArchive (a : ArchiveId) (writers : List Agent) : Archive Nat :=
+  { id := a, entries := fun _ => none, writers }
 
 def w0 : World Nat := fun _ => none
-def w1 : World Nat := fun b => if b = "author" then some (emptyArchive "author") else w0 b
-def w2 : World Nat := fun b => if b = "journal" then some (emptyArchive "journal") else w1 b
-def w3 : World Nat := fun b => if b = "coauthor" then some (emptyArchive "coauthor") else w2 b
+def w1 : World Nat := fun b => if b = "author" then some (emptyArchive "author" ["author"]) else w0 b
+def w2 : World Nat := fun b => if b = "journal" then some (emptyArchive "journal" ["editor"]) else w1 b
+def w3 : World Nat := fun b => if b = "coauthor" then some (emptyArchive "coauthor" ["coauthor"]) else w2 b
 
-theorem s1 : ValidStep toy w0 w1 := .newArchive _ _ _ rfl fun _ => rfl
-theorem s2 : ValidStep toy w1 w2 := .newArchive _ _ _ rfl fun _ => rfl
-theorem s3 : ValidStep toy w2 w3 := .newArchive _ _ _ rfl fun _ => rfl
+theorem s1 : StepBy toy "author" w0 w1 := .newArchive _ _ _ rfl (fun _ => rfl)
+  (by decide)
+theorem s2 : StepBy toy "editor" w1 w2 := .newArchive _ _ _ rfl (fun _ => rfl)
+  (by decide)
+theorem s3 : StepBy toy "coauthor" w2 w3 := .newArchive _ _ _ rfl (fun _ => rfl)
+  (by decide)
 
 def v1 : Version Nat :=
   { documentVersion := 1, files := [("paper.tm", 101), ("paper.pdf", 102)],
@@ -48,13 +53,15 @@ def notes : Obj Nat := { archive := "coauthor", id := "notes", kind := .document
 def w4 : World Nat := setEntry w3 "author" "paper" (.live paper)
 def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 
-theorem s4 : ValidStep toy w3 w4 :=
+theorem s4 : StepBy toy "author" w3 w4 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
-    (Or.inl rfl)
+    (Or.inl rfl) (by decide)
+    (by decide)
 
-theorem s5 : ValidStep toy w4 w5 :=
+theorem s5 : StepBy toy "coauthor" w4 w5 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
-    (Or.inl rfl)
+    (Or.inl rfl) (by decide)
+    (by decide)
 
 def pinV1 : Pin Nat := ⟨"author", "paper", 1, toy (paper.inventory 1)⟩
 def pinNotes : Pin Nat := ⟨"coauthor", "notes", 1, toy (notes.inventory 1)⟩
@@ -84,23 +91,26 @@ def jointObj : Obj Nat := { archive := "coauthor", id := "joint", kind := .colle
 
 def w7 : World Nat := setEntry w6 "coauthor" "joint" (.live jointObj)
 
-theorem s6 : ValidStep toy w5 w6 :=
+theorem s6 : StepBy toy "editor" w5 w6 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
     (fun v hv p hp => exists_of_isOk ((by decide :
       ∀ v ∈ issue.versions, ∀ p ∈ v.pins, (resolve toy w5 p).isOk = true) v hv p hp))
-    (Or.inl rfl)
+    (Or.inl rfl) (by decide)
+    (by decide)
 
-theorem s7 : ValidStep toy w6 w7 :=
+theorem s7 : StepBy toy "coauthor" w6 w7 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
     (fun v hv p hp => exists_of_isOk ((by decide :
       ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins, (resolve toy w6 p).isOk = true) v hv p hp))
-    (Or.inl rfl)
+    (Or.inl rfl) (by decide)
+    (by decide)
 
 def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
-theorem s8 : ValidStep toy w7 w8 :=
+theorem s8 : StepBy toy "coauthor" w7 w8 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
-    (Or.inr ⟨by decide, paper, rfl, rfl, [], by simp⟩)
+    (Or.inr ⟨by decide, paper, rfl, rfl, [], by simp⟩) (by decide)
+    (by decide)
 
 def v2 : Version Nat :=
   Version.revise [v1] [("paper.tm", 201), ("paper.pdf", 202)] none
@@ -115,13 +125,15 @@ def paper3 : Obj Nat := paper2.append v3
 def w9 : World Nat := setEntry w8 "author" "paper" (.live paper2)
 def w10 : World Nat := setEntry w9 "author" "paper" (.live paper3)
 
-theorem s9 : ValidStep toy w8 w9 :=
+theorem s9 : StepBy toy "author" w8 w9 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl)
+    (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
+    (by decide)
 
-theorem s10 : ValidStep toy w9 w10 :=
+theorem s10 : StepBy toy "author" w9 w10 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl)
+    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl) (by decide)
+    (by decide)
 
 example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
@@ -135,21 +147,24 @@ def j2 : Version Nat :=
 
 def w11 : World Nat := setEntry w10 "coauthor" "joint" (.live (jointObj.append j2))
 
-theorem s11 : ValidStep toy w10 w11 :=
+theorem s11 : StepBy toy "coauthor" w10 w11 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
     (fun p hp => exists_of_isOk ((by decide :
-      ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl)
+      ∀ p ∈ j2.pins, (resolve toy w10 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
+    (by decide)
 
 def w12 : World Nat := setEntry w11 "coauthor" "paper" (.live paper2)
 def w13 : World Nat := setEntry w12 "coauthor" "paper" (.live paper3)
 
-theorem s12 : ValidStep toy w11 w12 :=
+theorem s12 : StepBy toy "coauthor" w11 w12 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩)
+    (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩) (by decide)
+    (by decide)
 
-theorem s13 : ValidStep toy w12 w13 :=
+theorem s13 : StepBy toy "coauthor" w12 w13 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩)
+    (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩) (by decide)
+    (by decide)
 
 def copy : Obj Nat :=
   acceptedCopy "journal" "paper-accepted" v1 "On sheaves of documents (accepted)" "editor"
@@ -157,17 +172,46 @@ def copy : Obj Nat :=
 
 def w14 : World Nat := setEntry w13 "journal" "paper-accepted" (.live copy)
 
-theorem s14 : ValidStep toy w13 w14 := acceptedCopy_valid toy rfl rfl _ _ _ _
+theorem s14 : StepBy toy "editor" w13 w14 :=
+  .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _ _)
+    (by simp [copy, acceptedCopy, copyVersion, Version.pins]) (Or.inl rfl) (by decide)
+    (by decide)
 
 def pinCopy : Pin Nat := ⟨"journal", "paper-accepted", 1, toy (copy.inventory 1)⟩
 
+theorem _root_.OpenSheaf.StepBy.v {u : Agent} {w w' : World Nat} (h : StepBy toy u w w') : ValidStep toy w w' :=
+  h.toValidStep toy
+
 theorem story : ValidSteps toy w0 w14 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
-    (.tail (.refl _) s1) s2) s3) s4) s5) s6) s7) s8) s9) s10) s11) s12) s13) s14
+    (.tail (.refl _) s1.v) s2.v) s3.v) s4.v) s5.v) s6.v) s7.v) s8.v) s9.v) s10.v) s11.v) s12.v)
+    s13.v) s14.v
 
 theorem story_wf : WFWorld toy w14 := story.wf toy (WFWorld.empty toy)
 
 theorem story_pins : PinsOk toy w14 := story.pins_ok toy
+
+theorem story_acts : Acts toy w0 w14 :=
+  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
+    (.tail (.refl _) (.step s1)) (.step s2)) (.step s3)) (.step s4)) (.step s5))
+    (.step s6)) (.step s7)) (.step s8)) (.step s9)) (.step s10)) (.step s11))
+    (.step s12)) (.step s13)) (.step s14)
+
+example : ∀ v ∈ issue.versions, v.depositor ∈ ["editor"] :=
+  Acts.curated toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
+
+example : ∀ v ∈ paper3.versions, v.depositor = "author" := by decide
+
+theorem journal_writers : writersOf w14 "journal" = some ["editor"] := by decide
+
+example (w' : World Nat) (h : Act toy "author" w14 w') :
+    lookup w' "journal" "issue-7" = lookup w14 "journal" "issue-7" :=
+  h.outsider toy (fun ar har => by
+    have := journal_writers
+    rw [writersOf, har] at this
+    simp at this
+    rw [this]
+    decide) _
 
 example : verify toy w14 issue7 = [(pinV1, .ok v1)] := by decide
 
@@ -261,8 +305,8 @@ example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
 theorem w6_to_w14 : Steps w6 w14 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
-    (s7.toStep toy)) (s8.toStep toy)) (s9.toStep toy)) (s10.toStep toy))
-    (s11.toStep toy)) (s12.toStep toy)) (s13.toStep toy)) (s14.toStep toy)
+    (s7.v.toStep toy)) (s8.v.toStep toy)) (s9.v.toStep toy)) (s10.v.toStep toy))
+    (s11.v.toStep toy)) (s12.v.toStep toy)) (s13.v.toStep toy)) (s14.v.toStep toy)
 
 example : verify toy w14 issue7 = verify toy w6 issue7 ∧ collect toy w14 issue7 = issue7 :=
   selection_stable toy w6_to_w14 rfl fun p hp => exists_of_isOk ((by decide :

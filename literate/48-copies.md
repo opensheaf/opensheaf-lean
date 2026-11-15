@@ -46,7 +46,7 @@ when they accept a copy because its digest matches.
 
 The same four theorems use it: `copy_authentic`, `resolveVia_sound`,
 `acceptedCopy_not_mirror` here, and `tamper_detected` in
-[chapter 9](65-impossible.md). No other theorem of the model assumes
+[chapter 10](65-impossible.md). No other theorem of the model assumes
 anything about `hash`.
 
 ## Mirrors agree with the original

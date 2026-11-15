@@ -6,7 +6,7 @@ on. This chapter states some of those promises as theorems about the model,
 for every world and every sequence of changes. They play the role of tests:
 if a change of the model, or of the specification it follows, broke one of
 these promises, the proof would no longer go through. The
-[story](70-story.md) of chapter 10 does the same for one concrete world,
+[story](70-story.md) of chapter 11 does the same for one concrete world,
 checked by computation.
 
     -- in OpenSheaf/Patterns.lean:

@@ -78,7 +78,7 @@ If version `n` exists, then `n` is between 1 and the length of the history.
 ## Histories that share a prefix
 
 Two changes of an object keep a prefix of its history: appending a version
-keeps the whole history, and rewriting drafts ([chapter 7](50-states.md))
+keeps the whole history, and rewriting drafts ([chapter 8](50-states.md))
 keeps the versions before the drafts. Neither changes the identity of the
 object. The two lemmas below say that, within the prefix, versions and
 inventories are unchanged. They hold whatever the digest function, since
