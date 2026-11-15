@@ -156,6 +156,15 @@ member's own archive and object.
     instance (c : Members D) : Decidable c.WF := by
       unfold Members.WF; infer_instance
 
+The model does not require the archive of a member to be the archive that
+the object records as its own. A pin may name an archive that keeps a
+mirror, and then resolves through the mirror directly, even after the
+original is taken down. Section 10.2 calls it "the member's archive";
+whether such pins are allowed is
+[issue #38](https://github.com/opensheaf/opensheaf.github.io/issues/38) of
+the specification, related to the takedowns of
+[issue #33](https://github.com/opensheaf/opensheaf.github.io/issues/33).
+
 The pin of a head names the object it is the head of.
 
     theorem headPin_names {w : World D} {a : ArchiveId} {oid : ObjectId} {p : Pin D}

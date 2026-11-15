@@ -163,8 +163,9 @@ theorem Acts.depositors {w : World D}
     (h : Acts hash (fun _ => (none : Option (Archive D))) w) : DepositorsOk w :=
   h.invariant _ (fun ⟨_, ha⟩ => ha.depositors hash) fun b x o hl => by simp [lookup] at hl
 
-/-- **A selection changes only by an act of its curator** (section 10.2). -/
-theorem Acts.curated {w : World D}
+/-- **The versions of an object kept in its own archive were deposited by that
+archive's writers**: for a selection, by its curators (section 10.2). -/
+theorem Acts.own_depositors {w : World D}
     (h : Acts hash (fun _ => (none : Option (Archive D))) w) {a : ArchiveId}
     {oid : ObjectId} {o : Obj D} (hl : lookup w a oid = some (.live o))
     (hown : o.archive = a) {ar : Archive D} (ha : w a = some ar) :

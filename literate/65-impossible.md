@@ -14,7 +14,7 @@ detected. These are the negative tests of the model.
 | Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already |
 | A withdrawn object becomes active again | valid steps forbid it (the model's choice on issue #25) |
 
-The last one is stated in section 10.2 ("Pins cannot form cycles"), where
+The fifth is stated in section 10.2 ("Pins cannot form cycles"), where
 it is justified by the hashes. The model proves it from the protocol alone,
 with no assumption on the digest function.
 

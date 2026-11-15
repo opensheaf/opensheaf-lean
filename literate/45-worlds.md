@@ -15,8 +15,9 @@ that they keep the archives **well formed**:
 - the versions of a collection, and only those, have member lists
   (section 7.4), and these lists obey the rules of section 10.2
   ([chapter 4](40-collection.md));
-- an object kept by an archive other than its own is a mirror, whose history
-  is a prefix of the original's (section 10.4; [chapter 6](48-copies.md));
+- and, proved in [chapter 6](48-copies.md) rather than part of the
+  definition: an object kept by an archive other than its own is a mirror,
+  whose history is a prefix of the original's (section 10.4);
 - every pin held by any version resolves, so that, without takedowns,
   nothing ever dangles.
 

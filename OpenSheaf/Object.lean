@@ -260,6 +260,7 @@ def Version.describe (l : List (Version D)) (v : Version D)
   { v with status := headStatus l, description, depositor, message }
 
 omit [DecidableEq D] in
+
 /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }

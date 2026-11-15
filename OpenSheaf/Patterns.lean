@@ -130,7 +130,7 @@ theorem owner_controls {w : World D} (h : Acts hash (fun _ => (none : Option (Ar
     (hown : o.archive = a) {ar : Archive D} (ha : w a = some ar) :
     (∀ v ∈ o.versions, v.depositor ∈ ar.writers) ∧
       ∀ u w', u ∉ ar.writers → Act hash u w w' → lookup w' a oid = lookup w a oid :=
-  ⟨Acts.curated hash h hl hown ha, fun _ _ hu hact =>
+  ⟨Acts.own_depositors hash h hl hown ha, fun _ _ hu hact =>
     hact.outsider hash (fun ar' h' => by rw [ha] at h'; cases h'; exact hu) oid⟩
 
 /-- **A mirror is a receipt.** In a world built by events, every version of a

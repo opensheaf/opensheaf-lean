@@ -264,8 +264,9 @@ who deposit in it, they are the curators of its selections too. A curator
 of each selection, distinct from the other writers, needs writers per
 object ([model issue 5](https://github.com/opensheaf/opensheaf-lean/issues/5)).
 
-    /-- **A selection changes only by an act of its curator** (section 10.2). -/
-    theorem Acts.curated {w : World D}
+    /-- **The versions of an object kept in its own archive were deposited by that
+    archive's writers**: for a selection, by its curators (section 10.2). -/
+    theorem Acts.own_depositors {w : World D}
         (h : Acts hash (fun _ => (none : Option (Archive D))) w) {a : ArchiveId}
         {oid : ObjectId} {o : Obj D} (hl : lookup w a oid = some (.live o))
         (hown : o.archive = a) {ar : Archive D} (ha : w a = some ar) :

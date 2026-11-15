@@ -54,7 +54,7 @@ it.
 
 An overlay journal lists an issue as a selection whose members pin the
 revisions the editors vetted ("An overlay journal"). The authors go on
-depositing new versions, other archives come and go. The promise: an issue
+depositing new versions, new objects and archives appear. The promise: an issue
 that verified once verifies in exactly the same way after any number of
 such changes, and updating it never adds the new versions.
 
@@ -242,7 +242,7 @@ archive's writers, and an act of anyone else leaves it as it is.
         (hown : o.archive = a) {ar : Archive D} (ha : w a = some ar) :
         (∀ v ∈ o.versions, v.depositor ∈ ar.writers) ∧
           ∀ u w', u ∉ ar.writers → Act hash u w w' → lookup w' a oid = lookup w a oid :=
-      ⟨Acts.curated hash h hl hown ha, fun _ _ hu hact =>
+      ⟨Acts.own_depositors hash h hl hown ha, fun _ _ hu hact =>
         hact.outsider hash (fun ar' h' => by rw [ha] at h'; cases h'; exact hu) oid⟩
 
 ## A mirror is a receipt (learning record)

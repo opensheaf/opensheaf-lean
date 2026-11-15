@@ -174,7 +174,12 @@ when the issue is settled: a version keeps the number of an earlier version
 whose content it holds, and any other version gets a new number. Content is
 compared as a set of files, since the order in which files are listed means
 nothing, together with the member list, whose order is authoritative
-(section 10.2). The choice decides three more cases of #23: a file renamed
+(section 10.2). Every file counts, including a file that holds a note, such
+as a notice or the reason of a withdrawal (section 9): adding one makes new
+content, so a new document version, where sections 7.3 and 11.1 add notices
+and withdrawals by description-only versions. The model does not yet tell
+the document's own files (sources, renditions, change note) from note
+files; see "Next" in the introduction. The choice decides three more cases of #23: a file renamed
 is new content (files are compared by path and digest); a version whose
 content returns to an earlier version's takes the earlier number, where
 #23 and the discussion of issue #2 propose a new one; and the change note,
@@ -380,6 +385,11 @@ is built for the history `l` it extends, and takes the status of its head.
       { v with status := headStatus l, description, depositor, message }
 
     omit [DecidableEq D] in
+`Version.withdraw` builds a withdrawal as section 11.1 defines it, a
+description-only version. The rules do not require it: a version with new
+content may also come with status `withdrawn`, which section 11.1 does not
+foresee. The model leaves this open, with issue #25.
+
     /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }

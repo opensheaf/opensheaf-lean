@@ -95,7 +95,7 @@ The researcher deposits a paper; the co-author deposits a note of their own.
     def w5 : World Nat := setEntry w4 "coauthor" "notes" (.live notes)
 
 Each creation is a valid step: the identifier is free, the object is well
-formed (`rfl` checks the identifier, `decide` the other four conditions),
+formed (`rfl` checks the identifier, `decide` the other five conditions),
 its versions hold no pins, and it belongs to the archive that keeps it.
 
     theorem s4 : StepBy toy "author" w3 w4 :=
@@ -328,12 +328,17 @@ So the journal's issue holds only versions deposited by its editor, by the
 theorem on curators, without looking at them:
 
     example : ∀ v ∈ issue.versions, v.depositor ∈ ["editor"] :=
-      Acts.curated toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
+      Acts.own_depositors toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
 
 The co-author's mirror holds only the author's deposits, although the
 co-author made the steps that copied them:
 
-    example : ∀ v ∈ paper3.versions, v.depositor = "author" := by decide
+    example : ∀ v ∈ paper3.versions, v.depositor ∈ ["author"] := by
+      obtain ⟨ws, hws, hd⟩ := Acts.depositors toy story_acts "coauthor" "paper" paper3 rfl
+      have h : writersOf w14 "author" = some ["author"] := by decide
+      rw [show paper3.archive = "author" from rfl, h] at hws
+      cases hws
+      exact hd
 
 And the author cannot change the journal's issue, whatever they do: the
 author is not one of the journal's writers.
@@ -470,6 +475,9 @@ verifier reports a mismatch.
 
     example : resolve toy wTamper pinV3 = .mismatch := by decide
 
+    example : ¬ Steps w14 wTamper := fun hs =>
+      history_not_rewritten hs (a := "author") (oid := "paper") (o := paper3) rfl rfl (by decide)
+
 The mirror still holds the original, and resolution through it recovers the
 vetted version: integrity comes from the pin, not from the place.
 
@@ -477,11 +485,13 @@ vetted version: integrity comes from the pin, not from the place.
 
 **A collection pins a version that does not exist yet**, for instance a
 version 4 of the paper, guessing its digest. The pin does not resolve, so
-the step that would deposit it is not valid. This is why pins cannot form
+the step that would deposit it is not valid: it is neither a version nor
+`removed`, the two cases a new pin may be. This is why pins cannot form
 cycles: a version cannot pin itself, since it does not exist when its pins
 are checked.
 
-    example : (resolve toy w14 ⟨"author", "paper", 4, toy ((paper3.append v3).inventory 4)⟩).isOk = false := by
+    example : resolve toy w14 ⟨"author", "paper", 4, toy ((paper3.append v3).inventory 4)⟩ =
+        .unavailable := by
       decide
 
 **The authors withdraw the paper, then describe version 1 again as active.**
@@ -556,8 +566,13 @@ does not have. It is not the original's next version: at `w11` the
 original's history is `v1, v2, v3`, and the mirror holds `v1`, so the next
 version is `v2`, not `v3`.
 
-    example : paper3.versions ≠ paper.versions ++ v3 :: [] ∧
-        paper3.versions ≠ paper.versions ++ [v3, v3] := by decide
+    example : ¬ MirrorOf w11 (paper.append v3) := by
+      rintro ⟨orig, hl, _, t, ht⟩
+      have : lookup w11 "author" "paper" = some (.live paper3) := rfl
+      simp only [Obj.append, paper] at hl ht
+      rw [this] at hl; cases hl
+      simp [paper3, paper2, paper, Obj.append] at ht
+      exact absurd ht.1 (by decide)
 
 **The story's world has no cycle of pins**, by the general theorem:
 

@@ -56,8 +56,9 @@ receives it by mirroring it: the mirror is the receipt.
 
 The supervisor's comments are a document of the department, deposited by
 the supervisor. In the specification they point to the version commented
-on by a `Reviews` relation; the model has no relations, and the record
-below pins both.
+on by a `Reviews` relation; the model's references
+([chapter 13](80-references.md)) could carry it, but the record below
+simply pins both.
 
     def c1 : Version Nat :=
       { documentVersion := 1, files := [("comments.pdf", 41)],

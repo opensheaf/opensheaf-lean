@@ -215,9 +215,14 @@ theorem story_acts : Acts toy w0 w14 :=
   (upToIssue.trans afterIssue).mono fun ⟨u, h⟩ => ⟨u, .step h⟩
 
 example : ∀ v ∈ issue.versions, v.depositor ∈ ["editor"] :=
-  Acts.curated toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
+  Acts.own_depositors toy story_acts (a := "journal") (oid := "issue-7") rfl rfl rfl
 
-example : ∀ v ∈ paper3.versions, v.depositor = "author" := by decide
+example : ∀ v ∈ paper3.versions, v.depositor ∈ ["author"] := by
+  obtain ⟨ws, hws, hd⟩ := Acts.depositors toy story_acts "coauthor" "paper" paper3 rfl
+  have h : writersOf w14 "author" = some ["author"] := by decide
+  rw [show paper3.archive = "author" from rfl, h] at hws
+  cases hws
+  exact hd
 
 theorem journal_writers : writersOf w14 "journal" = some ["editor"] := by decide
 
@@ -300,9 +305,13 @@ example : verify toy wTamper issue7 = [(pinV1, .mismatch)] := by decide
 
 example : resolve toy wTamper pinV3 = .mismatch := by decide
 
+example : ¬ Steps w14 wTamper := fun hs =>
+  history_not_rewritten hs (a := "author") (oid := "paper") (o := paper3) rfl rfl (by decide)
+
 example : resolveVia toy wTamper pinV1 ["coauthor"] = .ok v1 := by decide
 
-example : (resolve toy w14 ⟨"author", "paper", 4, toy ((paper3.append v3).inventory 4)⟩).isOk = false := by
+example : resolve toy w14 ⟨"author", "paper", 4, toy ((paper3.append v3).inventory 4)⟩ =
+    .unavailable := by
   decide
 
 def wd : Version Nat := v3.withdraw "author" "retracted"
@@ -348,8 +357,13 @@ def unpinned : Members Nat :=
 
 example : ¬ twoPins.WF ∧ ¬ followed.WF ∧ ¬ unpinned.WF := by decide
 
-example : paper3.versions ≠ paper.versions ++ v3 :: [] ∧
-    paper3.versions ≠ paper.versions ++ [v3, v3] := by decide
+example : ¬ MirrorOf w11 (paper.append v3) := by
+  rintro ⟨orig, hl, _, t, ht⟩
+  have : lookup w11 "author" "paper" = some (.live paper3) := rfl
+  simp only [Obj.append, paper] at hl ht
+  rw [this] at hl; cases hl
+  simp [paper3, paper2, paper, Obj.append] at ht
+  exact absurd ht.1 (by decide)
 
 example (s : Site) : ¬ Chain (PinsTo toy w14) s s := no_cycles toy story s
 
