@@ -12,9 +12,9 @@ makes the claim precise in two ways.
 - **Verification is local.** The verdicts on a collection version, and on
   every collection version below it in the order with pins, are the same
   in the *support* of the collection as in the whole world
-  (`verify_local`). The support is small: the copies that hold something
-  below the collection, and the tombstones, which stand for the objects
-  taken down. Nothing else in the world, however large, can change what a
+  (`verify_local`). The support is the copies that hold something below
+  the collection, and the tombstones that its member lists pin, which stand
+  for the objects taken down. Nothing else in the world, however large, can change what a
   verifier of the collection finds.
 
     -- in Sheaf/Local.lean:
@@ -79,16 +79,18 @@ part: the presheaf restriction, realised by dropping entries.
 
 The support of a named document version `x` is the places a verifier needs
 to check `x` and everything below it: the copies that hold a named document
-version below `x`, and the tombstones.
+version below `x`, and the tombstones its member lists pin.
 
     variable [DecidableEq D] (hash : Hash D)
 
     /-- The places of a world that a verifier of `x` and everything below it
     needs: the copies that hold a named document version below `x`, and the
-    tombstones. -/
+    tombstones that a member list below `x` pins. -/
     def Support (w : World D) (x : Name) (a : ArchiveId) (i : ObjectId) : Prop :=
       (∃ c, lookup w a i = some (.live c) ∧ ∃ v ∈ c.versions, (byPins hash w).le (c.name v) x) ∨
-        ∃ n d, lookup w a i = some (.tomb n d)
+        ((∃ n d, lookup w a i = some (.tomb n d)) ∧
+          ∃ b j c v p, lookup w b j = some (.live c) ∧ v ∈ c.versions ∧
+            (byPins hash w).le (c.name v) x ∧ p ∈ v.memberPins ∧ p.archive = a ∧ p.object = i)
 
 In a world built by events, every pin of a member list held below `x`
 resolves to a version below `x`, or reports `removed`
@@ -114,7 +116,7 @@ world does.
             unfold resolve at hr; rw [ho] at hr; exact hr
           exact Or.inl ⟨o, ho, u, versionAt_mem (resolveEntry_live_ok hash hre).1,
             (byPins hash w).trans hle' hle⟩
-        · exact Or.inr ((resolve_removed_iff hash).mp hr)
+        · exact Or.inr ⟨(resolve_removed_iff hash).mp hr, b, i, c, v, p, hl, hv, hle, hpm, rfl, rfl⟩
       unfold resolve
       rw [lookup_restrict, if_yes hS]
 

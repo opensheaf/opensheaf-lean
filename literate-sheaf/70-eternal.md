@@ -13,7 +13,7 @@ This chapter proves that they agree across time too:
 
 So a citation by name alone means the same thing for all time, or stops
 meaning anything; it never comes to mean something else. In terms of
-sheaves, the worlds of a sequence of events form a sheaf over time as well
+sections, the worlds of a sequence of events glue over time as well
 as over names: the glued sections of a world and of any later world agree
 wherever both are defined (`glue_eternal`).
 
@@ -293,7 +293,7 @@ following the other, agree wherever both are defined.
       have := congrFun (congrFun (hg ⟨b, i, c, hl, c.versions.length⟩) (c.name v)) hc
       exact this.trans (objSec_piece hwf (by rw [List.take_length]; exact hv) hc)
 
-    /-- **The sheaf over time.** The glued sections of a world and of any later
+    /-- **Gluing over time.** The glued sections of a world and of any later
     world agree wherever both are defined. -/
     theorem glue_eternal {w w' : World D}
         (hs0 : Events hash (fun _ => (none : Option (Archive D))) w) (hs : Events hash w w')

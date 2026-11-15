@@ -36,7 +36,9 @@ sheaf for general reasons (chapter 1), whatever the protocol. What the
 theorem says about OpenSheaf is that the data of a world form a compatible
 family of sections. So a world defines one section of that sheaf, over the
 open set of what it holds, and every copy and every object version is a
-restriction of it. That is the sense of "a world is a sheaf" below.
+restriction of it. That is all that "a world is a sheaf" means here: the
+theorems are about which sections a world gives, not about the sheaf, which
+is the same for every world.
 
 A name carries no digest, so this is not automatic. Two copies could hold
 different content under the same name, and then nothing glues. The proof
@@ -63,7 +65,7 @@ shows which rules of the specification make the pieces agree:
 3. [An object version is a section](30-object.md): its set is open (no
    gaps), it glues its pieces (section 7.3), and a later object version
    restricts to an earlier one (versions are fixed);
-4. [A world is a sheaf](40-world.md): copies agree in every world built by
+4. [The sections of a world glue](40-world.md): copies agree in every world built by
    events, so the sections of a world glue, uniquely; a condition checked
    one object version at a time holds of the whole;
 5. [Pins and accepted copies](50-pins.md): a pin names a section, in any
@@ -93,7 +95,7 @@ shows which rules of the specification make the pieces agree:
    contents, but it is not monotone; the second, the top, is monotone, and
    its fibres are runs of description-only versions; descriptions do not
    glue;
-14. [The citable sheaf](79-citable.md): the worlds of a run glue over time
+14. [The citable section](79-citable.md): the worlds of a run glue over time
    into one section over everything ever held; each name is held during one
    interval, after which it is reported removed.
 

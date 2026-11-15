@@ -28,9 +28,8 @@ the document version that the object version holds, which the world tells:
 it is where the pin resolves. So the order depends on the world, and on the
 digest function, through resolution. Where a pin resolves is fixed once it
 resolves (immutability, in the model), so the edges of a world are kept
-by every later step; a takedown adds none, and removes those into and out
-of the object taken down. The next chapter,
-[The order with pins](57-acyclic.md), proves it.
+by every later step, and a takedown adds none (it may remove some). The
+next chapter, [The order with pins](57-acyclic.md), proves both.
 
 The edge goes to the name of the object found, which is the name the
 object records. A pin that names a mirror is resolved by the model to the
@@ -92,6 +91,12 @@ general case follows along the steps.
       induction hle with
       | refl => exact id
       | tail _ hr ih => exact fun hx => ih (h hr hx)
+
+The sets held by single object versions are open in the order of deposit,
+but not in this one: an object version of a collection holds its own
+history, not what it pins. Only what a whole world holds is open here
+(below), so the theorem that local conditions glue applies to the order of
+deposit, not to this one.
 
 The order is a preorder, and nothing in this chapter needs more. In every
 world built by events it is also a partial order, which the next chapter,
@@ -198,13 +203,13 @@ was taken down and its pin reports `removed`.
 
     /-- **The stalk of a collection version**: each member it pins, with the
     content its pin fixes, or a takedown reported. -/
-    theorem collection_stalk {w : World D}
+    theorem collection_members {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w)
         {g : Sec (HeldIn w) (Content D)} (hg : Glues (sections w) g) {b : ArchiveId}
         {i : ObjectId} {c : Obj D} {v : Version D} {p : Pin D}
         (hl : lookup w b i = some (.live c)) (hv : v ∈ c.versions) (hp : p ∈ v.memberPins) :
-        (∃ (o : Obj D) (u : Version D), resolve hash w p = .ok u ∧
-          (byPins hash w).le (o.name u) (c.name v) ∧
+        (∃ (o : Obj D) (u : Version D), lookup w p.archive p.object = some (.live o) ∧
+          resolve hash w p = .ok u ∧ (byPins hash w).le (o.name u) (c.name v) ∧
           ∃ hy : HeldIn w (o.name u), g (o.name u) hy = u.content) ∨
           resolve hash w p = .removed := by
       rcases members_below hash hs hl hv hp with ⟨o, u, ho, hr, hle⟩ | hr
@@ -214,7 +219,7 @@ was taken down and its pin reports `removed`.
           exact ⟨⟨b, i, c, hl, c.versions.length⟩, (held_iff hwf _ _).mpr
             ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
         have hy := heldIn_open_byPins hash (Events.sound hash hs) hle hx
-        exact ⟨o, u, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩
+        exact ⟨o, u, ho, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩
       · exact Or.inr hr
 
     end OpenSheaf.Sheaf

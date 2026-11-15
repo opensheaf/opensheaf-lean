@@ -101,8 +101,8 @@ document version is the content of the revision.
 With the previous theorem, the copy and the original agree through the pin
 of the source. The two values are equal, at two different points: the
 copy's own name, and the revision's name. So an accepted copy is not a
-second section over the same set, as a mirror is, but a map between two
-points of the base that preserves the value. The verifier checks that the
+second section over the same set, as a mirror is: the theorem is an
+equality of the values at two different points of the base. The verifier checks that the
 map preserves it (section 14: "for each accepted copy, check that its first
 document version holds exactly the files of the source version").
 

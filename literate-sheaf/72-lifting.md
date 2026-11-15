@@ -15,9 +15,12 @@ version, and to check that it hashes to the pin's digest. The chapter
 proves:
 
 - the inventories of every copy in a world built by events glue into one
-  section of the inventory sheaf (`inventory_sheaf`);
-- without collisions, the digest morphism is a monomorphism, so a lift is
-  unique when it exists (`digests_mono`, `lift_unique`);
+  section of the inventory sheaf (`inventory_glues`);
+- the digest morphism is injective wherever the inventories it compares do
+  not collide, so a lift is unique when it exists (`digests_injective`,
+  `lift_unique`); the model does not assume the digest function injective,
+  so this is a statement about given sections, not a monomorphism of
+  sheaves;
 - **every copy gives the same verdict**: two copies holding the object
   version a pin names resolve it alike, whether to a version or to a
   mismatch (`copies_same_verdict`); the verdict is read off the glued
@@ -27,8 +30,9 @@ proves:
 Section 6.4 of the specification says that "any copy whose bytes match the
 pinned digest is acceptable: integrity comes from the pin, not from the
 place". The theorems here add that, in a world built by events, the copies
-cannot disagree on a pin: a mismatch through one copy is a mismatch
-through all of them.
+that hold the object version a pin names cannot disagree on it: a mismatch
+through one of them is a mismatch through all of them. A copy that does not
+hold that version yet, a mirror lagging behind, reports it unavailable.
 
     -- in Sheaf/Lifting.lean:
     import Sheaf.Eternal
@@ -114,7 +118,7 @@ In a world built by events, copies agree (the model's
     variable [DecidableEq D] (hash : Hash D)
 
     /-- **The inventory sheaf of a world built by events.** -/
-    theorem inventory_sheaf {w : World D}
+    theorem inventory_glues {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
         ∃ G, Glues (invSections w) G ∧ ∀ G', Glues (invSections w) G' → G' = G :=
       sheaf (inv_compatible (Events.copiesAgree hash hs))
@@ -123,8 +127,10 @@ In a world built by events, copies agree (the model's
 
 Hashing each inventory turns a section of inventories into a section of
 digests, and commutes with restriction: it is a morphism of presheaves.
-Without collisions it is a monomorphism: two sections of inventories with
-the same digests are equal.
+Where the inventories do not collide it is injective: two sections of
+inventories with the same digests, and no collision between them, are
+equal. This, like `lift_unique` below, restates the hypothesis; it is
+recorded to name the step.
 
     omit [DecidableEq D] in
     /-- The digest morphism: a section of inventories gives a section of digests. -/
@@ -136,8 +142,8 @@ the same digests are equal.
         digests hash (s.restrict h) = (digests hash s).restrict h := rfl
 
     omit [DecidableEq D] in
-    /-- **Without collisions, it is a monomorphism.** -/
-    theorem digests_mono {U : VSite → Prop} {s s' : Sec U (Inventory D)}
+    /-- **Without collisions, it is injective.** -/
+    theorem digests_injective {U : VSite → Prop} {s s' : Sec U (Inventory D)}
         (hcol : ∀ x hx, NoCollision hash (s x hx) (s' x hx))
         (h : digests hash s = digests hash s') : s = s' := by
       funext x hx

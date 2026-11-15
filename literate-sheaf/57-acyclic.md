@@ -163,8 +163,8 @@ whole order. This holds for any step of the model, valid or not.
 
 A takedown only turns a live entry into a tombstone. The copies and the
 resolutions that remain are those of the world before it, so it adds no
-edge; it removes the edges into the object taken down, and those from its
-versions.
+edge. Which edges it removes depends on the copies that remain: a mirror
+that keeps the versions keeps the edges out of them.
 
     /-- A takedown adds no edge. -/
     theorem takedown_pinStep {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}

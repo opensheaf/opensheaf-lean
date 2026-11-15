@@ -1,4 +1,4 @@
-# A world is a sheaf
+# The sections of a world glue
 
 A world of the model holds objects in archives, and the same object may be
 held in several places: in its own archive, and in the archives that mirror
@@ -120,17 +120,18 @@ A world built by events has both facts: its objects are well formed
 
 The main theorem follows from the sheaf condition of the first chapter.
 
-    /-- **A world built by events is a sheaf.** Its sections glue into exactly one
+    /-- **The sections of a world built by events glue** into exactly one
     section over the named document versions it holds: one content for each,
     whichever copy it is read from. -/
-    theorem world_sheaf {w : World D}
+    theorem world_glues {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
         ∃ g, Glues (sections w) g ∧ ∀ g', Glues (sections w) g' → g' = g :=
       sheaf (world_compatible hash hs)
 
 The theorem holds after takedowns too. A takedown removes the sections of
 the copy taken down, and the remaining ones still glue; the named document
-versions it held stay held if a mirror keeps them.
+versions it held stay held if a mirror keeps them (chapter
+[Names are eternal](70-eternal.md), `Event.persist`).
 
 ## A check made piece by piece
 

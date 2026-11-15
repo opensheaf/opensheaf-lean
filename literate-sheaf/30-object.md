@@ -12,7 +12,9 @@ sections:
   because of the rule of section 7.3, "one number, one content", and a
   history that breaks the rule has pieces that are not;
 - a later object version restricts to an earlier one: that versions are
-  fixed once deposited (sections 1 and 7.3) is restriction.
+  fixed once deposited (sections 1 and 7.3) is, within one history,
+  restriction; across events it is the chapter
+  [Names are eternal](70-eternal.md).
 
 ## The section of an object version
 
@@ -215,16 +217,16 @@ the rule, and whose pieces do not glue.
       cases hx
       exact objSec_piece hwf i.2 (union_pieces hwf n _ ⟨i, rfl⟩)
 
-## Immutability is restriction
+## A later object version restricts to an earlier one
 
 The section of a later object version, restricted to what an earlier one
 holds, is the section of the earlier one. Both take their values from the
-pieces, and a later object version only adds pieces. This is how the sheaf
-sees immutability: a presheaf whose restriction maps send each object
-version to the ones before it.
+pieces, and a later object version only adds pieces. Within one history,
+this is how the sheaf sees that versions are fixed; across events, the
+same fact is the chapter [Names are eternal](70-eternal.md).
 
-    /-- **Immutability is restriction.** The section of a later object version
-    restricts to that of an earlier one. -/
+    /-- **A later object version restricts to an earlier one** of the same
+    history. -/
     theorem objSec_restrict {o : Obj D} (hwf : WellFormed o.versions) {m n : Nat}
         (hmn : m ≤ n) : (objSec o n).restrict (held_mono hmn) = objSec o m := by
       funext x hx

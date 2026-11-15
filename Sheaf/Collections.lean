@@ -111,13 +111,13 @@ theorem glue_at_member {w : World D}
 
 /-- **The stalk of a collection version**: each member it pins, with the
 content its pin fixes, or a takedown reported. -/
-theorem collection_stalk {w : World D}
+theorem collection_members {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w)
     {g : Sec (HeldIn w) (Content D)} (hg : Glues (sections w) g) {b : ArchiveId}
     {i : ObjectId} {c : Obj D} {v : Version D} {p : Pin D}
     (hl : lookup w b i = some (.live c)) (hv : v ∈ c.versions) (hp : p ∈ v.memberPins) :
-    (∃ (o : Obj D) (u : Version D), resolve hash w p = .ok u ∧
-      (byPins hash w).le (o.name u) (c.name v) ∧
+    (∃ (o : Obj D) (u : Version D), lookup w p.archive p.object = some (.live o) ∧
+      resolve hash w p = .ok u ∧ (byPins hash w).le (o.name u) (c.name v) ∧
       ∃ hy : HeldIn w (o.name u), g (o.name u) hy = u.content) ∨
       resolve hash w p = .removed := by
   rcases members_below hash hs hl hv hp with ⟨o, u, ho, hr, hle⟩ | hr
@@ -127,7 +127,7 @@ theorem collection_stalk {w : World D}
       exact ⟨⟨b, i, c, hl, c.versions.length⟩, (held_iff hwf _ _).mpr
         ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
     have hy := heldIn_open_byPins hash (Events.sound hash hs) hle hx
-    exact ⟨o, u, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩
+    exact ⟨o, u, ho, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩
   · exact Or.inr hr
 
 end OpenSheaf.Sheaf

@@ -63,7 +63,7 @@ theorem inv_compatible {w : World D} (hca : CopiesAgree w) : Compatible (invSect
 variable [DecidableEq D] (hash : Hash D)
 
 /-- **The inventory sheaf of a world built by events.** -/
-theorem inventory_sheaf {w : World D}
+theorem inventory_glues {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
     ∃ G, Glues (invSections w) G ∧ ∀ G', Glues (invSections w) G' → G' = G :=
   sheaf (inv_compatible (Events.copiesAgree hash hs))
@@ -78,8 +78,8 @@ theorem digests_restrict {U U' : VSite → Prop} (s : Sec U (Inventory D)) (h : 
     digests hash (s.restrict h) = (digests hash s).restrict h := rfl
 
 omit [DecidableEq D] in
-/-- **Without collisions, it is a monomorphism.** -/
-theorem digests_mono {U : VSite → Prop} {s s' : Sec U (Inventory D)}
+/-- **Without collisions, it is injective.** -/
+theorem digests_injective {U : VSite → Prop} {s s' : Sec U (Inventory D)}
     (hcol : ∀ x hx, NoCollision hash (s x hx) (s' x hx))
     (h : digests hash s = digests hash s') : s = s' := by
   funext x hx

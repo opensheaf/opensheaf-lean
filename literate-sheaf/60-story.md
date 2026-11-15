@@ -22,14 +22,14 @@ archive keeps a mirror of all three.
     open OpenSheaf OpenSheaf.Story OpenSheaf.Sheaf
 
 The story is a sequence of valid steps, so of events, and the world it
-builds is a sheaf.
+builds gives sections that glue.
 
     theorem events : Events toy (fun _ => (none : Option (Archive Nat))) w14 :=
       ValidSteps.toEvents toy story
 
     theorem story_sheaf :
         ∃ g, Glues (sections w14) g ∧ ∀ g', Glues (sections w14) g' → g' = g :=
-      world_sheaf toy events
+      world_glues toy events
 
 ## Three sources
 
@@ -142,8 +142,8 @@ By the main theorem, no sequence of events builds this world, whatever the
 digest function. The model's valid steps do not let an archive write a copy
 of another archive's object that is not a prefix of the original.
 
-    example : ¬ Events toy (fun _ => (none : Option (Archive Nat))) wForged :=
-      fun hs => forged_incompatible (world_compatible toy hs)
+    example (hash : Hash Nat) : ¬ Events hash (fun _ => (none : Option (Archive Nat))) wForged :=
+      fun hs => forged_incompatible (world_compatible hash hs)
 
 A verifier reading the forged copy through a pin of the author's version 1
 would report a mismatch (section 14), with a real digest; the toy digest of

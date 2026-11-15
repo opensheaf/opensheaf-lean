@@ -220,7 +220,7 @@ theorem glue_value {w : World D} (hw : SoundWorld hash w) {g : Sec (HeldIn w) (C
   have := congrFun (congrFun (hg ⟨b, i, c, hl, c.versions.length⟩) (c.name v)) hc
   exact this.trans (objSec_piece hwf (by rw [List.take_length]; exact hv) hc)
 
-/-- **The sheaf over time.** The glued sections of a world and of any later
+/-- **Gluing over time.** The glued sections of a world and of any later
 world agree wherever both are defined. -/
 theorem glue_eternal {w w' : World D}
     (hs0 : Events hash (fun _ => (none : Option (Archive D))) w) (hs : Events hash w w')

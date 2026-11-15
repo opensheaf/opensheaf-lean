@@ -1,4 +1,4 @@
-# The citable sheaf
+# The citable section
 
 A citation by name refers to a named document version at some time; the
 reader resolves it later. This chapter puts all the times together. It
@@ -6,9 +6,9 @@ takes a *run*, worlds over time from nothing, each the result of one event
 on the one before (or the same world again, so that a finite history is a
 run that stops changing), and proves:
 
-- **the citable sheaf**: the glued sections of all the worlds of a run glue,
+- **the citable section**: the glued sections of all the worlds of a run glue,
   over time, into exactly one section over everything ever held
-  (`citable_sheaf`); the world at each time is its restriction to what that
+  (`citable_glues`); the world at each time is its restriction to what that
   world holds;
 - **each name is held during one interval of time**: held at two times, it
   is held at every time between (`held_interval`);
@@ -54,17 +54,17 @@ time.
       rw [r.start] at this
       exact this
 
-## The citable sheaf
+## The citable section
 
-At each time the world is a sheaf, with one glued section. Everything ever
+At each time the world has one glued section. Everything ever
 held is the union, over time, of what each world holds; it is open.
 
     /-- The glued section of the world at time `n`. -/
     noncomputable def Run.glued (n : Nat) : Sec (HeldIn (r.world n)) (Content D) :=
-      Classical.choose (world_sheaf hash (r.from_empty n))
+      Classical.choose (world_glues hash (r.from_empty n))
 
     theorem Run.glued_spec (n : Nat) : Glues (sections (r.world n)) (r.glued n) :=
-      (Classical.choose_spec (world_sheaf hash (r.from_empty n))).1
+      (Classical.choose_spec (world_glues hash (r.from_empty n))).1
 
     /-- The named document versions held at some time of the run: everything a
     citation by name can ever refer to. -/
@@ -85,10 +85,10 @@ a compatible family, indexed by time, and glue.
       · exact (glue_eternal hash (r.from_empty n) (r.events h) (r.glued_spec n)
           (r.glued_spec m) hn hm).symm
 
-    /-- **The citable sheaf.** The worlds of a run glue, over time, into exactly
+    /-- **The citable section.** The worlds of a run glue, over time, into exactly
     one section over everything ever held, and the world at each time is its
     restriction to what that world holds. -/
-    theorem citable_sheaf :
+    theorem citable_glues :
         ∃ C : Sec (Ever r) (Content D), Glues (fun n => r.glued n) C ∧
           ∀ C', Glues (fun n => r.glued n) C' → C' = C :=
       sheaf (time_compatible r)

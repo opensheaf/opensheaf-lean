@@ -49,10 +49,12 @@ variable [DecidableEq D] (hash : Hash D)
 
 /-- The places of a world that a verifier of `x` and everything below it
 needs: the copies that hold a named document version below `x`, and the
-tombstones. -/
+tombstones that a member list below `x` pins. -/
 def Support (w : World D) (x : Name) (a : ArchiveId) (i : ObjectId) : Prop :=
   (∃ c, lookup w a i = some (.live c) ∧ ∃ v ∈ c.versions, (byPins hash w).le (c.name v) x) ∨
-    ∃ n d, lookup w a i = some (.tomb n d)
+    ((∃ n d, lookup w a i = some (.tomb n d)) ∧
+      ∃ b j c v p, lookup w b j = some (.live c) ∧ v ∈ c.versions ∧
+        (byPins hash w).le (c.name v) x ∧ p ∈ v.memberPins ∧ p.archive = a ∧ p.object = i)
 
 /-- **Verification is local.** In a world built by events, every member list
 held below `x` verifies in the support of `x` exactly as in the whole world. -/
@@ -72,7 +74,7 @@ theorem verify_local {w : World D}
         unfold resolve at hr; rw [ho] at hr; exact hr
       exact Or.inl ⟨o, ho, u, versionAt_mem (resolveEntry_live_ok hash hre).1,
         (byPins hash w).trans hle' hle⟩
-    · exact Or.inr ((resolve_removed_iff hash).mp hr)
+    · exact Or.inr ⟨(resolve_removed_iff hash).mp hr, b, i, c, v, p, hl, hv, hle, hpm, rfl, rfl⟩
   unfold resolve
   rw [lookup_restrict, if_yes hS]
 

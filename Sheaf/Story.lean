@@ -11,7 +11,7 @@ theorem events : Events toy (fun _ => (none : Option (Archive Nat))) w14 :=
 
 theorem story_sheaf :
     ∃ g, Glues (sections w14) g ∧ ∀ g', Glues (sections w14) g' → g' = g :=
-  world_sheaf toy events
+  world_glues toy events
 
 def authorPaper : Source w14 := ⟨"author", "paper", paper3, rfl, 3⟩
 def coauthorPaper : Source w14 := ⟨"coauthor", "paper", paper3, rfl, 1⟩
@@ -83,8 +83,8 @@ theorem forged_incompatible : ¬ Compatible (sections wForged) := by
   have := content_eq_iff.mp (e1.symm.trans (heq.trans e2))
   revert this; decide
 
-example : ¬ Events toy (fun _ => (none : Option (Archive Nat))) wForged :=
-  fun hs => forged_incompatible (world_compatible toy hs)
+example (hash : Hash Nat) : ¬ Events hash (fun _ => (none : Option (Archive Nat))) wForged :=
+  fun hs => forged_incompatible (world_compatible hash hs)
 
 def bad : Obj Nat := { paper with versions := [v1, v1'] }
 

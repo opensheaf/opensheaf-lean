@@ -30,10 +30,10 @@ theorem Run.from_empty (n : Nat) :
 
 /-- The glued section of the world at time `n`. -/
 noncomputable def Run.glued (n : Nat) : Sec (HeldIn (r.world n)) (Content D) :=
-  Classical.choose (world_sheaf hash (r.from_empty n))
+  Classical.choose (world_glues hash (r.from_empty n))
 
 theorem Run.glued_spec (n : Nat) : Glues (sections (r.world n)) (r.glued n) :=
-  (Classical.choose_spec (world_sheaf hash (r.from_empty n))).1
+  (Classical.choose_spec (world_glues hash (r.from_empty n))).1
 
 /-- The named document versions held at some time of the run: everything a
 citation by name can ever refer to. -/
@@ -50,10 +50,10 @@ theorem time_compatible : Compatible (fun n => r.glued n) := by
   · exact (glue_eternal hash (r.from_empty n) (r.events h) (r.glued_spec n)
       (r.glued_spec m) hn hm).symm
 
-/-- **The citable sheaf.** The worlds of a run glue, over time, into exactly
+/-- **The citable section.** The worlds of a run glue, over time, into exactly
 one section over everything ever held, and the world at each time is its
 restriction to what that world holds. -/
-theorem citable_sheaf :
+theorem citable_glues :
     ∃ C : Sec (Ever r) (Content D), Glues (fun n => r.glued n) C ∧
       ∀ C', Glues (fun n => r.glued n) C' → C' = C :=
   sheaf (time_compatible r)

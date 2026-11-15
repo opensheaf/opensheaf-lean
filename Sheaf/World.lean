@@ -64,10 +64,10 @@ theorem world_compatible {w : World D}
   compatible_of_agree (fun _ _ _ hl => ((Events.sound hash hs).1 _ _ _ hl).history)
     (Events.copiesAgree hash hs)
 
-/-- **A world built by events is a sheaf.** Its sections glue into exactly one
+/-- **The sections of a world built by events glue** into exactly one
 section over the named document versions it holds: one content for each,
 whichever copy it is read from. -/
-theorem world_sheaf {w : World D}
+theorem world_glues {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
     ∃ g, Glues (sections w) g ∧ ∀ g', Glues (sections w) g' → g' = g :=
   sheaf (world_compatible hash hs)

@@ -150,8 +150,8 @@ theorem objSec_glues {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
   cases hx
   exact objSec_piece hwf i.2 (union_pieces hwf n _ ⟨i, rfl⟩)
 
-/-- **Immutability is restriction.** The section of a later object version
-restricts to that of an earlier one. -/
+/-- **A later object version restricts to an earlier one** of the same
+history. -/
 theorem objSec_restrict {o : Obj D} (hwf : WellFormed o.versions) {m n : Nat}
     (hmn : m ≤ n) : (objSec o n).restrict (held_mono hmn) = objSec o m := by
   funext x hx
