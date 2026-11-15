@@ -82,20 +82,23 @@ shows which rules of the specification make the pieces agree:
 9. [Names are eternal](70-eternal.md): a named document version keeps its
    content through every later event, and once held nowhere is never held
    again; the glued sections of a world and of any later one agree;
-10. [Verification is lifting](72-lifting.md): pins are points of a sheaf of
+10. [What lies below is fixed](71-below.md): once a named document version
+   is held, no later event adds anything below it in the order with pins,
+   valid steps remove nothing, and the values below agree;
+11. [Verification is lifting](72-lifting.md): pins are points of a sheaf of
    digests, verification lifts them to the sheaf of inventories, the lift is
    unique without collisions, and every copy gives the same verdict;
-11. [Verification is local](74-local.md): restricting a world restricts its
+12. [Verification is local](74-local.md): restricting a world restricts its
    sheaf, and a collection verifies in its support as in the whole world;
-12. [Separate worlds](76-federation.md): worlds built by events refer only
+13. [Separate worlds](76-federation.md): worlds built by events refer only
    to their own archives, so two of them on separate archives share
    nothing, glue with no condition, and each keeps its section;
-13. [Descriptions are the fibres](78-fibres.md): two maps from object
+14. [Descriptions are the fibres](78-fibres.md): two maps from object
    versions to named document versions; the fibres of the first are the
    contents, but it is not monotone; the second, the top, is monotone, and
    its fibres are runs of description-only versions; descriptions do not
    glue;
-14. [The citable section](79-citable.md): the worlds of a run glue over time
+15. [The citable section](79-citable.md): the worlds of a run glue over time
    into one section over everything ever held; each name is held during one
    interval, after which it is reported removed.
 
@@ -113,6 +116,7 @@ every module:
     import Sheaf.Acyclic
     import Sheaf.Story
     import Sheaf.Eternal
+    import Sheaf.Below
     import Sheaf.Lifting
     import Sheaf.Local
     import Sheaf.Federation

@@ -169,6 +169,31 @@ theorem same_members {w : World D} (hw : SoundWorld hash w) (hca : CopiesAgree w
   exact ((sameContent_iff).mp
     (holds_agree hash hw hca ⟨_, _, c, hl, hv, rfl⟩ ⟨_, _, c', hl', hv', hn.symm⟩)).2
 
+/-- **Old points keep their old edges.** -/
+theorem Step.pinStep_back {w w' : World D} (hstep : Step w w') (hw : SoundWorld hash w)
+    (hw' : SoundWorld hash w') (hca' : CopiesAgree w') {y x : Name} (hx : HeldIn w x)
+    (h : PinStep hash w' y x) : PinStep hash w y x := by
+  obtain ⟨b, i, c, v, p, o, u, hl, hv, rfl, hpm, ho, hres, rfl⟩ := h
+  obtain ⟨⟨b0, i0, c0, hl0, n⟩, hx0⟩ := hx
+  obtain ⟨v0, hv0, hn0⟩ := (covers_iff (hw.1 _ _ _ hl0).history n _).mp hx0
+  have hv0' : v0 ∈ c0.versions := List.mem_of_mem_take hv0
+  obtain ⟨c0', hl0', ha0, hi0, t0, ht0⟩ := Step.live_kept hstep hl0
+  have hmem : v0 ∈ c0'.versions := by rw [ht0]; exact List.mem_append_left _ hv0'
+  have hmembers := same_members hash hw' hca' hl hl0' hv hmem
+    (by rw [hn0]; simp only [Obj.name, ha0, hi0])
+  have hpm0 : p ∈ v0.memberPins := by
+    unfold Version.memberPins at hpm ⊢; rw [← hmembers]; exact hpm
+  have hres0 := resolve_back hash hstep
+    (hw.2 _ _ _ hl0 v0 hv0' p (memberPins_sub hpm0)) hres
+  have hres0' := hres0
+  unfold resolve at hres0'
+  obtain ⟨o0, ho0⟩ := resolveEntry_ok_live hash hres0'
+  obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := Step.live_kept hstep ho0
+  rw [ho] at ho0'; cases ho0'
+  have hname : o.name u = o0.name u := by simp only [Obj.name, hoa, hoi]
+  rw [hname, show c.name v = c0.name v0 from hn0]
+  exact ⟨b0, i0, c0, v0, p, o0, u, hl0, hv0', rfl, hpm0, ho0, hres0, rfl⟩
+
 /-- **Valid steps keep a rank.** Named document versions held before the step
 keep their rank; the new ones get a rank above all others. -/
 theorem ValidStep.nameRanked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
@@ -191,32 +216,12 @@ theorem ValidStep.nameRanked {w w' : World D} (hs : ValidStep hash w w') (hw : S
   · intro y x hp
     obtain ⟨b, i, c, v, p, o, u, hl, hv, rfl, hpm, ho, hres, rfl⟩ := hp
     by_cases hxw : HeldIn w (c.name v)
-    · -- an old named document version: its pins resolved before the step
-      obtain ⟨⟨b0, i0, c0, hl0, n⟩, hx0⟩ := hxw
-      obtain ⟨v0, hv0, hn0⟩ := (covers_iff (hw.1 _ _ _ hl0).history n _).mp hx0
-      have hv0' : v0 ∈ c0.versions := List.mem_of_mem_take hv0
-      obtain ⟨c0', hl0', ha0, hi0, t0, ht0⟩ := Step.live_kept hstep hl0
-      have hmem : v0 ∈ c0'.versions := by rw [ht0]; exact List.mem_append_left _ hv0'
-      have hmembers := same_members hash hw' hca' hl hl0' hv hmem
-        (by rw [hn0]; simp only [Obj.name, ha0, hi0])
-      have hpm0 : p ∈ v0.memberPins := by
-        unfold Version.memberPins at hpm ⊢; rw [← hmembers]; exact hpm
-      have hres0 := resolve_back hash hstep
-        (hw.2 _ _ _ hl0 v0 hv0' p (memberPins_sub hpm0)) hres
-      have hres0' := hres0
-      unfold resolve at hres0'
-      obtain ⟨o0, ho0⟩ := resolveEntry_ok_live hash hres0'
-      obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := Step.live_kept hstep ho0
-      rw [ho] at ho0'; cases ho0'
-      have hname : o.name u = o0.name u := by simp only [Obj.name, hoa, hoi]
-      have hedge : PinStep hash w (o0.name u) (c0.name v0) :=
-        ⟨b0, i0, c0, v0, p, o0, u, hl0, hv0', rfl, hpm0, ho0, hres0, rfl⟩
-      have hyw : HeldIn w (o0.name u) := pinStep_lower hash hw hedge
-      have hxw' : HeldIn w (c.name v) := ⟨⟨b0, i0, c0, hl0, n⟩, hx0⟩
+    · -- an old named document version: its edges are old edges
+      have hedge := Step.pinStep_back hash hstep hw hw' hca' hxw
+        ⟨b, i, c, v, p, o, u, hl, hv, rfl, hpm, ho, hres, rfl⟩
+      have hyw : HeldIn w (o.name u) := pinStep_lower hash hw hedge
       dsimp only
-      simp only [hname, hyw, hxw', ↓reduceIte]
-      have : c.name v = c0.name v0 := hn0
-      rw [this]
+      simp only [hyw, hxw, ↓reduceIte]
       exact hpin _ _ hedge
     · -- a new named document version: its pins were checked by the step
       have hres0 := resolve_back hash hstep
