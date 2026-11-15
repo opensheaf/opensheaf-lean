@@ -2,33 +2,36 @@
 
 The program has two bases: the object versions (chapter
 [Verification is lifting](72-lifting.md)) and the named document versions
-(the rest). They are related by a map: each object version goes to the
-named document version it holds. Several object versions go to the same
-named document version: the one that deposited it, the description-only
-versions that describe it later, and their copies in mirrors. This chapter
-studies the map, and proves:
+(the rest). Two maps go from the first to the second, and each shows
+something about descriptions.
 
-- **its image is what the world holds** (`proj_image`);
-- **content is pushed forward**: the content sheaf at the image of an
-  object version is the content of that version (`content_pushforward`);
-  so the content sheaf is the image of the inventory sheaf under the map
-  that forgets descriptions;
-- **the fibres are the contents**: two object versions go to the same point
-  exactly when they are versions of the same object with the same content
-  (`proj_fibre`);
-- **description-only versions are the later points of the fibres**: in a
-  well-formed history, a version holds content deposited before it exactly
-  when an earlier version holds its document version (`descOnly_iff`);
-- **descriptions do not glue**: two object versions of the story's paper
-  describe its first document version differently
-  (`descriptions_incompatible`).
+- **The document version a version holds** (`proj`). Its fibres are
+  exactly the contents: two object versions go to the same named document
+  version when they are versions of the same object with the same content
+  (`proj_fibre`), and its image is what the world holds (`proj_image`). The
+  content at the image of an object version is the content of that version
+  (`content_factors`). But the map is **not monotone**: a description-only
+  version that describes an earlier document version goes below the
+  version before it. In the story, object versions 2 and 3 of the paper
+  hold document versions 2 and 1. So it is not a continuous map of the two
+  Alexandrov spaces, there is no pushforward of sheaves along it, and the
+  identity it gives is a factorisation, not more.
+- **The highest document version deposited so far** (`top`, chapter
+  [An object version is a section](30-object.md)). It is monotone
+  (`top_mono`), and the open set of an object version is the principal open
+  below its top (`held_principal`). Its fibres are runs: a version that
+  deposits a document version, then the description-only versions that
+  follow it, until the next deposit (`top_step_iff`).
 
-So what the map forgets, the description, is exactly what varies along a
-fibre. The specification settles it by choosing a point in each fibre: the
-description of a document version is that of the last object version
-holding it, which `history` records (section 7.3). That is a choice of one
-point per fibre, made by the owner's latest version, not something forced by
-agreement. The content, constant on each fibre, needs no choice: it glues.
+Descriptions vary along both: a description-only version describes, with a
+new description, content already held. And **descriptions do not glue**:
+two object versions of the story's paper describe its first document
+version differently (`descriptions_incompatible`). The specification
+settles the description by choosing a point in each fibre of `proj`: the
+last object version holding the document version, which `history` records
+(section 7.3). That is a choice made by the owner's latest version, not
+something forced by agreement. The content, constant on each fibre of
+`proj`, needs no choice: it glues.
 
     -- in Sheaf/Fibres.lean:
     import Sheaf.Lifting
@@ -82,7 +85,7 @@ version that the copy's version there holds.
       refine ⟨i, v, hv, by rw [hGi]; exact hl, ?_⟩
       simp only [proj, docOf, hGi, hl, Option.map_some, Option.getD_some, Obj.name, ha, ho]
 
-## Image and pushforward
+## Image and content
 
 Every named document version the world holds is the image of the object
 version that holds it, and every image is held.
@@ -114,12 +117,13 @@ version that holds it, and every image is held.
         exact heldIn_of_live hash hk.1 i.live hv
 
 The content sheaf, at the image of an object version, is the content of
-that version: the content sheaf is the pushforward of the inventories,
-followed by forgetting the description.
+that version: the glued section composed with the map is the content of the
+glued inventories' last versions. This is a factorisation of two sections
+through the map, not a pushforward of sheaves: the map is not monotone.
 
-    /-- **Content is pushed forward.** The content sheaf at the image of an object
-    version is the content of that object version. -/
-    theorem content_pushforward {w : World D} (hk : Kept hash w)
+    /-- **Content factors through the map.** The content sheaf at the image of an
+    object version is the content of that object version. -/
+    theorem content_factors {w : World D} (hk : Kept hash w)
         {G : Sec (SitesIn w) (Inventory D)} (hG : Glues (invSections w) G)
         {g : Sec (HeldIn w) (Content D)} (hg : Glues (sections w) g) {s : VSite} (hs : SitesIn w s)
         (hx : HeldIn w (proj G s hs)) :
@@ -176,21 +180,38 @@ agreement to compare versions kept in different places.
               hu (by rw [ht]; exact List.mem_append_left _ hu') hc
         simp only [Obj.name, hia, hio, hd]
 
-Within one history, the first point of a fibre deposits the document
-version, and the later points are description-only versions: they hold
-content deposited before them.
+## The runs of the top
 
-    /-- **Description-only versions are the later points of the fibres.** In a
-    well-formed history, a version holds content deposited before it exactly
-    when an earlier version holds the same document version. -/
-    theorem descOnly_iff {l : List (Version D)} (h : WellFormed l) {k : Nat} (hk : k < l.length) :
-        (∃ j, ∃ hj : j < k, sameContent l[j] l[k] = true) ↔
-          (∃ j, ∃ hj : j < k, l[j].documentVersion = l[k].documentVersion) := by
+Within one history, the top stays where it is exactly at the
+description-only versions: a version leaves the highest document version
+unchanged exactly when it holds content deposited before it. So the fibres
+of the top are runs: a deposit, then the description-only versions that
+follow it.
+
+    /-- **The fibres of the top are runs.** In a well-formed history, version
+    `k + 1` has the same top as version `k` exactly when it holds content
+    deposited before it. -/
+    theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
+        (hk : k < l.length) :
+        docCount (l.take (k + 1)) = docCount (l.take k) ↔
+          ∃ v ∈ l.take k, sameContent v l[k] = true := by
+      have hsplit : l.take (k + 1) = l.take k ++ [l[k]] := by
+        rw [List.take_add_one, List.getElem?_eq_getElem hk]; rfl
+      have hwf : WellFormed (l.take (k + 1)) := by
+        have := List.take_append_drop (k + 1) l
+        rw [← this] at h; exact h.prefix
+      rw [hsplit] at hwf ⊢
+      obtain ⟨_, hx⟩ := hwf.init
+      rw [docCount_append]
       constructor
-      · rintro ⟨j, hj, hc⟩
-        exact ⟨j, hj, one_content_one_number h (List.getElem_mem _) (List.getElem_mem _) hc⟩
-      · rintro ⟨j, hj, hd⟩
-        exact ⟨j, hj, one_number_one_content h (List.getElem_mem _) (List.getElem_mem _) hd⟩
+      · intro heq
+        rcases hx with ⟨z, hz, hzx, _⟩ | ⟨_, hn⟩
+        · exact ⟨z, hz, hzx⟩
+        · rw [hn] at heq; omega
+      · rintro ⟨v, hv, hc⟩
+        rcases hx with ⟨z, hz, _, hxz⟩ | ⟨hnew, _⟩
+        · have := le_docCount hz; rw [hxz]; omega
+        · rw [hnew v hv] at hc; cases hc
 
 ## Descriptions do not glue
 
@@ -225,6 +246,15 @@ do (chapter [A story, as a sheaf](60-story.md)).
     open OpenSheaf.Story
 
     def authorFirst : Source w14 := ⟨"author", "paper", paper3, rfl, 1⟩
+
+The paper's object versions hold document versions 1, 2 and 1: the map
+`proj` is not monotone. Its top goes 1, 2, 2: version 3 is a
+description-only version, the second point of a run.
+
+    example : paper3.versions.map (·.documentVersion) = [1, 2, 1] := by decide
+
+    example : (List.range 4).map (fun n => docCount (paper3.versions.take n)) = [0, 1, 2, 2] := by
+      decide
 
     /-- **Descriptions do not glue.** In the story, the author's object versions
     1 and 3 describe document version 1 differently. -/

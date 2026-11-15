@@ -85,13 +85,14 @@ shows which rules of the specification make the pieces agree:
    unique without collisions, and every copy gives the same verdict;
 11. [Verification is local](74-local.md): restricting a world restricts its
    sheaf, and a collection verifies in its support as in the whole world;
-12. [Federation](76-federation.md): two worlds built separately glue when
-   the copies they share agree, only pairs across need checking, and each
-   world keeps its section;
-13. [Descriptions are the fibres](78-fibres.md): the map from object
-   versions to the document versions they hold; content is pushed forward,
-   the fibres are the contents, description-only versions are the later
-   points of the fibres, and descriptions do not glue;
+12. [Separate worlds](76-federation.md): worlds built by events refer only
+   to their own archives, so two of them on separate archives share
+   nothing, glue with no condition, and each keeps its section;
+13. [Descriptions are the fibres](78-fibres.md): two maps from object
+   versions to named document versions; the fibres of the first are the
+   contents, but it is not monotone; the second, the top, is monotone, and
+   its fibres are runs of description-only versions; descriptions do not
+   glue;
 14. [The citable sheaf](79-citable.md): the worlds of a run glue over time
    into one section over everything ever held; each name is held during one
    interval, after which it is reported removed.
@@ -126,9 +127,9 @@ them by authority, not by agreement: the head of the object describes it,
 and earlier object versions keep the description as it was known when they
 were made. So descriptions are values of object versions, ordered by time,
 not values of named document versions, and the sheaf leaves them out.
-Chapter [Descriptions are the fibres](78-fibres.md) makes this a theorem:
-descriptions vary exactly along the fibres of the map from object versions
-to named document versions, and do not glue. This
+Chapter [Descriptions are the fibres](78-fibres.md) shows where they vary,
+along the fibres of the maps from object versions to named document
+versions, and shows on the story that they do not glue. This
 is a feature of the design: what is fixed (the content) glues, and what may
 be corrected (the description) has an owner instead.
 
@@ -138,6 +139,20 @@ version may correct it. It is not the order of the base, which is the order
 of deposit, fixed by the inventories.
 
 ## What is left out
+
+- **Worlds that refer to each other.** In the model, a pin or a mirror
+  needs its target in the same world: a world built by events refers only
+  to its own archives (chapter [Separate worlds](76-federation.md)). Two
+  worlds built independently, with pins from one into the other checked
+  only when they are combined, need a step relation across worlds, which
+  the model does not have.
+- **A base that does not depend on the world.** The order with pins
+  (chapter 6) is defined from where pins resolve in a world: a takedown
+  removes edges. A base fixed once and for all would take pins themselves
+  as points, with their digests, which fix what they pin unless digests
+  collide.
+- **Collisions.** Theorems that need digests not to collide assume it for
+  the inventories they compare, not for the digest function as a whole.
 
 - **References of documents.** The pins of member lists are in the order
   (chapter 6): below a collection version lies what it pins. The pins of a

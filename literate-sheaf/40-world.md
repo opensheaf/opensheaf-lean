@@ -85,27 +85,38 @@ holding it.
       rw [docContent_eq hL h1 hk1 hk huL huk, docContent_eq hL h2 hk1 hk' huL huk]
 
 Two sources that hold the same named document version are copies of the
-same object. Their histories are comparable, so both object versions are
-prefixes of the longer history, which is well formed.
+same object. When their histories are comparable, both object versions are
+prefixes of the longer history, which is well formed, so they give the same
+value. This argument needs only two facts about a world: its live objects
+are well formed, and its copies agree. It is stated for any world with
+these two facts, so that the chapter
+[Separate worlds](76-federation.md) can use it for worlds that are not built by
+events.
+
+    /-- Copies that agree, and well-formed histories, give compatible sections. -/
+    theorem compatible_of_agree {w : World D}
+        (hwf : ∀ b i c, lookup w b i = some (.live c) → WellFormed c.versions)
+        (hca : CopiesAgree w) : Compatible (sections w) := by
+      intro i j x ⟨a1, o1, k1, d1⟩ ⟨a2, o2, _, d2⟩
+      have hc := hca _ _ _ _ _ _ i.live j.live (a1.symm.trans a2) (o1.symm.trans o2)
+      simp only [sections, objSec]
+      rcases hc with ⟨t, ht⟩ | ⟨t, ht⟩
+      · have hi : j.obj.versions = i.obj.versions.take i.version ++
+            (i.obj.versions.drop i.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
+        exact docContent_agree (hwf _ _ _ j.live) hi (List.take_append_drop _ _).symm k1 d1 d2
+      · have hj : i.obj.versions = j.obj.versions.take j.version ++
+            (j.obj.versions.drop j.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
+        exact docContent_agree (hwf _ _ _ i.live) (List.take_append_drop _ _).symm hj k1 d1 d2
+
+A world built by events has both facts: its objects are well formed
+(`Events.sound`, in the model) and its copies agree (`Events.copiesAgree`).
 
     /-- **The sections of a world are compatible.** -/
     theorem world_compatible {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
-        Compatible (sections w) := by
-      intro i j x ⟨a1, o1, k1, d1⟩ ⟨a2, o2, _, d2⟩
-      have hsound := Events.sound hash hs
-      have hc := Events.copiesAgree hash hs _ _ _ _ _ _ i.live j.live
-        (a1.symm.trans a2) (o1.symm.trans o2)
-      simp only [sections, objSec]
-      rcases hc with ⟨t, ht⟩ | ⟨t, ht⟩
-      · have hL := (hsound.1 _ _ _ j.live).history
-        have hi : j.obj.versions = i.obj.versions.take i.version ++
-            (i.obj.versions.drop i.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
-        exact docContent_agree hL hi (List.take_append_drop _ _).symm k1 d1 d2
-      · have hL := (hsound.1 _ _ _ i.live).history
-        have hj : i.obj.versions = j.obj.versions.take j.version ++
-            (j.obj.versions.drop j.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
-        exact docContent_agree hL (List.take_append_drop _ _).symm hj k1 d1 d2
+        Compatible (sections w) :=
+      compatible_of_agree (fun _ _ _ hl => ((Events.sound hash hs).1 _ _ _ hl).history)
+        (Events.copiesAgree hash hs)
 
 The main theorem follows from the sheaf condition of the first chapter.
 

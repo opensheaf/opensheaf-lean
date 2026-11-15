@@ -83,20 +83,48 @@ history extends the earlier one.
     theorem take_prefix (l : List (Version D)) (n : Nat) : ∃ t, l = l.take n ++ t :=
       ⟨l.drop n, (List.take_append_drop n l).symm⟩
 
-    theorem held_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Held o m) (Held o n) := by
-      rintro x ⟨h1, h2, h3, h4⟩
-      refine ⟨h1, h2, h3, Nat.le_trans h4 ?_⟩
-      have : o.versions.take m = (o.versions.take n).take m := by
+    theorem docCount_take_mono (l : List (Version D)) {m n : Nat} (hmn : m ≤ n) :
+        docCount (l.take m) ≤ docCount (l.take n) := by
+      have : l.take m = (l.take n).take m := by
         rw [List.take_take, Nat.min_eq_left hmn]
       rw [this]
-      obtain ⟨t, ht⟩ := take_prefix (o.versions.take n) m
+      obtain ⟨t, ht⟩ := take_prefix (l.take n) m
       conv => rhs; rw [ht]
-      generalize (o.versions.take n).take m = l
-      induction l with
+      generalize (l.take n).take m = l'
+      induction l' with
       | nil => exact Nat.zero_le _
-      | cons v l ih =>
+      | cons v l' ih =>
         simp only [docCount, List.cons_append]
         exact Nat.max_le.mpr ⟨Nat.le_max_left _ _, Nat.le_trans ih (Nat.le_max_right _ _)⟩
+
+    theorem held_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Held o m) (Held o n) := by
+      rintro x ⟨h1, h2, h3, h4⟩
+      exact ⟨h1, h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
+
+The open set of an object version is *principal*: it is what lies below one
+point, the highest document version deposited up to it, its **top**. So an
+object version is an element of the Alexandrov stalk at its top, and a
+later object version has a top above it.
+
+    /-- The highest named document version deposited up to object version `n`. -/
+    def top (o : Obj D) (n : Nat) : Name := ⟨o.archive, o.id, docCount (o.versions.take n)⟩
+
+    /-- **The open set of an object version is principal**, below its top. -/
+    theorem held_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.take n))
+        (x : Name) : Held o n x ↔ deposit.le x (top o n) := by
+      constructor
+      · rintro ⟨h1, h2, h3, h4⟩
+        exact ⟨h1, h2, h4, fun h0 => absurd h0 (by omega)⟩
+      · rintro ⟨h1, h2, h3, h4⟩
+        refine ⟨h1, h2, ?_, h3⟩
+        cases hx : x.doc with
+        | zero => have := h4 hx; simp only [top] at this; omega
+        | succ _ => omega
+
+    theorem top_mono (o : Obj D) {m n : Nat} (hmn : m ≤ n) (h : 1 ≤ docCount (o.versions.take m)) :
+        deposit.le (top o m) (top o n) := by
+      have := docCount_take_mono o.versions hmn
+      exact ⟨rfl, rfl, this, fun h0 => absurd h0 (by simp only [top]; omega)⟩
 
 ## The value is that of any piece
 

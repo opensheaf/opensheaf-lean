@@ -67,9 +67,9 @@ theorem proj_image {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Invent
     rw [hp]
     exact heldIn_of_live hash hk.1 i.live hv
 
-/-- **Content is pushed forward.** The content sheaf at the image of an object
-version is the content of that object version. -/
-theorem content_pushforward {w : World D} (hk : Kept hash w)
+/-- **Content factors through the map.** The content sheaf at the image of an
+object version is the content of that object version. -/
+theorem content_factors {w : World D} (hk : Kept hash w)
     {G : Sec (SitesIn w) (Inventory D)} (hG : Glues (invSections w) G)
     {g : Sec (HeldIn w) (Content D)} (hg : Glues (sections w) g) {s : VSite} (hs : SitesIn w s)
     (hx : HeldIn w (proj G s hs)) :
@@ -118,17 +118,30 @@ theorem proj_fibre {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Invent
           hu (by rw [ht]; exact List.mem_append_left _ hu') hc
     simp only [Obj.name, hia, hio, hd]
 
-/-- **Description-only versions are the later points of the fibres.** In a
-well-formed history, a version holds content deposited before it exactly
-when an earlier version holds the same document version. -/
-theorem descOnly_iff {l : List (Version D)} (h : WellFormed l) {k : Nat} (hk : k < l.length) :
-    (∃ j, ∃ hj : j < k, sameContent l[j] l[k] = true) ↔
-      (∃ j, ∃ hj : j < k, l[j].documentVersion = l[k].documentVersion) := by
+/-- **The fibres of the top are runs.** In a well-formed history, version
+`k + 1` has the same top as version `k` exactly when it holds content
+deposited before it. -/
+theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
+    (hk : k < l.length) :
+    docCount (l.take (k + 1)) = docCount (l.take k) ↔
+      ∃ v ∈ l.take k, sameContent v l[k] = true := by
+  have hsplit : l.take (k + 1) = l.take k ++ [l[k]] := by
+    rw [List.take_add_one, List.getElem?_eq_getElem hk]; rfl
+  have hwf : WellFormed (l.take (k + 1)) := by
+    have := List.take_append_drop (k + 1) l
+    rw [← this] at h; exact h.prefix
+  rw [hsplit] at hwf ⊢
+  obtain ⟨_, hx⟩ := hwf.init
+  rw [docCount_append]
   constructor
-  · rintro ⟨j, hj, hc⟩
-    exact ⟨j, hj, one_content_one_number h (List.getElem_mem _) (List.getElem_mem _) hc⟩
-  · rintro ⟨j, hj, hd⟩
-    exact ⟨j, hj, one_number_one_content h (List.getElem_mem _) (List.getElem_mem _) hd⟩
+  · intro heq
+    rcases hx with ⟨z, hz, hzx, _⟩ | ⟨_, hn⟩
+    · exact ⟨z, hz, hzx⟩
+    · rw [hn] at heq; omega
+  · rintro ⟨v, hv, hc⟩
+    rcases hx with ⟨z, hz, _, hxz⟩ | ⟨hnew, _⟩
+    · have := le_docCount hz; rw [hxz]; omega
+    · rw [hnew v hv] at hc; cases hc
 
 omit [DecidableEq D] in
 /-- The description a history gives to document version `k`: that of the last
@@ -150,6 +163,11 @@ namespace Story
 open OpenSheaf.Story
 
 def authorFirst : Source w14 := ⟨"author", "paper", paper3, rfl, 1⟩
+
+example : paper3.versions.map (·.documentVersion) = [1, 2, 1] := by decide
+
+example : (List.range 4).map (fun n => docCount (paper3.versions.take n)) = [0, 1, 2, 2] := by
+  decide
 
 /-- **Descriptions do not glue.** In the story, the author's object versions
 1 and 3 describe document version 1 differently. -/

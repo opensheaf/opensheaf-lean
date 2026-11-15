@@ -1,23 +1,25 @@
-# Federation
+# Separate worlds
 
-Archives are built separately, by different owners, and come together only
-when readers combine them. This chapter takes two worlds, each built from
-nothing by events, on archives that do not overlap, and puts them side by
-side. It proves:
+Archives are built separately, by different owners. This chapter takes two
+worlds, each built from nothing by events, on archives that do not overlap,
+and puts them side by side. It proves what the model allows one to say, and
+it is less than the word federation suggests:
 
-- **federation**: the union is a sheaf when the copies the two worlds share
-  have comparable histories (`federation`);
-- **only pairs across need checking**: the union is compatible exactly
-  when the sections of the two worlds agree where both are defined; pairs
-  within one world agree already (`federation_iff`);
-- **each world keeps its section**: the glued section of the union
-  restricts to the glued section of each world (`union_restricts`).
+- in a world built by events, every live object, and every pin held, names
+  an archive of that world (`Events.names_exist`, `Events.pins_exist`);
+- so two such worlds on separate archives **share nothing**: no named
+  document version is held in both (`no_shared_names`), and no pin held in
+  one names an archive of the other (`no_cross_pins`);
+- so they **glue**, with no condition (`separate_glue`), and each keeps its
+  own section (`union_restricts_left`, `union_restricts_right`).
 
-Why one check of pairs is enough: the sheaf of sections is *flasque*, every
-section over a set extends to any larger set (`flasque`). A flasque sheaf
-has no higher cohomology, so there is no obstruction to gluing beyond the
-agreement of pairs. All the content is in which sections a world gives,
-which is why each theorem here is about the copies the worlds share.
+The interesting case is not here. When one archive's collection pins
+another archive's papers, or keeps a mirror of them, the two archives are
+in the same world, and the earlier chapters apply to it as one world. What
+the model cannot express is two worlds built *independently* that refer to
+each other: a pin written in one world into an archive of another, checked
+only when the two are combined. That needs a step relation across worlds,
+and it is listed among what is left out (see the introduction).
 
     -- in Sheaf/Federation.lean:
     import Sheaf.Local
@@ -26,15 +28,6 @@ which is why each theorem here is about the copies the worlds share.
 
     variable {D : Type}
 
-    /-- **Every section extends.** A section over a set extends to any larger set:
-    the sheaf of sections is flasque. -/
-    theorem flasque {P V : Type} [Inhabited V] {U U' : P → Prop} (h : Sub U U') (s : Sec U V) :
-        ∃ s' : Sec U' V, s'.restrict h = s := by
-      classical
-      refine ⟨fun x _ => if hx : U x then s x hx else default, ?_⟩
-      funext x hx
-      simp [Sec.restrict, hx]
-
 ## Two worlds side by side
 
 The union of two worlds has the archives of both. When no archive is in
@@ -42,156 +35,157 @@ both, an entry of the union is an entry of exactly one of them.
 
     /-- Two worlds side by side: the archives of the first, then those of the
     second. -/
-    def union (w1 w2 : World D) : World D :=
+    def World.union (w1 w2 : World D) : World D :=
       fun a => match w1 a with
         | some ar => some ar
         | none => w2 a
 
-    /-- No archive is in both. -/
-    def Disjoint (w1 w2 : World D) : Prop := ∀ a, w1 a = none ∨ w2 a = none
+    /-- No archive is in both worlds. -/
+    def SeparateWorlds (w1 w2 : World D) : Prop := ∀ a, w1 a = none ∨ w2 a = none
 
     theorem lookup_union_left {w1 w2 : World D} {a : ArchiveId} {i : ObjectId} {e : Entry D}
-        (h : lookup w1 a i = some e) : lookup (union w1 w2) a i = some e := by
-      unfold lookup union at *
+        (h : lookup w1 a i = some e) : lookup (World.union w1 w2) a i = some e := by
+      unfold lookup World.union at *
       cases h1 : w1 a with
       | none => rw [h1] at h; cases h
       | some ar => rw [h1] at h; exact h
 
-    theorem lookup_union_right {w1 w2 : World D} (hd : Disjoint w1 w2) {a : ArchiveId}
+    theorem lookup_union_right {w1 w2 : World D} (hd : SeparateWorlds w1 w2) {a : ArchiveId}
         {i : ObjectId} {e : Entry D} (h : lookup w2 a i = some e) :
-        lookup (union w1 w2) a i = some e := by
+        lookup (World.union w1 w2) a i = some e := by
       have h2 : w2 a ≠ none := by
         intro h2; unfold lookup at h; rw [h2] at h; cases h
       have h1 : w1 a = none := (hd a).resolve_right h2
-      unfold lookup union at *
+      unfold lookup World.union at *
       rw [h1]; exact h
 
     theorem lookup_union_cases {w1 w2 : World D} {a : ArchiveId} {i : ObjectId} {e : Entry D}
-        (h : lookup (union w1 w2) a i = some e) :
+        (h : lookup (World.union w1 w2) a i = some e) :
         lookup w1 a i = some e ∨ lookup w2 a i = some e := by
-      unfold lookup union at *
+      unfold lookup World.union at *
       cases h1 : w1 a with
       | none => rw [h1] at h; exact Or.inr h
       | some ar => rw [h1] at h; exact Or.inl h
 
-The copies of the two worlds that share a name must agree as copies do
-within one world: one history a prefix of the other. With that, the copies
-of the union agree.
+    theorem archive_of_lookup {w : World D} {a : ArchiveId} {i : ObjectId} {e : Entry D}
+        (h : lookup w a i = some e) : w a ≠ none := by
+      obtain ⟨ar, ha⟩ := lookup_some_archive h
+      rw [ha]; simp
 
-    /-- The copies of the two worlds that share a name have comparable histories. -/
-    def CrossAgree (w1 w2 : World D) : Prop :=
-      ∀ b x m b' x' m', lookup w1 b x = some (.live m) → lookup w2 b' x' = some (.live m') →
-        m.archive = m'.archive → m.id = m'.id → Comparable m.versions m'.versions
+## Worlds built by events are closed
 
-    theorem union_copiesAgree {w1 w2 : World D} (h1 : CopiesAgree w1) (h2 : CopiesAgree w2)
-        (hx : CrossAgree w1 w2) : CopiesAgree (union w1 w2) := by
-      intro b x m b' x' m' hl hl' ha hi
-      rcases lookup_union_cases hl with hl | hl <;> rcases lookup_union_cases hl' with hl' | hl'
-      · exact h1 _ _ _ _ _ _ hl hl' ha hi
-      · exact hx _ _ _ _ _ _ hl hl' ha hi
-      · exact (hx _ _ _ _ _ _ hl' hl ha.symm hi.symm).symm
-      · exact h2 _ _ _ _ _ _ hl hl' ha hi
-
-## Federation
-
-The argument of the main theorem works for any world whose live objects are
-well formed and whose copies agree, whether or not it was built by events.
-The union is such a world.
+An object kept in its own archive names that archive; a mirror names its
+original's archive, which is never missing (`MirrorsOk`). A pin held
+resolves or reports `removed`, so its archive has an entry for its object.
 
     variable [DecidableEq D] (hash : Hash D)
 
-    /-- Copies that agree, and well-formed histories, give compatible sections:
-    the argument of the main theorem, for any world. -/
-    theorem compatible_of_agree {w : World D}
-        (hwf : ∀ b i c, lookup w b i = some (.live c) → WellFormed c.versions)
-        (hca : CopiesAgree w) : Compatible (sections w) := by
-      intro i j x ⟨a1, o1, k1, d1⟩ ⟨a2, o2, _, d2⟩
-      have hc := hca _ _ _ _ _ _ i.live j.live (a1.symm.trans a2) (o1.symm.trans o2)
-      simp only [sections, objSec]
-      rcases hc with ⟨t, ht⟩ | ⟨t, ht⟩
-      · have hi : j.obj.versions = i.obj.versions.take i.version ++
-            (i.obj.versions.drop i.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
-        exact docContent_agree (hwf _ _ _ j.live) hi (List.take_append_drop _ _).symm k1 d1 d2
-      · have hj : i.obj.versions = j.obj.versions.take j.version ++
-            (j.obj.versions.drop j.version ++ t) := by rw [ht]; exact take_drop_append _ _ _
-        exact docContent_agree (hwf _ _ _ i.live) (List.take_append_drop _ _).symm hj k1 d1 d2
+    theorem Events.names_exist {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
+        {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) : w c.archive ≠ none := by
+      by_cases hb : c.archive = b
+      · rw [hb]; exact archive_of_lookup hl
+      · obtain ⟨hne, _⟩ := Events.mirrorsOk hash hs b i c hl hb
+        intro h; apply hne; simp [lookup, h]
 
-    /-- **Federation.** Two worlds built separately by events, on different
-    archives, glue into one sheaf when the copies they share agree. -/
-    theorem federation {w1 w2 : World D}
+    theorem Events.pins_exist {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
+        {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) {v : Version D}
+        (hv : v ∈ c.versions) {p : Pin D} (hp : p ∈ v.pins) : w p.archive ≠ none := by
+      rcases (Events.sound hash hs).2 _ _ _ hl v hv p hp with ⟨u, hu⟩ | hr
+      · unfold resolve at hu
+        obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu
+        exact archive_of_lookup ho
+      · obtain ⟨n, d, ht⟩ := (resolve_removed_iff hash).mp hr
+        exact archive_of_lookup ht
+
+## Separate worlds share nothing
+
+    /-- **Separate worlds share no named document version.** -/
+    theorem no_shared_names {w1 w2 : World D} (hd : SeparateWorlds w1 w2)
         (hs1 : Events hash (fun _ => (none : Option (Archive D))) w1)
         (hs2 : Events hash (fun _ => (none : Option (Archive D))) w2)
-        (hx : CrossAgree w1 w2) :
-        ∃ g, Glues (sections (union w1 w2)) g ∧ ∀ g', Glues (sections (union w1 w2)) g' → g' = g := by
+        {x : Name} {v v' : Version D} (h1 : Holds w1 x v) (h2 : Holds w2 x v') : False := by
+      obtain ⟨b, i, c, hl, _, rfl⟩ := h1
+      obtain ⟨b', i', c', hl', _, hx⟩ := h2
+      have ha : c'.archive = c.archive := congrArg Name.archive hx
+      rcases hd c.archive with h | h
+      · exact Events.names_exist hash hs1 hl h
+      · exact Events.names_exist hash hs2 hl' (ha ▸ h)
+
+    /-- **No pin held in one world names an archive of the other.** -/
+    theorem no_cross_pins {w1 w2 : World D} (hd : SeparateWorlds w1 w2)
+        (hs2 : Events hash (fun _ => (none : Option (Archive D))) w2) {b : ArchiveId}
+        {i : ObjectId} {c : Obj D} (hl : lookup w2 b i = some (.live c)) {v : Version D}
+        (hv : v ∈ c.versions) {p : Pin D} (hp : p ∈ v.pins) : w1 p.archive = none :=
+      (hd p.archive).resolve_right (Events.pins_exist hash hs2 hl hv hp)
+
+## Separate worlds glue
+
+The copies of the union agree: two copies with the same name come from the
+same world, since separate worlds share no names, and the copies of each
+world agree. So the argument of the main theorem applies to the union,
+although the union is not built by events.
+
+    /-- **Separate worlds glue**, with no condition. -/
+    theorem separate_glue {w1 w2 : World D} (hd : SeparateWorlds w1 w2)
+        (hs1 : Events hash (fun _ => (none : Option (Archive D))) w1)
+        (hs2 : Events hash (fun _ => (none : Option (Archive D))) w2) :
+        ∃ g, Glues (sections (World.union w1 w2)) g ∧
+          ∀ g', Glues (sections (World.union w1 w2)) g' → g' = g := by
       apply sheaf
       apply compatible_of_agree
       · intro b i c hl
         rcases lookup_union_cases hl with hl | hl
         · exact ((Events.sound hash hs1).1 _ _ _ hl).history
         · exact ((Events.sound hash hs2).1 _ _ _ hl).history
-      · exact union_copiesAgree (Events.copiesAgree hash hs1) (Events.copiesAgree hash hs2) hx
-
-## Only pairs across need checking
-
-Each world is compatible on its own (chapter
-[A world is a sheaf](40-world.md)), so the union is compatible exactly when
-the pairs across agree.
-
-    omit [DecidableEq D] in
-    /-- A source of the first world is a source of the union. -/
-    def Source.left {w1 w2 : World D} (i : Source w1) : Source (union w1 w2) :=
-      ⟨i.archive, i.id, i.obj, lookup_union_left i.live, i.version⟩
-
-    omit [DecidableEq D] in
-    def Source.right {w1 w2 : World D} (hd : Disjoint w1 w2) (i : Source w2) :
-        Source (union w1 w2) :=
-      ⟨i.archive, i.id, i.obj, lookup_union_right hd i.live, i.version⟩
-
-    /-- The sections of the two worlds agree wherever both are defined. -/
-    def CrossCompatible (w1 w2 : World D) : Prop :=
-      ∀ (i : Source w1) (j : Source w2) x (hi : cover w1 i x) (hj : cover w2 j x),
-        sections w1 i x hi = sections w2 j x hj
-
-    /-- **Only pairs across need checking.** The union of two worlds built by
-    events is compatible exactly when the sections of the two worlds agree
-    where both are defined: pairs within a world need no check. -/
-    theorem federation_iff {w1 w2 : World D} (hd : Disjoint w1 w2)
-        (hs1 : Events hash (fun _ => (none : Option (Archive D))) w1)
-        (hs2 : Events hash (fun _ => (none : Option (Archive D))) w2) :
-        Compatible (sections (union w1 w2)) ↔ CrossCompatible w1 w2 := by
-      constructor
-      · intro h i j x hi hj
-        exact h (Source.left i) (Source.right hd j) x hi hj
-      · intro h i j x hi hj
-        have c1 := world_compatible hash hs1
-        have c2 := world_compatible hash hs2
-        rcases lookup_union_cases i.live with li | li <;> rcases lookup_union_cases j.live with lj | lj
-        · exact c1 ⟨i.archive, i.id, i.obj, li, i.version⟩ ⟨j.archive, j.id, j.obj, lj, j.version⟩
-            x hi hj
-        · exact h ⟨i.archive, i.id, i.obj, li, i.version⟩ ⟨j.archive, j.id, j.obj, lj, j.version⟩
-            x hi hj
-        · exact (h ⟨j.archive, j.id, j.obj, lj, j.version⟩ ⟨i.archive, i.id, i.obj, li, i.version⟩
-            x hj hi).symm
-        · exact c2 ⟨i.archive, i.id, i.obj, li, i.version⟩ ⟨j.archive, j.id, j.obj, lj, j.version⟩
-            x hi hj
+      · intro b x m b' x' m' hl hl' ha _
+        have c1 := Events.copiesAgree hash hs1
+        have c2 := Events.copiesAgree hash hs2
+        rcases lookup_union_cases hl with hl | hl <;> rcases lookup_union_cases hl' with hl' | hl'
+        · exact c1 _ _ _ _ _ _ hl hl' ha ‹_›
+        · exfalso
+          rcases hd m.archive with h | h
+          · exact Events.names_exist hash hs1 hl h
+          · exact Events.names_exist hash hs2 hl' (ha ▸ h)
+        · exfalso
+          rcases hd m.archive with h | h
+          · exact Events.names_exist hash hs1 hl' (ha ▸ h)
+          · exact Events.names_exist hash hs2 hl h
+        · exact c2 _ _ _ _ _ _ hl hl' ha ‹_›
 
 ## Each world keeps its section
 
-The glued section of the union restricts to a section that glues the first
-world, which is therefore the first world's own glued section: federation
-changes nothing that either world says.
+A source of either world is a source of the union, so the glued section of
+the union restricts to a section that glues each world: its own glued
+section, by uniqueness. Putting the worlds side by side changes nothing
+that either says.
 
     omit [DecidableEq D] in
-    theorem heldIn_left {w1 w2 : World D} : Sub (HeldIn w1) (HeldIn (union w1 w2)) :=
-      fun _ ⟨i, hx⟩ => ⟨Source.left i, hx⟩
+    def Source.left {w1 w2 : World D} (i : Source w1) : Source (World.union w1 w2) :=
+      ⟨i.archive, i.id, i.obj, lookup_union_left i.live, i.version⟩
 
     omit [DecidableEq D] in
-    /-- **Each world keeps its section.** The glued section of the union restricts
-    to the glued section of the first world. -/
-    theorem union_restricts {w1 w2 : World D} {g : Sec (HeldIn (union w1 w2)) (Content D)}
-        (hg : Glues (sections (union w1 w2)) g) : Glues (sections w1) (g.restrict heldIn_left) := by
+    def Source.right {w1 w2 : World D} (hd : SeparateWorlds w1 w2) (i : Source w2) :
+        Source (World.union w1 w2) :=
+      ⟨i.archive, i.id, i.obj, lookup_union_right hd i.live, i.version⟩
+
+    omit [DecidableEq D] in
+    theorem union_restricts_left {w1 w2 : World D}
+        {g : Sec (HeldIn (World.union w1 w2)) (Content D)}
+        (hg : Glues (sections (World.union w1 w2)) g) :
+        Glues (sections w1) (g.restrict fun _ ⟨i, hx⟩ => ⟨Source.left i, hx⟩) := by
       intro i
       funext x hx
       exact congrFun (congrFun (hg (Source.left i)) x) hx
+
+    omit [DecidableEq D] in
+    theorem union_restricts_right {w1 w2 : World D} (hd : SeparateWorlds w1 w2)
+        {g : Sec (HeldIn (World.union w1 w2)) (Content D)}
+        (hg : Glues (sections (World.union w1 w2)) g) :
+        Glues (sections w2) (g.restrict fun _ ⟨i, hx⟩ => ⟨Source.right hd i, hx⟩) := by
+      intro i
+      funext x hx
+      exact congrFun (congrFun (hg (Source.right hd i)) x) hx
 
     end OpenSheaf.Sheaf
