@@ -331,63 +331,97 @@ found is one of the results.
 
 An accepted copy is a new document of the selection's archive `s`, under a
 new identifier `cid`. Its first version holds the files of the revision
-vetted, as document version 1; its description, depositor and message are
-the selection's, given as parameters. It keeps the references of the
-revision: section 10.5 asks the copy to keep "the relations of the source",
-and a reference pins the same version whoever holds it.
+vetted, as document version 1, and records its source: the pin `src` of
+the revision (section 10.5, `external`). Its description, depositor and
+message are the selection's, given as parameters.
+
+It also keeps the references of the revision. This is a **modelling
+choice** on issue #28: section 10.5 asks the copy to keep "the relations of
+the source", which are DataCite relations; the references of the model are
+those of the extension proposed in #28, which does not yet say what copies
+do with them. Keeping them is the natural reading, since a reference pins
+the same version whoever holds it.
 
     omit [DecidableEq D] in
-    /-- The first version of an accepted copy of `v`. -/
-    def copyVersion (v : Version D) (description curator message : String) : Version D :=
-      { documentVersion := 1, files := v.files, description, refs := v.refs,
+    /-- The first version of an accepted copy of `v`, whose pin is `src`. -/
+    def copyVersion (v : Version D) (src : Pin D) (description curator message : String) :
+        Version D :=
+      { documentVersion := 1, files := v.files, description, refs := v.refs, source := some src,
         depositor := curator, message }
 
     omit [DecidableEq D] in
-    /-- The accepted copy of the revision `v`, as object `cid` of archive `s`
-    (section 10.5). -/
-    def acceptedCopy (s : ArchiveId) (cid : ObjectId) (v : Version D)
+    /-- The accepted copy of the revision `v`, pinned by `src`, as object `cid` of
+    archive `s` (section 10.5). -/
+    def acceptedCopy (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
         (description curator message : String) : Obj D :=
       { archive := s, id := cid, kind := .document,
-        versions := [copyVersion v description curator message] }
+        versions := [copyVersion v src description curator message] }
 
 It holds exactly the files vetted. It is a well-formed object, whose only
 pins are the references of the revision; creating it is a valid step
 whenever the identifier is free in the selection's archive and those
-references resolve.
+references resolve, or report `removed`.
 
     omit [DecidableEq D] in
-    theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
-        ∀ x ∈ (acceptedCopy s cid v d c m).versions, x.files = v.files := by
+    theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
+        (d c m : String) : ∀ x ∈ (acceptedCopy s cid src v d c m).versions, x.files = v.files := by
       simp [acceptedCopy, copyVersion]
 
-    theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
-        (acceptedCopy s cid v d c m).WF cid :=
+    theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
+        (d c m : String) : (acceptedCopy s cid src v d c m).WF cid :=
       ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy, copyVersion],
-        by simp [acceptedCopy, copyVersion, Version.membersOk]⟩
+        by simp [acceptedCopy, copyVersion, Version.membersOk], StatusOk.single _⟩
 
     theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
-        (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String)
-        (hrefs : ∀ r ∈ v.refs, ∃ t, resolve hash w r.pin = .ok t) :
-        ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
-      .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
-        (by simpa [acceptedCopy, copyVersion, Version.pins] using hrefs) (Or.inl rfl)
+        (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
+        (d c m : String) (hrefs : ∀ r ∈ v.refs, Held hash w r.pin) :
+        ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
+      .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)
+        (by
+          intro x hx p hp
+          simp only [acceptedCopy, List.mem_singleton] at hx
+          subst hx
+          simp only [copyVersion, Version.pins, List.nil_append, List.mem_map] at hp
+          obtain ⟨r, hr, rfl⟩ := hp
+          exact hrefs r hr)
+        (Or.inl rfl) (fun _ => by simp [HeadFollows, acceptedCopy, copyVersion, Version.FollowsHeads])
+
+The check of section 14 on an accepted copy: its first version holds
+exactly the files of the source version its `external` names. It holds of
+every accepted copy, whatever versions the selection's archive adds to it
+later, and in every later world: the source pin keeps resolving to the
+version copied (immutability), until the source is taken down.
+
+    /-- The first version of `c` holds exactly the files of its source. -/
+    def CopyChecks (w : World D) (c : Obj D) : Prop :=
+      ∀ x src, c.versionAt 1 = some x → x.source = some src →
+        ∃ v, resolve hash w src = .ok v ∧ x.files = v.files
+
+    /-- **An accepted copy passes the check of section 14.** -/
+    theorem acceptedCopy_checks {w w' : World D} (hs : Steps w w') {src : Pin D} {v : Version D}
+        (hsrc : resolve hash w src = .ok v) {c : Obj D} {d cu m : String}
+        (h1 : c.versionAt 1 = some (copyVersion v src d cu m)) : CopyChecks hash w' c := by
+      intro x p hx hp
+      rw [h1] at hx
+      cases hx
+      simp only [copyVersion, Option.some.injEq] at hp
+      subst hp
+      exact ⟨v, Steps.resolve_ok hash hs hsrc, rfl⟩
 
 The copy is kept by the selection's archive, so a takedown of the original
-leaves it alone: its pin still resolves to its first version. This is what
-accepted copies are for.
+leaves it alone: the pin of its first version still resolves to it, whatever
+versions the copy has since. This is what accepted copies are for.
 
     /-- **An accepted copy survives the original.** -/
     theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
-        {o : Obj D} {v : Version D} {d c m : String} (hl : lookup w a oid = some (.live o))
-        (hc : lookup w s cid = some (.live (acceptedCopy s cid v d c m)))
+        {o c : Obj D} {x : Version D} (hl : lookup w a oid = some (.live o))
+        (hc : lookup w s cid = some (.live c)) (h1 : c.versionAt 1 = some x)
         (hdiff : ¬ (s = a ∧ cid = oid)) :
-        resolve hash (takedown hash w a oid o)
-            ⟨s, cid, 1, hash ((acceptedCopy s cid v d c m).inventory 1)⟩ =
-          .ok (copyVersion v d c m) := by
+        resolve hash (takedown hash w a oid o) ⟨s, cid, 1, hash (c.inventory 1)⟩ = .ok x := by
       rw [takedown_other hash hl hdiff]
       unfold resolve
       simp only [hc]
-      exact resolveEntry_live_of hash (by simp [Obj.versionAt, acceptedCopy]) rfl
+      exact resolveEntry_live_of hash h1 rfl
 
 And it is never taken for the original. Its inventories name another object
 (another archive, or another identifier), so they differ from the

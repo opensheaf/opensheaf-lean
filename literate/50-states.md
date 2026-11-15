@@ -186,7 +186,8 @@ archive, resolving as before. Authors may revise their drafts freely: no
 sealed record, theirs or anyone else's, can depend on them.
 
     /-- **Drafts are safe to rewrite.** Under the rule, rewriting the drafts of an
-    object never changes what a pin held by a sealed version resolves to. -/
+    object never changes the version to which a pin held by a sealed version
+    resolves. -/
     theorem sealed_pins_survive {w : World D} {served : Serving}
         (hF : Fixed isDraft hash w served)
         {a : ArchiveId} {oid : ObjectId} {o : Obj D} {sealed drafts newTail : List (Version D)}
@@ -197,6 +198,11 @@ sealed record, theirs or anyone else's, can depend on them.
         {p : Pin D} (hp : p ∈ v.pins) {t : Version D} (hr : resolve hash w p = .ok t) :
         resolve hash (rewriteDrafts w a oid o sealed newTail) p = .ok t :=
       rewrite_keeps_sealed isDraft hash hl hv hd hr (hF.target_sealed isDraft hash hl' hv' hs hp hr)
+
+The theorem is about pins that resolve to a version. A pin held by a
+sealed version that reported `unavailable` (it named a version that did not
+exist yet) or `mismatch` is not covered: after a rewrite it might resolve,
+to a draft.
 
 What is not proved yet: that rewriting keeps the rule itself. A pin held by
 a draft that did not resolve before the rewrite (it named a version that

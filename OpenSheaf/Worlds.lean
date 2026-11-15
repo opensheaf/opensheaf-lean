@@ -23,18 +23,24 @@ structure Obj.WF (o : Obj D) (oid : ObjectId) : Prop where
   history : WellFormed o.versions
   kinds : ∀ v ∈ o.versions, v.members.isSome = true ↔ o.kind = .collection
   members : ∀ v ∈ o.versions, v.membersOk
+  statuses : StatusOk o.versions
 
 /-- Every pin held by a version of a live object resolves. -/
 def PinsOk (w : World D) : Prop :=
   ∀ a oid o, lookup w a oid = some (.live o) →
     ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t
 
+omit [DecidableEq D] in
+/-- No object has been taken down. -/
+def NoTombs (w : World D) : Prop := ∀ a oid n d, lookup w a oid ≠ some (.tomb n d)
+
 /-- A well-formed world. -/
 def WFWorld (w : World D) : Prop :=
-  (∀ a oid o, lookup w a oid = some (.live o) → o.WF oid) ∧ PinsOk hash w
+  (∀ a oid o, lookup w a oid = some (.live o) → o.WF oid) ∧ PinsOk hash w ∧ NoTombs w
 
 theorem WFWorld.empty : WFWorld hash (fun _ => (none : Option (Archive D))) :=
-  ⟨fun _ _ _ h => by simp [lookup] at h, fun _ _ _ h => by simp [lookup] at h⟩
+  ⟨fun _ _ _ h => by simp [lookup] at h, fun _ _ _ h => by simp [lookup] at h,
+    fun _ _ _ _ h => by simp [lookup] at h⟩
 
 omit [DecidableEq D] in
 /-- `o` is a copy of a prefix of its original: the live object of the same
@@ -43,6 +49,38 @@ def MirrorOf (w : World D) (o : Obj D) : Prop :=
   ∃ orig, lookup w o.archive o.id = some (.live orig) ∧
     orig.archive = o.archive ∧ ∃ t, orig.versions = o.versions ++ t
 
+/-- The pin resolves, or reports `removed`. -/
+abbrev Held (w : World D) (p : Pin D) : Prop :=
+  (∃ t, resolve hash w p = .ok t) ∨ resolve hash w p = .removed
+
+/-- A followed member pins the head of its object in `w`, if any. -/
+def Member.FollowsHead (w : World D) (m : Member D) : Prop :=
+  match headPin hash w m.archive m.object with
+  | some p => m.pins = [p]
+  | none => True
+
+instance (w : World D) (m : Member D) : Decidable (m.FollowsHead hash w) := by
+  unfold Member.FollowsHead; split <;> infer_instance
+
+/-- In a catalogue version, the followed members pin the heads of their
+objects in `w` (section 10.2). -/
+def Version.FollowsHeads (w : World D) (v : Version D) : Prop :=
+  match v.members with
+  | some c => c.type = .catalogue → ∀ m ∈ c.members, m.follow = true → m.FollowsHead hash w
+  | none => True
+
+instance (w : World D) (v : Version D) : Decidable (v.FollowsHeads hash w) := by
+  unfold Version.FollowsHeads; split <;> infer_instance
+
+/-- The last version of a history, if any, follows heads. -/
+def HeadFollows (w : World D) (l : List (Version D)) : Prop :=
+  match l.getLast? with
+  | some x => x.FollowsHeads hash w
+  | none => True
+
+instance (w : World D) (l : List (Version D)) : Decidable (HeadFollows hash w l) := by
+  unfold HeadFollows; split <;> infer_instance
+
 /-- The steps that the specification allows. -/
 inductive ValidStep : World D → World D → Prop
   | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
@@ -50,15 +88,17 @@ inductive ValidStep : World D → World D → Prop
       ValidStep w (fun b => if b = a then some ar else w b)
   | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
-      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t)
-      (hhome : o.archive = a ∨ MirrorOf w o) :
+      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p)
+      (hhome : o.archive = a ∨ MirrorOf w o)
+      (hfollow : o.archive = a → HeadFollows hash w o.versions) :
       ValidStep w (setEntry w a oid (.live o))
   | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
       (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
       (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
-      (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t)
-      (hhome : o.archive = a ∨ MirrorOf w (o.append x)) :
+      (hpins : ∀ p ∈ x.pins, Held hash w p)
+      (hhome : o.archive = a ∨ MirrorOf w (o.append x))
+      (hfollow : o.archive = a → x.FollowsHeads hash w) :
       ValidStep w (setEntry w a oid (.live (o.append x)))
 
 /-- Any number of valid steps. -/
@@ -67,8 +107,8 @@ abbrev ValidSteps : World D → World D → Prop := Star (ValidStep hash)
 theorem ValidStep.toStep {w w' : World D} (h : ValidStep hash w w') : Step w w' := by
   cases h with
   | newArchive a ar h _ => exact .newArchive w a ar h
-  | create a ar oid o ha ho _ _ _ => exact .create w a ar oid o ha ho
-  | append a ar oid o x ha ho _ _ _ _ _ _ => exact .append w a ar oid o x ha ho
+  | create a ar oid o ha ho => exact .create w a ar oid o ha ho
+  | append a ar oid o x ha ho => exact .append w a ar oid o x ha ho
 
 theorem ValidSteps.toSteps {w w' : World D} (h : ValidSteps hash w w') : Steps w w' :=
   h.mono (·.toStep hash)
@@ -161,7 +201,7 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
     {Q : Pin D → Prop} (hq : ∀ a oid o, lookup w a oid = some (.live o) →
       ∀ v ∈ o.versions, ∀ p ∈ v.pins, Q p)
     {b : ArchiveId} {x : ObjectId} {o' : Obj D} (h : lookup w' b x = some (.live o')) :
-    o'.WF x ∧ ∀ v ∈ o'.versions, ∀ p ∈ v.pins, Q p ∨ ∃ t, resolve hash w p = .ok t := by
+    o'.WF x ∧ ∀ v ∈ o'.versions, ∀ p ∈ v.pins, Q p ∨ Held hash w p := by
   cases hs with
   | newArchive a ar ha hempty =>
     rw [lookup_newArchive ha hempty] at h
@@ -174,7 +214,7 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
       cases h
       exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp)⟩
     · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
-  | append a ar oid o y ha ho hf _ hk hm hpins _ =>
+  | append a ar oid o y ha ho hf hst hk hm hpins _ =>
     rw [lookup_setEntry ha] at h
     split at h
     · rename_i hc
@@ -182,20 +222,41 @@ theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
       cases h
       have hl : lookup w b x = some (.live o) := by simp [lookup, ha, ho]
       have hwf := hobj _ _ _ hl
-      refine ⟨⟨hwf.id, by simp [Obj.append], hwf.history.snoc hf, ?_, ?_⟩, ?_⟩
+      refine ⟨⟨hwf.id, by simp [Obj.append], hwf.history.snoc hf, ?_, ?_,
+        hwf.statuses.snoc hst⟩, ?_⟩
       · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.kinds, hk⟩
       · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.members, hm⟩
       · simpa [Obj.append, or_imp, forall_and] using
           ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp)⟩
     · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
 
+theorem ValidStep.noTombs {w w' : World D} (hs : ValidStep hash w w') (h : NoTombs w) :
+    NoTombs w' := by
+  intro b x n d hl
+  cases hs with
+  | newArchive a ar ha hempty => rw [lookup_newArchive ha hempty] at hl; exact h _ _ _ _ hl
+  | create a ar oid o ha =>
+    rw [lookup_setEntry ha] at hl
+    split at hl
+    · cases hl
+    · exact h _ _ _ _ hl
+  | append a ar oid o y ha =>
+    rw [lookup_setEntry ha] at hl
+    split at hl
+    · cases hl
+    · exact h _ _ _ _ hl
+
 /-- **Valid steps keep worlds well formed.** -/
 theorem ValidStep.wf {w w' : World D} (hs : ValidStep hash w w') (hw : WFWorld hash w) :
     WFWorld hash w' :=
-  ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2 h).1,
+  ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2.1 h).1,
    fun _ _ _ h v hv p hp => by
-     obtain ⟨t, ht⟩ := ((hs.entry hash hw.1 hw.2 h).2 v hv p hp).elim id id
-     exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩⟩
+     rcases (hs.entry hash hw.1 hw.2.1 h).2 v hv p hp with ⟨t, ht⟩ | ⟨t, ht⟩ | hr
+     · exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+     · exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+     · obtain ⟨n, d, hl⟩ := (resolve_removed_iff hash).mp hr
+       exact absurd hl (hw.2.2 _ _ _ _),
+   hs.noTombs hash hw.2.2⟩
 
 theorem ValidSteps.wf {w w' : World D} (hs : ValidSteps hash w w') (hw : WFWorld hash w) :
     WFWorld hash w' :=
@@ -204,7 +265,7 @@ theorem ValidSteps.wf {w w' : World D} (hs : ValidSteps hash w w') (hw : WFWorld
 /-- **Nothing dangles.** -/
 theorem ValidSteps.pins_ok {w : World D}
     (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) : PinsOk hash w :=
-  (hs.wf hash (WFWorld.empty hash)).2
+  (hs.wf hash (WFWorld.empty hash)).2.1
 
 /-- **Every member is pinned.** -/
 theorem ValidSteps.members_pinned {w : World D}
@@ -217,7 +278,7 @@ theorem ValidSteps.members_pinned {w : World D}
   have hmo := (hw.1 _ _ _ hl).members v hv
   unfold Version.membersOk at hmo
   rw [hc] at hmo
-  refine ⟨(hmo m hm).1, fun p hp => hw.2 _ _ _ hl v hv p ?_⟩
+  refine ⟨(hmo m hm).1, fun p hp => hw.2.1 _ _ _ hl v hv p ?_⟩
   simp only [Version.pins, hc, Members.pins]
   exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
@@ -230,22 +291,6 @@ inductive Event : World D → World D → Prop
 /-- Any number of events. -/
 abbrev Events : World D → World D → Prop := Star (Event hash)
 
-theorem resolve_removed_iff {w : World D} {p : Pin D} :
-    resolve hash w p = .removed ↔ ∃ n d, lookup w p.archive p.object = some (.tomb n d) := by
-  unfold resolve
-  constructor
-  · intro h
-    match he : lookup w p.archive p.object, h with
-    | some (.tomb n d), _ => exact ⟨n, d, rfl⟩
-    | none, h => simp [resolveEntry] at h
-    | some (.live o), h =>
-      simp only [resolveEntry] at h
-      split at h
-      · cases h
-      · split at h <;> cases h
-  · rintro ⟨n, d, h⟩
-    rw [h]; rfl
-
 theorem Step.resolve_removed {w w' : World D} (hs : Step w w') {p : Pin D}
     (h : resolve hash w p = .removed) : resolve hash w' p = .removed := by
   obtain ⟨n, d, hl⟩ := (resolve_removed_iff hash).mp h
@@ -254,7 +299,7 @@ theorem Step.resolve_removed {w w' : World D} (hs : Step w w') {p : Pin D}
 /-- Every pin held resolves, or reports `removed`. -/
 def PinsHeld (w : World D) : Prop :=
   ∀ a oid o, lookup w a oid = some (.live o) →
-    ∀ v ∈ o.versions, ∀ p ∈ v.pins, (∃ t, resolve hash w p = .ok t) ∨ resolve hash w p = .removed
+    ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p
 
 /-- A sound world: well-formed objects, and pins held resolve or report removed. -/
 def SoundWorld (w : World D) : Prop :=
@@ -267,10 +312,11 @@ theorem ValidStep.sound {w w' : World D} (hs : ValidStep hash w w') (hw : SoundW
     SoundWorld hash w' :=
   ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2 h).1,
    fun _ _ _ h v hv p hp => by
-     rcases (hs.entry hash hw.1 hw.2 h).2 v hv p hp with (⟨t, ht⟩ | hr) | ⟨t, ht⟩
+     rcases (hs.entry hash hw.1 hw.2 h).2 v hv p hp with (⟨t, ht⟩ | hr) | (⟨t, ht⟩ | hr)
      · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
      · exact Or.inr (Step.resolve_removed hash (hs.toStep hash) hr)
-     · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩⟩
+     · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+     · exact Or.inr (Step.resolve_removed hash (hs.toStep hash) hr)⟩
 
 theorem takedown_sound {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
     (hl : lookup w a oid = some (.live o)) (hw : SoundWorld hash w) :
@@ -279,7 +325,7 @@ theorem takedown_sound {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D
   intro b x o' h v hv p hp
   by_cases hpa : p.archive = a ∧ p.object = oid
   · exact Or.inr (takedown_removed hash hl hpa)
-  · rw [takedown_other hash hl hpa]
+  · simp only [Held]; rw [takedown_other hash hl hpa]
     exact hw.2 _ _ _ (lookup_takedown hash hl h).2 v hv p hp
 
 theorem Event.sound {w w' : World D} (he : Event hash w w') (hw : SoundWorld hash w) :

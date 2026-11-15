@@ -218,48 +218,70 @@ theorem resolveVia_sound {w : World D} {p : Pin D} {ms : List ArchiveId} {o : Ob
     exact copy_authentic hash (hcol b hbm c hc) ho hb
 
 omit [DecidableEq D] in
-/-- The first version of an accepted copy of `v`. -/
-def copyVersion (v : Version D) (description curator message : String) : Version D :=
-  { documentVersion := 1, files := v.files, description, refs := v.refs,
+/-- The first version of an accepted copy of `v`, whose pin is `src`. -/
+def copyVersion (v : Version D) (src : Pin D) (description curator message : String) :
+    Version D :=
+  { documentVersion := 1, files := v.files, description, refs := v.refs, source := some src,
     depositor := curator, message }
 
 omit [DecidableEq D] in
-/-- The accepted copy of the revision `v`, as object `cid` of archive `s`
-(section 10.5). -/
-def acceptedCopy (s : ArchiveId) (cid : ObjectId) (v : Version D)
+/-- The accepted copy of the revision `v`, pinned by `src`, as object `cid` of
+archive `s` (section 10.5). -/
+def acceptedCopy (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
     (description curator message : String) : Obj D :=
   { archive := s, id := cid, kind := .document,
-    versions := [copyVersion v description curator message] }
+    versions := [copyVersion v src description curator message] }
 
 omit [DecidableEq D] in
-theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
-    ∀ x ∈ (acceptedCopy s cid v d c m).versions, x.files = v.files := by
+theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
+    (d c m : String) : ∀ x ∈ (acceptedCopy s cid src v d c m).versions, x.files = v.files := by
   simp [acceptedCopy, copyVersion]
 
-theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (v : Version D) (d c m : String) :
-    (acceptedCopy s cid v d c m).WF cid :=
+theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
+    (d c m : String) : (acceptedCopy s cid src v d c m).WF cid :=
   ⟨rfl, by simp [acceptedCopy], WellFormed.single rfl, by simp [acceptedCopy, copyVersion],
-    by simp [acceptedCopy, copyVersion, Version.membersOk]⟩
+    by simp [acceptedCopy, copyVersion, Version.membersOk], StatusOk.single _⟩
 
 theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
-    (hs : w s = some ar) (hfree : ar.entries cid = none) (v : Version D) (d c m : String)
-    (hrefs : ∀ r ∈ v.refs, ∃ t, resolve hash w r.pin = .ok t) :
-    ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid v d c m))) :=
-  .create w s ar cid _ hs hfree (acceptedCopy_wf s cid v d c m)
-    (by simpa [acceptedCopy, copyVersion, Version.pins] using hrefs) (Or.inl rfl)
+    (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
+    (d c m : String) (hrefs : ∀ r ∈ v.refs, Held hash w r.pin) :
+    ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
+  .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)
+    (by
+      intro x hx p hp
+      simp only [acceptedCopy, List.mem_singleton] at hx
+      subst hx
+      simp only [copyVersion, Version.pins, List.nil_append, List.mem_map] at hp
+      obtain ⟨r, hr, rfl⟩ := hp
+      exact hrefs r hr)
+    (Or.inl rfl) (fun _ => by simp [HeadFollows, acceptedCopy, copyVersion, Version.FollowsHeads])
+
+/-- The first version of `c` holds exactly the files of its source. -/
+def CopyChecks (w : World D) (c : Obj D) : Prop :=
+  ∀ x src, c.versionAt 1 = some x → x.source = some src →
+    ∃ v, resolve hash w src = .ok v ∧ x.files = v.files
+
+/-- **An accepted copy passes the check of section 14.** -/
+theorem acceptedCopy_checks {w w' : World D} (hs : Steps w w') {src : Pin D} {v : Version D}
+    (hsrc : resolve hash w src = .ok v) {c : Obj D} {d cu m : String}
+    (h1 : c.versionAt 1 = some (copyVersion v src d cu m)) : CopyChecks hash w' c := by
+  intro x p hx hp
+  rw [h1] at hx
+  cases hx
+  simp only [copyVersion, Option.some.injEq] at hp
+  subst hp
+  exact ⟨v, Steps.resolve_ok hash hs hsrc, rfl⟩
 
 /-- **An accepted copy survives the original.** -/
 theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
-    {o : Obj D} {v : Version D} {d c m : String} (hl : lookup w a oid = some (.live o))
-    (hc : lookup w s cid = some (.live (acceptedCopy s cid v d c m)))
+    {o c : Obj D} {x : Version D} (hl : lookup w a oid = some (.live o))
+    (hc : lookup w s cid = some (.live c)) (h1 : c.versionAt 1 = some x)
     (hdiff : ¬ (s = a ∧ cid = oid)) :
-    resolve hash (takedown hash w a oid o)
-        ⟨s, cid, 1, hash ((acceptedCopy s cid v d c m).inventory 1)⟩ =
-      .ok (copyVersion v d c m) := by
+    resolve hash (takedown hash w a oid o) ⟨s, cid, 1, hash (c.inventory 1)⟩ = .ok x := by
   rw [takedown_other hash hl hdiff]
   unfold resolve
   simp only [hc]
-  exact resolveEntry_live_of hash (by simp [Obj.versionAt, acceptedCopy]) rfl
+  exact resolveEntry_live_of hash h1 rfl
 
 /-- **An accepted copy is not a mirror.** -/
 theorem acceptedCopy_not_mirror {o c : Obj D} {p : Pin D} {v u : Version D}

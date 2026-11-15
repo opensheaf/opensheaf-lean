@@ -130,12 +130,14 @@ description, and OpenSheaf's record of it (sections 7 and 9). The model keeps:
 - the **description**, `datacite.json`, as an uninterpreted string;
 - the **references** of the version, recorded in `object.json` by an
   extension;
+- for an accepted copy, its **source**: the pin of the version copied,
+  which `object.json` records in `external` (section 10.5);
 - the **status**, active or withdrawn;
 - the **depositor** and the **message**, which OCFL keeps in the inventory
   and which the specification uses to record who made each version and why.
 
-The description, the references, the status and the record of the deposit
-are not content: a new version that changes only them is a description-only
+The description, the references, the source, the status and the record of
+the deposit are not content: a new version that changes only them is a description-only
 version or a withdrawal, and keeps the document version. References are
 data of `object.json`, like the description: a link written in the text of
 a document is content, but the model sees only the references recorded
@@ -150,6 +152,7 @@ beside it.
       members : Option (Members D) := none
       description : String
       refs : List (Ref D) := []
+      source : Option (Pin D) := none
       status : Status := .active
       depositor : String
       message : String

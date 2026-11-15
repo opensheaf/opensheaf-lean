@@ -16,6 +16,12 @@ together with the fact that the pin given to a followed member resolves, to
 the newest version. That only the curator changes a selection is proved in
 [chapter 7](49-acts.md), which says who may make a step.
 
+The model simplifies the member of a selection: section 10.2 gives each
+revision its `documentVersion`, beside the pin of the object version vetted,
+in the order of the document's history. The model keeps only the pins, so
+it neither records nor checks those document versions
+([model issue 2](https://github.com/opensheaf/opensheaf-lean/issues/2)).
+
     -- in OpenSheaf/Collection.lean:
     import OpenSheaf.Archive
 

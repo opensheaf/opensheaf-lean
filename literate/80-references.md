@@ -19,7 +19,8 @@ pins held applies, and three of the open questions of #28 get an answer:
 - **Direction.** #28 assumes that only the focusing document pins the
   focused one, and that the link back is a plain DataCite relation. The
   model shows that a pinned link back is possible too, in a later version
-  of the focused document, and that it never closes a cycle.
+  of the focused document, and that it never closes a cycle between object
+  versions. It may close one between document versions: see below.
 - **What copying does.** Every copy of a version carries its references,
   since they are part of what the pin fixes; the versions they name are not
   copied with it. Mirroring the account does not keep the detailed argument
@@ -82,6 +83,15 @@ versions never refer to each other: each would have to exist before the
 other. The link back from a focused document is possible, but from a later
 version of it, to a version of the focusing document that refers to an
 earlier one.
+
+The model proves this for object versions. Document versions, the unit of
+citation, are another matter. A reference is not content, so the link back
+can be added by a description-only version, which keeps the document
+version: in the example below, document version 2 of the detailed argument
+refers to document version 1 of the account, which refers to document
+version 2 of the detailed argument. Whether references belong to the
+document version or to the object version is a question for #28 (and #24,
+what a description-only version may change).
 
     /-- **No two versions refer to each other**, in a world built by events. -/
     theorem no_mutual_refs {w : World D}
@@ -167,8 +177,8 @@ story](70-story.md), and each step is made by an agent.
     open OpenSheaf OpenSheaf.Patterns OpenSheaf.Story
 
     def y0 : World Nat := fun _ => none
-    def y1 : World Nat := fun b => if b = "author" then some (emptyArchive "author" ["author"]) else y0 b
-    def y2 : World Nat := fun b => if b = "journal" then some (emptyArchive "journal" ["editor"]) else y1 b
+    def y1 : World Nat := fun b => if b = "author" then some (emptyArchive ["author"]) else y0 b
+    def y2 : World Nat := fun b => if b = "journal" then some (emptyArchive ["editor"]) else y1 b
 
     theorem b1 : StepBy toy "author" y0 y1 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
     theorem b2 : StepBy toy "editor" y1 y2 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
@@ -190,9 +200,9 @@ gap and adds a formal proof.
     def y3 : World Nat := setEntry y2 "author" "kpz-details" (.live details2)
 
     theorem b3 : StepBy toy "author" y2 y3 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
         (by simp [details2, d1, d2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
-        (by decide)
+        (by decide) (by decide)
 
 The account refers to version 2 of the detailed argument, with the role
 `IsSupplementedBy`. Its creation is valid only because that version exists.
@@ -209,10 +219,10 @@ The account refers to version 2 of the detailed argument, with the role
     def y4 : World Nat := setEntry y3 "author" "kpz-account" (.live account)
 
     theorem b4 : StepBy toy "author" y3 y4 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => exists_of_isOk ((by decide :
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
+        (fun v hv p hp => held_of_isOk ((by decide :
           ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y3 p).isOk = true) v hv p hp))
-        (Or.inl rfl) (by decide) (by decide)
+        (Or.inl rfl) (by decide) (by decide) (by decide)
 
 The detailed argument links back, by a description-only version of its
 version 2, whose reference pins the account's version 1. It keeps the
@@ -230,9 +240,9 @@ document version: references are not content.
 
     theorem b5 : StepBy toy "author" y4 y5 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (fun p hp => exists_of_isOk ((by decide :
+        (fun p hp => held_of_isOk ((by decide :
           ∀ p ∈ d3.pins, (resolve toy y4 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-        (by decide)
+        (by decide) (by decide)
 
     example : d3.documentVersion = d2.documentVersion := by decide
 
@@ -254,16 +264,16 @@ keeps a mirror of it.
     def y7 : World Nat := setEntry y6 "journal" "kpz-account" (.live account)
 
     theorem b6 : StepBy toy "editor" y5 y6 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => exists_of_isOk ((by decide :
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
+        (fun v hv p hp => held_of_isOk ((by decide :
           ∀ v ∈ issueObj.versions, ∀ p ∈ v.pins, (resolve toy y5 p).isOk = true) v hv p hp))
-        (Or.inl rfl) (by decide) (by decide)
+        (Or.inl rfl) (by decide) (by decide) (by decide)
 
     theorem b7 : StepBy toy "editor" y6 y7 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => exists_of_isOk ((by decide :
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
+        (fun v hv p hp => held_of_isOk ((by decide :
           ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y6 p).isOk = true) v hv p hp))
-        (Or.inr ⟨account, rfl, rfl, [], (List.append_nil _).symm⟩) (by decide) (by decide)
+        (Or.inr ⟨account, rfl, rfl, [], (List.append_nil _).symm⟩) (by decide) (by decide) (by decide)
 
     theorem steps : Star ByAgent y0 y7 :=
       .tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
@@ -283,8 +293,9 @@ detailed argument it names, and the link back to the account's version 1.
     example : verifyRefs toy y7 d3 = [(⟨"IsSupplementTo", pinA1⟩, .ok a1)] := by decide
 
 The general theorems say the same without computing: the reference
-resolves, since the world was built by valid steps, and there is no cycle,
-although the two documents refer to each other.
+resolves, since the world was built by valid steps, and there is no cycle
+of object versions, although the two documents refer to each other (as
+document versions, they do form a cycle: see "Direction" above).
 
     example : ∃ t, resolve toy y7 pinD2 = .ok t :=
       ValidSteps.refs_resolve toy valid (a := "author") (oid := "kpz-account") (o := account) rfl

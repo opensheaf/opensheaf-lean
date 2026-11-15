@@ -25,17 +25,19 @@ inductive StepBy (u : Agent) : World D → World D → Prop
       StepBy u w (fun b => if b = a then some ar else w b)
   | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
-      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t)
+      (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p)
       (hhome : o.archive = a ∨ MirrorOf w o) (hu : u ∈ ar.writers)
-      (hdep : o.archive = a → ∀ v ∈ o.versions, v.depositor ∈ ar.writers) :
+      (hdep : o.archive = a → ∀ v ∈ o.versions, v.depositor ∈ ar.writers)
+      (hfollow : o.archive = a → HeadFollows hash w o.versions) :
       StepBy u w (setEntry w a oid (.live o))
   | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
       (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
       (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
-      (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t)
+      (hpins : ∀ p ∈ x.pins, Held hash w p)
       (hhome : o.archive = a ∨ MirrorOf w (o.append x)) (hu : u ∈ ar.writers)
-      (hdep : o.archive = a → x.depositor = u) :
+      (hdep : o.archive = a → x.depositor = u)
+      (hfollow : o.archive = a → x.FollowsHeads hash w) :
       StepBy u w (setEntry w a oid (.live (o.append x)))
 
 /-- A step or a takedown, made by the agent `u`. -/
@@ -55,9 +57,10 @@ theorem StepBy.toValidStep {u : Agent} {w w' : World D} (h : StepBy hash u w w')
     ValidStep hash w w' := by
   cases h with
   | newArchive a ar h hempty _ => exact .newArchive w a ar h hempty
-  | create a ar oid o ha ho hwf hpins hhome _ _ => exact .create w a ar oid o ha ho hwf hpins hhome
-  | append a ar oid o x ha ho hf hst hk hm hpins hhome _ _ =>
-    exact .append w a ar oid o x ha ho hf hst hk hm hpins hhome
+  | create a ar oid o ha ho hwf hpins hhome _ _ hfo =>
+    exact .create w a ar oid o ha ho hwf hpins hhome hfo
+  | append a ar oid o x ha ho hf hst hk hm hpins hhome _ _ hfo =>
+    exact .append w a ar oid o x ha ho hf hst hk hm hpins hhome hfo
 
 theorem Act.toEvent {u : Agent} {w w' : World D} (h : Act hash u w w') : Event hash w w' := by
   cases h with

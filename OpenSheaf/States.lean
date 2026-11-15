@@ -112,7 +112,8 @@ theorem Fixed.target_sealed {w : World D} {served : Serving} (hF : Fixed isDraft
   exact (rank_pos_iff isDraft served p.archive p.object t).mp (by omega)
 
 /-- **Drafts are safe to rewrite.** Under the rule, rewriting the drafts of an
-object never changes what a pin held by a sealed version resolves to. -/
+object never changes the version to which a pin held by a sealed version
+resolves. -/
 theorem sealed_pins_survive {w : World D} {served : Serving}
     (hF : Fixed isDraft hash w served)
     {a : ArchiveId} {oid : ObjectId} {o : Obj D} {sealed drafts newTail : List (Version D)}

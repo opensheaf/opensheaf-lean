@@ -37,14 +37,16 @@ themselves, the staff of an institution, the authors who deposit in an
 institutional repository. The model records them as the archive's
 **writers**, named as depositors are named in inventories (section 7.1).
 How a reader learns who the writers are is not said by the specification;
-[chapter 7](49-acts.md) says what the list is for.
+[chapter 7](49-acts.md) says what the list is for. The list is fixed when
+the archive is created: the model has no change of writers, and writers
+belong to the archive, not to each object, as issue #13 of the
+specification proposes ([model issue 5](https://github.com/opensheaf/opensheaf-lean/issues/5)).
 
     /-- An agent: a depositor, named as in the inventory (section 7.1). -/
     abbrev Agent := String
 
     /-- An archive (section 5), with the agents who may act for its owner. -/
     structure Archive (D : Type) where
-      id : ArchiveId
       entries : ObjectId → Option (Entry D)
       writers : List Agent := []
 
@@ -177,6 +179,24 @@ from a live object.
       | some (.live c), _ => exact ⟨c, rfl⟩
       | none, h => simp [resolveEntry] at h
       | some (.tomb _ _), h => simp [resolveEntry] at h
+
+And a pin reports `removed` exactly when its object has a tombstone.
+
+    theorem resolve_removed_iff {w : World D} {p : Pin D} :
+        resolve hash w p = .removed ↔ ∃ n d, lookup w p.archive p.object = some (.tomb n d) := by
+      unfold resolve
+      constructor
+      · intro h
+        match he : lookup w p.archive p.object, h with
+        | some (.tomb n d), _ => exact ⟨n, d, rfl⟩
+        | none, h => simp [resolveEntry] at h
+        | some (.live o), h =>
+          simp only [resolveEntry] at h
+          split at h
+          · cases h
+          · split at h <;> cases h
+      · rintro ⟨n, d, h⟩
+        rw [h]; rfl
 
 With the lemmas of [chapter 2](20-object.md): a pin of a version within a
 kept prefix of the same object still resolves, to the same version.

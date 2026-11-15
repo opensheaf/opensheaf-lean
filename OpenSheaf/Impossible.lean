@@ -147,7 +147,7 @@ theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : Arch
     {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
     (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
     (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
-    ∃ t, resolve hash w p = .ok t := by
+    Held hash w p := by
   cases hs with
   | newArchive a ar ha hempty =>
     rw [lookup_newArchive ha hempty] at hl'
@@ -191,10 +191,11 @@ theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : Sound
         rw [hq]; exact live_of_resolve hash hu'
       rw [if_yes htl, if_yes (show Live w (b, x, n) from ⟨o, v, hl, hv0⟩)]
       exact hdown _ _ hpt
-    · obtain ⟨u0, hu0⟩ := hs.new_pins hash hl' hv hold hp
-      have htl : Live w t := ht ▸ live_of_resolve hash hu0
-      rw [if_yes htl, if_no hold]
-      exact hlive t htl
+    · rcases hs.new_pins hash hl' hv hold hp with ⟨u0, hu0⟩ | hr0
+      · have htl : Live w t := ht ▸ live_of_resolve hash hu0
+        rw [if_yes htl, if_no hold]
+        exact hlive t htl
+      · rw [Step.resolve_removed hash hstep hr0] at hu; cases hu
 
 theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
     (hl : lookup w a oid = some (.live o)) (hr : Ranked hash w) :

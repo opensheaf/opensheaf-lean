@@ -224,14 +224,15 @@ existed before it, already resolved before it.
       · rw [Step.resolve_removed hash hstep hr] at hu; cases hu
 
 A version that did not exist before a valid step was made by it, so its
-pins were checked by the step: they resolved before it. This is the only
-place where the proof looks at the kind of step.
+pins were checked by the step: they resolved before it, or reported
+`removed`. This is the only place where the proof looks at the kind of
+step.
 
     theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
         {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
         (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
         (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
-        ∃ t, resolve hash w p = .ok t := by
+        Held hash w p := by
       cases hs with
       | newArchive a ar ha hempty =>
         rw [lookup_newArchive ha hempty] at hl'
@@ -254,9 +255,9 @@ place where the proof looks at the kind of step.
 
 The main lemma: a valid step keeps a numbering in which pins go down. The
 versions that existed before the step keep their numbers, and the new ones
-get the number `N`, above all the others. A pin held by a new version
-resolved before the step, so it names a version that existed, numbered
-below `N`. An old version is unchanged by the step (objects only grow), and
+get the number `N`, above all the others. A pin held by a new version that
+resolves after the step resolved before it (if it reported `removed`, it
+still does), so it names a version that existed, numbered below `N`. An old version is unchanged by the step (objects only grow), and
 its pins that resolve after the step already resolved before it
 (`pinsTo_old`), so the old numbering already sent them down.
 
@@ -283,10 +284,11 @@ its pins that resolve after the step already resolved before it
             rw [hq]; exact live_of_resolve hash hu'
           rw [if_yes htl, if_yes (show Live w (b, x, n) from ⟨o, v, hl, hv0⟩)]
           exact hdown _ _ hpt
-        · obtain ⟨u0, hu0⟩ := hs.new_pins hash hl' hv hold hp
-          have htl : Live w t := ht ▸ live_of_resolve hash hu0
-          rw [if_yes htl, if_no hold]
-          exact hlive t htl
+        · rcases hs.new_pins hash hl' hv hold hp with ⟨u0, hu0⟩ | hr0
+          · have htl : Live w t := ht ▸ live_of_resolve hash hu0
+            rw [if_yes htl, if_no hold]
+            exact hlive t htl
+          · rw [Step.resolve_removed hash hstep hr0] at hu; cases hu
 
 A takedown keeps the numbering: it removes versions, and the pins that still
 resolve after it resolved before it, to the same versions.

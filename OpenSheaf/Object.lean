@@ -218,6 +218,35 @@ instance (l : List (Version D)) (x : Version D) : Decidable (NoReinstatement l x
   unfold NoReinstatement; infer_instance
 
 omit [DecidableEq D] in
+/-- No version of the history makes a withdrawn object active again. -/
+def StatusOk (l : List (Version D)) : Prop :=
+  ∀ i (h : i < l.length), NoReinstatement (l.take i) l[i]
+
+omit [DecidableEq D] in
+instance (l : List (Version D)) : Decidable (StatusOk l) := by
+  unfold StatusOk; infer_instance
+
+omit [DecidableEq D] in
+theorem StatusOk.snoc {l : List (Version D)} {x : Version D} (h : StatusOk l)
+    (hx : NoReinstatement l x) : StatusOk (l ++ [x]) := by
+  intro i hi
+  simp only [List.length_append, List.length_singleton] at hi
+  by_cases hlt : i < l.length
+  · rw [List.take_append_of_le_length (Nat.le_of_lt hlt), List.getElem_append_left hlt]
+    exact h i hlt
+  · have hi' : i = l.length := by omega
+    subst hi'
+    simpa using hx
+
+omit [DecidableEq D] in
+theorem StatusOk.single (x : Version D) : StatusOk [x] := by
+  intro i hi
+  simp only [List.length_singleton] at hi
+  have : i = 0 := by omega
+  subst this
+  simp [NoReinstatement, headStatus]
+
+omit [DecidableEq D] in
 /-- A description-only version (section 7.3) of the history `l`: a new
 description of the content of `v`, with the status of the object. -/
 def Version.describe (l : List (Version D)) (v : Version D)

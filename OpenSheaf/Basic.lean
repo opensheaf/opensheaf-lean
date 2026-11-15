@@ -70,6 +70,7 @@ structure Version (D : Type) where
   members : Option (Members D) := none
   description : String
   refs : List (Ref D) := []
+  source : Option (Pin D) := none
   status : Status := .active
   depositor : String
   message : String

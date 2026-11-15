@@ -15,7 +15,6 @@ abbrev Agent := String
 
 /-- An archive (section 5), with the agents who may act for its owner. -/
 structure Archive (D : Type) where
-  id : ArchiveId
   entries : ObjectId → Option (Entry D)
   writers : List Agent := []
 
@@ -116,6 +115,22 @@ theorem resolveEntry_ok_live {e : Option (Entry D)} {p : Pin D} {u : Version D}
   | some (.live c), _ => exact ⟨c, rfl⟩
   | none, h => simp [resolveEntry] at h
   | some (.tomb _ _), h => simp [resolveEntry] at h
+
+theorem resolve_removed_iff {w : World D} {p : Pin D} :
+    resolve hash w p = .removed ↔ ∃ n d, lookup w p.archive p.object = some (.tomb n d) := by
+  unfold resolve
+  constructor
+  · intro h
+    match he : lookup w p.archive p.object, h with
+    | some (.tomb n d), _ => exact ⟨n, d, rfl⟩
+    | none, h => simp [resolveEntry] at h
+    | some (.live o), h =>
+      simp only [resolveEntry] at h
+      split at h
+      · cases h
+      · split at h <;> cases h
+  · rintro ⟨n, d, h⟩
+    rw [h]; rfl
 
 /-- A pin of an object that keeps the prefix of the history up to the pinned
 version resolves to the same version. -/

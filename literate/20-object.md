@@ -174,7 +174,11 @@ when the issue is settled: a version keeps the number of an earlier version
 whose content it holds, and any other version gets a new number. Content is
 compared as a set of files, since the order in which files are listed means
 nothing, together with the member list, whose order is authoritative
-(section 10.2).
+(section 10.2). The choice decides three more cases of #23: a file renamed
+is new content (files are compared by path and digest); a version whose
+content returns to an earlier version's takes the earlier number, where
+#23 and the discussion of issue #2 propose a new one; and the change note,
+which the model does not have, plays no part.
 
 Two parts of section 7.3 are not modelled: the completion of a version
 deposited without its sources, which keeps its number while adding files,
@@ -317,6 +321,39 @@ new version has the status of the head, or `withdrawn`.
 
     instance (l : List (Version D)) (x : Version D) : Decidable (NoReinstatement l x) := by
       unfold NoReinstatement; infer_instance
+
+A history keeps the rule when no version of it reinstates the versions
+before it. A history created at once (imported, or copied) is checked as a
+whole, and appending a version that keeps the rule keeps it.
+
+    omit [DecidableEq D] in
+    /-- No version of the history makes a withdrawn object active again. -/
+    def StatusOk (l : List (Version D)) : Prop :=
+      ∀ i (h : i < l.length), NoReinstatement (l.take i) l[i]
+
+    omit [DecidableEq D] in
+    instance (l : List (Version D)) : Decidable (StatusOk l) := by
+      unfold StatusOk; infer_instance
+
+    omit [DecidableEq D] in
+    theorem StatusOk.snoc {l : List (Version D)} {x : Version D} (h : StatusOk l)
+        (hx : NoReinstatement l x) : StatusOk (l ++ [x]) := by
+      intro i hi
+      simp only [List.length_append, List.length_singleton] at hi
+      by_cases hlt : i < l.length
+      · rw [List.take_append_of_le_length (Nat.le_of_lt hlt), List.getElem_append_left hlt]
+        exact h i hlt
+      · have hi' : i = l.length := by omega
+        subst hi'
+        simpa using hx
+
+    omit [DecidableEq D] in
+    theorem StatusOk.single (x : Version D) : StatusOk [x] := by
+      intro i hi
+      simp only [List.length_singleton] at hi
+      have : i = 0 := by omega
+      subst this
+      simp [NoReinstatement, headStatus]
 
 ## The three kinds of new version
 

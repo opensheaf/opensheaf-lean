@@ -110,14 +110,19 @@ The model keeps only what the properties depend on.
   which no real digest is.
 - **Choices on open questions.** Where the specification leaves a question
   open, the model makes a choice and says so: the numbering of document
-  versions that only remove files (issue #23), withdrawals that cannot be
-  undone (issue #25), pins that must resolve when they are made, the
-  states of issue #29, and pinned references between documents (issues
-  #21 and #28). Each is marked in its chapter.
+  versions that remove or rename files or revert content (issue #23),
+  withdrawals that cannot be undone (issue #25), pins that must resolve
+  when they are made (or report `removed`), mirrors that may start as a
+  partial copy (issue #13), the states of issue #29, and pinned references
+  between documents (issues #21 and #28), which accepted copies keep. Each
+  is marked in its chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
   the discovery document are left out. The pins of the model are those of
-  member lists and of references between documents.
+  member lists and of references between documents. Revisions of a
+  selection have no `documentVersion`, and the verifier does not go through
+  mirrors (section 14). Writers belong to an archive and are fixed, so a
+  curator is any writer of the selection's archive.
 - **Archives** are maps from object identifiers to objects or tombstones,
   and the world is a map from archive identifiers to archives. Changes are
   the cases of one inductive relation, `Step`, so that a theorem about every

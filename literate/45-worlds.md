@@ -20,14 +20,20 @@ that they keep the archives **well formed**:
 - every pin held by any version resolves, so that, without takedowns,
   nothing ever dangles.
 
-The last condition is a **modelling choice**, stronger than the
+Valid steps check the last condition on every pin they write: it resolves,
+or reports `removed`. This is a **modelling choice**, stronger than the
 specification. Section 10.2 asks that every member be pinned, not that every
 pin resolve when it is made: section 14 reports pins as "unavailable", and
 issue #29 discusses pins of objects that readers cannot reach. The model
 asks that a tool resolve every pin it writes, as the reference tools do.
-The freedom from cycles of [chapter 10](65-impossible.md) rests on this
-choice; for pins of versions that cannot be reached, it rests on the
-hashes, which the model does not use there.
+A pin that reports `removed` is accepted: after a takedown, a collection
+keeps the pins of the object taken down in its later versions (a
+withdrawal, a description, an update), and a mirror copies them (sections
+10.2 and 11.3). Such a pin names an object that never comes back, so it
+never resolves again. The freedom from cycles of
+[chapter 10](65-impossible.md) rests on this choice; for pins of versions
+that cannot be reached, it rests on the hashes, which the model does not
+use there.
 
 The chapter also proves two facts about all steps, valid or not: an
 identifier taken down is never reused, and an object only grows, so that
@@ -63,33 +69,49 @@ what remains true: every pin held resolves to a version or reports
       history : WellFormed o.versions
       kinds : ∀ v ∈ o.versions, v.members.isSome = true ↔ o.kind = .collection
       members : ∀ v ∈ o.versions, v.membersOk
+      statuses : StatusOk o.versions
 
     /-- Every pin held by a version of a live object resolves. -/
     def PinsOk (w : World D) : Prop :=
       ∀ a oid o, lookup w a oid = some (.live o) →
         ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t
 
+    omit [DecidableEq D] in
+    /-- No object has been taken down. -/
+    def NoTombs (w : World D) : Prop := ∀ a oid n d, lookup w a oid ≠ some (.tomb n d)
+
+A world is well formed when its objects are, its pins resolve, and, since
+it is built without takedowns, it holds no tombstone.
+
     /-- A well-formed world. -/
     def WFWorld (w : World D) : Prop :=
-      (∀ a oid o, lookup w a oid = some (.live o) → o.WF oid) ∧ PinsOk hash w
+      (∀ a oid o, lookup w a oid = some (.live o) → o.WF oid) ∧ PinsOk hash w ∧ NoTombs w
 
 The empty world, with no archive, is well formed.
 
     theorem WFWorld.empty : WFWorld hash (fun _ => (none : Option (Archive D))) :=
-      ⟨fun _ _ _ h => by simp [lookup] at h, fun _ _ _ h => by simp [lookup] at h⟩
+      ⟨fun _ _ _ h => by simp [lookup] at h, fun _ _ _ h => by simp [lookup] at h,
+        fun _ _ _ _ h => by simp [lookup] at h⟩
 
 ## Valid steps
 
 A valid step is a step with the checks of the specification:
 
 - a new archive is empty;
-- a new object is well formed, and the pins of its versions resolve at the
-  time it is created, so that it pins only versions that already exist;
+- a new object is well formed (its history does not reinstate a withdrawn
+  object, the choice of [chapter 2](20-object.md) on issue #25), and the
+  pins of its versions resolve, or report `removed`, at the time it is
+  created, so that it pins only versions that already exist;
 - a new object version extends the history (section 7.3, with the choice
-  of [chapter 2](20-object.md)), does not make a withdrawn object active
-  again (the choice of chapter 2 on issue #25), has a member list exactly if
-  the object is a collection, and then a well-formed one, and pins only
-  versions that resolve;
+  of chapter 2), does not make a withdrawn object active again, has a
+  member list exactly if the object is a collection, and then a
+  well-formed one, and pins only versions that resolve, or report
+  `removed`;
+- in a version that an archive makes of its own catalogue (a new object
+  version, or the head of a new object), every member with `follow` pins
+  the head of its object, when the object has one: "A followed member pins
+  the head of the object when the collection version was made" (section
+  10.2). Mirrors are exempt: they copy versions made earlier;
 - an object is created in its own archive, or else is a mirror: a copy of a
   prefix of the history of a live object of another archive, under the same
   identifier (section 10.4); a version is appended to a mirror only if the
@@ -102,7 +124,10 @@ it resolves each member before pinning it.
 One predicate says what a mirror is, for both checks: the object is a copy
 of a prefix of its original, the live object of the same identifier in the
 object's own archive. A step that is not in the object's own archive must
-keep it so.
+keep it so. This is a **modelling choice**: section 10.4 asks a mirror to
+copy "the whole object, every version"; the model accepts at creation a
+copy of any prefix, as issue #13 of the specification discusses (copies up
+to the pinned version) ([model issue 6](https://github.com/opensheaf/opensheaf-lean/issues/6)).
 
     omit [DecidableEq D] in
     /-- `o` is a copy of a prefix of its original: the live object of the same
@@ -111,6 +136,43 @@ keep it so.
       ∃ orig, lookup w o.archive o.id = some (.live orig) ∧
         orig.archive = o.archive ∧ ∃ t, orig.versions = o.versions ++ t
 
+A pin written by a step resolves, or reports `removed`:
+
+    /-- The pin resolves, or reports `removed`. -/
+    abbrev Held (w : World D) (p : Pin D) : Prop :=
+      (∃ t, resolve hash w p = .ok t) ∨ resolve hash w p = .removed
+
+The check on followed members. A member whose object has no head (it was
+taken down) keeps its pin, as `collect` does ([chapter 4](40-collection.md)).
+
+    /-- A followed member pins the head of its object in `w`, if any. -/
+    def Member.FollowsHead (w : World D) (m : Member D) : Prop :=
+      match headPin hash w m.archive m.object with
+      | some p => m.pins = [p]
+      | none => True
+
+    instance (w : World D) (m : Member D) : Decidable (m.FollowsHead hash w) := by
+      unfold Member.FollowsHead; split <;> infer_instance
+
+    /-- In a catalogue version, the followed members pin the heads of their
+    objects in `w` (section 10.2). -/
+    def Version.FollowsHeads (w : World D) (v : Version D) : Prop :=
+      match v.members with
+      | some c => c.type = .catalogue → ∀ m ∈ c.members, m.follow = true → m.FollowsHead hash w
+      | none => True
+
+    instance (w : World D) (v : Version D) : Decidable (v.FollowsHeads hash w) := by
+      unfold Version.FollowsHeads; split <;> infer_instance
+
+    /-- The last version of a history, if any, follows heads. -/
+    def HeadFollows (w : World D) (l : List (Version D)) : Prop :=
+      match l.getLast? with
+      | some x => x.FollowsHeads hash w
+      | none => True
+
+    instance (w : World D) (l : List (Version D)) : Decidable (HeadFollows hash w l) := by
+      unfold HeadFollows; split <;> infer_instance
+
     /-- The steps that the specification allows. -/
     inductive ValidStep : World D → World D → Prop
       | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
@@ -118,15 +180,17 @@ keep it so.
           ValidStep w (fun b => if b = a then some ar else w b)
       | create (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (ha : w a = some ar) (ho : ar.entries oid = none) (hwf : o.WF oid)
-          (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, ∃ t, resolve hash w p = .ok t)
-          (hhome : o.archive = a ∨ MirrorOf w o) :
+          (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p)
+          (hhome : o.archive = a ∨ MirrorOf w o)
+          (hfollow : o.archive = a → HeadFollows hash w o.versions) :
           ValidStep w (setEntry w a oid (.live o))
       | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (x : Version D) (ha : w a = some ar) (ho : ar.entries oid = some (.live o))
           (hf : Extends o.versions x) (hst : NoReinstatement o.versions x)
           (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
-          (hpins : ∀ p ∈ x.pins, ∃ t, resolve hash w p = .ok t)
-          (hhome : o.archive = a ∨ MirrorOf w (o.append x)) :
+          (hpins : ∀ p ∈ x.pins, Held hash w p)
+          (hhome : o.archive = a ∨ MirrorOf w (o.append x))
+          (hfollow : o.archive = a → x.FollowsHeads hash w) :
           ValidStep w (setEntry w a oid (.live (o.append x)))
 
     /-- Any number of valid steps. -/
@@ -138,8 +202,8 @@ steps, immutability first.
     theorem ValidStep.toStep {w w' : World D} (h : ValidStep hash w w') : Step w w' := by
       cases h with
       | newArchive a ar h _ => exact .newArchive w a ar h
-      | create a ar oid o ha ho _ _ _ => exact .create w a ar oid o ha ho
-      | append a ar oid o x ha ho _ _ _ _ _ _ => exact .append w a ar oid o x ha ho
+      | create a ar oid o ha ho => exact .create w a ar oid o ha ho
+      | append a ar oid o x ha ho => exact .append w a ar oid o x ha ho
 
     theorem ValidSteps.toSteps {w w' : World D} (h : ValidSteps hash w w') : Steps w w' :=
       h.mono (·.toStep hash)
@@ -268,7 +332,7 @@ before, so that it serves twice: here, and for takedowns below.
         {Q : Pin D → Prop} (hq : ∀ a oid o, lookup w a oid = some (.live o) →
           ∀ v ∈ o.versions, ∀ p ∈ v.pins, Q p)
         {b : ArchiveId} {x : ObjectId} {o' : Obj D} (h : lookup w' b x = some (.live o')) :
-        o'.WF x ∧ ∀ v ∈ o'.versions, ∀ p ∈ v.pins, Q p ∨ ∃ t, resolve hash w p = .ok t := by
+        o'.WF x ∧ ∀ v ∈ o'.versions, ∀ p ∈ v.pins, Q p ∨ Held hash w p := by
       cases hs with
       | newArchive a ar ha hempty =>
         rw [lookup_newArchive ha hempty] at h
@@ -281,7 +345,7 @@ before, so that it serves twice: here, and for takedowns below.
           cases h
           exact ⟨hwf, fun v hv p hp => Or.inr (hpins v hv p hp)⟩
         · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
-      | append a ar oid o y ha ho hf _ hk hm hpins _ =>
+      | append a ar oid o y ha ho hf hst hk hm hpins _ =>
         rw [lookup_setEntry ha] at h
         split at h
         · rename_i hc
@@ -289,20 +353,47 @@ before, so that it serves twice: here, and for takedowns below.
           cases h
           have hl : lookup w b x = some (.live o) := by simp [lookup, ha, ho]
           have hwf := hobj _ _ _ hl
-          refine ⟨⟨hwf.id, by simp [Obj.append], hwf.history.snoc hf, ?_, ?_⟩, ?_⟩
+          refine ⟨⟨hwf.id, by simp [Obj.append], hwf.history.snoc hf, ?_, ?_,
+            hwf.statuses.snoc hst⟩, ?_⟩
           · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.kinds, hk⟩
           · simpa [Obj.append, or_imp, forall_and] using ⟨hwf.members, hm⟩
           · simpa [Obj.append, or_imp, forall_and] using
               ⟨fun v hv p hp => Or.inl (hq _ _ _ hl v hv p hp), fun p hp => Or.inr (hpins p hp)⟩
         · exact ⟨hobj _ _ _ h, fun v hv p hp => Or.inl (hq _ _ _ h v hv p hp)⟩
 
+Valid steps create no tombstone: a new archive is empty, and the other
+steps write live objects.
+
+    theorem ValidStep.noTombs {w w' : World D} (hs : ValidStep hash w w') (h : NoTombs w) :
+        NoTombs w' := by
+      intro b x n d hl
+      cases hs with
+      | newArchive a ar ha hempty => rw [lookup_newArchive ha hempty] at hl; exact h _ _ _ _ hl
+      | create a ar oid o ha =>
+        rw [lookup_setEntry ha] at hl
+        split at hl
+        · cases hl
+        · exact h _ _ _ _ hl
+      | append a ar oid o y ha =>
+        rw [lookup_setEntry ha] at hl
+        split at hl
+        · cases hl
+        · exact h _ _ _ _ hl
+
+So, without takedowns, a pin written by a valid step resolves: none reports
+`removed`.
+
     /-- **Valid steps keep worlds well formed.** -/
     theorem ValidStep.wf {w w' : World D} (hs : ValidStep hash w w') (hw : WFWorld hash w) :
         WFWorld hash w' :=
-      ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2 h).1,
+      ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2.1 h).1,
        fun _ _ _ h v hv p hp => by
-         obtain ⟨t, ht⟩ := ((hs.entry hash hw.1 hw.2 h).2 v hv p hp).elim id id
-         exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩⟩
+         rcases (hs.entry hash hw.1 hw.2.1 h).2 v hv p hp with ⟨t, ht⟩ | ⟨t, ht⟩ | hr
+         · exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+         · exact ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+         · obtain ⟨n, d, hl⟩ := (resolve_removed_iff hash).mp hr
+           exact absurd hl (hw.2.2 _ _ _ _),
+       hs.noTombs hash hw.2.2⟩
 
     theorem ValidSteps.wf {w w' : World D} (hs : ValidSteps hash w w') (hw : WFWorld hash w) :
         WFWorld hash w' :=
@@ -315,7 +406,7 @@ property is the subject of the next section.
     /-- **Nothing dangles.** -/
     theorem ValidSteps.pins_ok {w : World D}
         (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) : PinsOk hash w :=
-      (hs.wf hash (WFWorld.empty hash)).2
+      (hs.wf hash (WFWorld.empty hash)).2.1
 
 In such worlds every member of every collection is pinned, as section 10.2
 asks, and its pins resolve.
@@ -331,7 +422,7 @@ asks, and its pins resolve.
       have hmo := (hw.1 _ _ _ hl).members v hv
       unfold Version.membersOk at hmo
       rw [hc] at hmo
-      refine ⟨(hmo m hm).1, fun p hp => hw.2 _ _ _ hl v hv p ?_⟩
+      refine ⟨(hmo m hm).1, fun p hp => hw.2.1 _ _ _ hl v hv p ?_⟩
       simp only [Version.pins, hc, Members.pins]
       exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
@@ -352,23 +443,8 @@ to the rest. An **event** is a valid step or a takedown of a live object.
 
 After a takedown, pins of the object taken down no longer resolve; they
 report `removed`. A pin reports `removed` exactly when its object has a
-tombstone, and tombstones stay, so `removed` stays too.
-
-    theorem resolve_removed_iff {w : World D} {p : Pin D} :
-        resolve hash w p = .removed ↔ ∃ n d, lookup w p.archive p.object = some (.tomb n d) := by
-      unfold resolve
-      constructor
-      · intro h
-        match he : lookup w p.archive p.object, h with
-        | some (.tomb n d), _ => exact ⟨n, d, rfl⟩
-        | none, h => simp [resolveEntry] at h
-        | some (.live o), h =>
-          simp only [resolveEntry] at h
-          split at h
-          · cases h
-          · split at h <;> cases h
-      · rintro ⟨n, d, h⟩
-        rw [h]; rfl
+tombstone (`resolve_removed_iff`, [chapter 3](30-archive.md)), and
+tombstones stay, so `removed` stays too.
 
     theorem Step.resolve_removed {w w' : World D} (hs : Step w w') {p : Pin D}
         (h : resolve hash w p = .removed) : resolve hash w' p = .removed := by
@@ -381,7 +457,7 @@ resolves to a version or reports `removed`.
     /-- Every pin held resolves, or reports `removed`. -/
     def PinsHeld (w : World D) : Prop :=
       ∀ a oid o, lookup w a oid = some (.live o) →
-        ∀ v ∈ o.versions, ∀ p ∈ v.pins, (∃ t, resolve hash w p = .ok t) ∨ resolve hash w p = .removed
+        ∀ v ∈ o.versions, ∀ p ∈ v.pins, Held hash w p
 
     /-- A sound world: well-formed objects, and pins held resolve or report removed. -/
     def SoundWorld (w : World D) : Prop :=
@@ -394,10 +470,11 @@ resolves to a version or reports `removed`.
         SoundWorld hash w' :=
       ⟨fun _ _ _ h => (hs.entry hash hw.1 hw.2 h).1,
        fun _ _ _ h v hv p hp => by
-         rcases (hs.entry hash hw.1 hw.2 h).2 v hv p hp with (⟨t, ht⟩ | hr) | ⟨t, ht⟩
+         rcases (hs.entry hash hw.1 hw.2 h).2 v hv p hp with (⟨t, ht⟩ | hr) | (⟨t, ht⟩ | hr)
          · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
          · exact Or.inr (Step.resolve_removed hash (hs.toStep hash) hr)
-         · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩⟩
+         · exact Or.inl ⟨t, Step.resolve_ok hash (hs.toStep hash) ht⟩
+         · exact Or.inr (Step.resolve_removed hash (hs.toStep hash) hr)⟩
 
 A takedown leaves every other object as it was (`lookup_takedown`,
 [chapter 3](30-archive.md)). The pins of the others resolve as before,
@@ -410,7 +487,7 @@ except those of the object taken down, which report `removed`.
       intro b x o' h v hv p hp
       by_cases hpa : p.archive = a ∧ p.object = oid
       · exact Or.inr (takedown_removed hash hl hpa)
-      · rw [takedown_other hash hl hpa]
+      · simp only [Held]; rw [takedown_other hash hl hpa]
         exact hw.2 _ _ _ (lookup_takedown hash hl h).2 v hv p hp
 
     theorem Event.sound {w w' : World D} (he : Event hash w w') (hw : SoundWorld hash w) :

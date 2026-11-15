@@ -23,7 +23,11 @@ checked by computation.
 
 A verifier checks a collection version by resolving every pin of its member
 list (section 14), `Members.pins` of [chapter 1](10-basic.md). The report
-pairs each pin with its result.
+pairs each pin with its result. This is less than the verifier of section
+14: it resolves each pin in the member's archive only, not through the
+mirrors listed in the member (section 6.4), and it does not check the
+document versions of a selection's revisions, which the model does not
+record ([model issue 2](https://github.com/opensheaf/opensheaf-lean/issues/2)).
 
     /-- What a verifier reports for a member list: each pin with its result. -/
     def verify (w : World D) (c : Members D) : List (Pin D × Resolution D) :=
@@ -171,6 +175,11 @@ reachable.
         resolve hash (setEntry w a oid (.live (o.append x))) p = .ok v ∧
           x.status = .withdrawn :=
       ⟨Step.resolve_ok hash (Step.append w a ar oid o _ ha ho) hp, rfl⟩
+
+The first half holds of any version appended, not only of a withdrawal
+(it is immutability); only the status is specific. That the withdrawal is
+a version the archive may add is [chapter 2](20-object.md)'s
+`withdraw_extends` and `withdraw_noReinstatement`.
 
 The table "What happens when ..." of the use cases describes a withdrawal
 in both columns at once: a catalogue follows it, and pins the withdrawn
