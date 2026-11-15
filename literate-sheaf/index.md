@@ -71,7 +71,9 @@ shows which rules of the specification make the pieces agree:
 6. [Collections and what they pin](55-collections.md): the pins of member
    lists added to the order; below a collection version lies each member
    it pins, with the content its pin fixes, unless it was taken down;
-7. [A story, as a sheaf](60-story.md): the story of the model, read as a
+7. [The order with pins](57-acyclic.md): in every world built by events,
+   the order with pins is a partial order, and later steps keep its edges;
+8. [A story, as a sheaf](60-story.md): the story of the model, read as a
    sheaf and checked by computation (the journal's issue and the paper it
    vetted among them), and two broken worlds that do not glue: a forged
    copy, and a number reused.
@@ -87,6 +89,7 @@ every module:
     import Sheaf.World
     import Sheaf.Pins
     import Sheaf.Collections
+    import Sheaf.Acyclic
     import Sheaf.Story
 
 ## What does not glue

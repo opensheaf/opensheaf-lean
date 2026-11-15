@@ -27,9 +27,10 @@ A pin names an object version, not a document version. The edge goes to
 the document version that the object version holds, which the world tells:
 it is where the pin resolves. So the order depends on the world, and on the
 digest function, through resolution. Where a pin resolves is fixed once it
-resolves (immutability, in the model), so we expect the edges of a world
-to be kept by every later step, except for a takedown, which removes the
-edges into the object taken down; this program does not prove it.
+resolves (immutability, in the model), so the edges of a world are kept
+by every later step; a takedown adds none, and removes those into and out
+of the object taken down. The next chapter,
+[The order with pins](57-acyclic.md), proves it.
 
 The edge goes to the name of the object found, which is the name the
 object records. A pin that names a mirror is resolved by the model to the
@@ -92,13 +93,9 @@ general case follows along the steps.
       | refl => exact id
       | tail _ hr ih => exact fun hx => ih (h hr hx)
 
-The order is a preorder, and nothing below needs more. Whether it is a
-partial order on what a world holds is not proved here. The model proves
-that pins form no cycles in any world built by events
-(`no_cycles_events`), but on object versions, and the order here mixes pin
-edges with the order of deposit on document versions; an argument would
-have to show that every edge goes to a document version deposited before
-the one it starts from.
+The order is a preorder, and nothing in this chapter needs more. In every
+world built by events it is also a partial order, which the next chapter,
+[The order with pins](57-acyclic.md), proves.
 
 ## What a world holds is open
 

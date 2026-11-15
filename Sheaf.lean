@@ -5,4 +5,5 @@ import Sheaf.Object
 import Sheaf.World
 import Sheaf.Pins
 import Sheaf.Collections
+import Sheaf.Acyclic
 import Sheaf.Story
