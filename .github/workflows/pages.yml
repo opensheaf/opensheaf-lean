@@ -1,6 +1,7 @@
 name: pages
-# Weave the literate program (literate/*.md) into a website and publish it
-# with GitHub Pages.
+# Weave the two literate programs (literate/*.md, the model, and
+# literate-sheaf/*.md, the sheaf) into a website and publish it with GitHub
+# Pages.
 on:
   push:
     branches: [main]
@@ -21,7 +22,17 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements-literate.txt
-      - run: literate weave --out site --branch main
+      # The model in site/model, the sheaf in site/sheaf, the landing page at
+      # the top, and the model's former pages redirected to their new place.
+      - run: literate weave --out site/model --branch main
+      - run: cd literate-sheaf && literate weave --out ../site/sheaf --branch main
+      - run: |
+          cp landing/index.html site/
+          for f in site/model/*.html; do
+            n=$(basename "$f")
+            [ "$n" = index.html ] && continue
+            printf '<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=model/%s"><link rel="canonical" href="model/%s"><a href="model/%s">moved</a>\n' "$n" "$n" "$n" > "site/$n"
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

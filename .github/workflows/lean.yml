@@ -15,6 +15,7 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements-literate.txt
       - run: literate tangle --check
+      - run: literate tangle --check literate-sheaf/*.md
       - uses: leanprover/lean-action@v1
         with:
           build-args: "--wfail"

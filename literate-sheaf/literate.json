@@ -1,0 +1,15 @@
+{
+  "name": "opensheaf-lean · sheaf",
+  "tagline": "<a href=\"https://opensheaf.org\">OpenSheaf</a> as a sheaf: an application of the formal model, a literate program",
+  "repository": "https://github.com/opensheaf/opensheaf-lean",
+  "documents": ".",
+  "logo": "../literate/opensheaf-symbol.svg",
+  "logoDark": "invert",
+  "links": {
+    "all documents": "../index.html",
+    "the model": "../model/index.html"
+  },
+  "comments": {
+    ".lean": "-- {}"
+  }
+}

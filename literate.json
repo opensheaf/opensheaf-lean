@@ -4,5 +4,11 @@
   "repository": "https://github.com/opensheaf/opensheaf-lean",
   "logo": "literate/opensheaf-symbol.svg",
   "logoDark": "invert",
-  "comments": {".lean": "-- {}"}
+  "comments": {
+    ".lean": "-- {}"
+  },
+  "links": {
+    "all documents": "../index.html",
+    "OpenSheaf as a sheaf": "../sheaf/index.html"
+  }
 }

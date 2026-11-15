@@ -12,7 +12,18 @@ reported. Its purpose is to make the semantics precise, to find ambiguities
 and corner cases of the text, and to check design proposals before they are
 written into the specification.
 
-## Contents
+This repository holds two literate programs, published together at
+<https://opensheaf.org/opensheaf-lean/>, with a landing page for both:
+
+- **the model** (`literate/`, the library `OpenSheaf`), at
+  <https://opensheaf.org/opensheaf-lean/model/>;
+- **OpenSheaf as a sheaf** (`literate-sheaf/`, the library `Sheaf`), an
+  application of the model, at <https://opensheaf.org/opensheaf-lean/sheaf/>:
+  named document versions, ordered by history, are the base, each object
+  version is a section, and in every world built by events the sections of
+  all copies glue into exactly one.
+
+## Contents of the model
 
 | Chapter | Specification | What it proves |
 |---|---|---|
@@ -29,6 +40,17 @@ written into the specification.
 | [Story](literate/70-story.md) (`OpenSheaf/Story.lean`) | the use cases | tests: a world built by fourteen valid steps from nothing (an author's paper, a journal issue and accepted copy, a co-author's catalogue, note and mirror), then a lost archive, a takedown and attempts to break the protocol (an author acting on the journal's issue, a version rewritten in place, a pin of a version that does not exist yet, a reinstatement, an accepted copy posing as the original, member lists that break section 10.2, a mirror that does not copy), with each verifier report checked by `decide`, and the general theorems applied to the same worlds |
 | [Record](literate/75-record.md) (`OpenSheaf/Record.lean`) | the use case "A learning record" | tests: a student's thesis and the department's record of it, built by acts from nothing; the record verifies, comments stay tied to the version commented on while the thesis moves on, the record's history is kept, the owner decides, the department's mirror is a receipt that catches a rewrite of the first submission, and the record is deleted at the end of its retention without touching the thesis, each checked by `decide` and by the general theorems |
 | [References](literate/80-references.md) (`OpenSheaf/References.lean`) | section 8.1; issues #21, #28 | **pinned references** between documents: they never dangle (`ValidSteps.refs_resolve`, `Events.refs_held`), and no two versions refer to each other (`no_mutual_refs`), though a pinned link back from a later version is possible; a pin fixes what its version refers to (`pin_fixes_refs`); every copy carries the references (`copy_keeps_refs`), not the versions they name; a takedown behind a reference is invisible to a verifier that knows only the core (`takedown_behind_ref`); the short account and its detailed argument, computed |
+
+## Contents of the sheaf
+
+| Chapter | Module | What it proves |
+|---|---|---|
+| [Sheaves on an order](literate-sheaf/10-order.md) | `Sheaf.Order` | the sheaf condition for sections on a preorder (`sheaf`); local conditions glue on an Alexandrov space (`glue_satisfies`) |
+| [Named document versions](literate-sheaf/20-base.md) | `Sheaf.Base` | the base and the order of history; one content, one number (`one_content_one_number`), the converse of `one_number_one_content` |
+| [An object version is a section](literate-sheaf/30-object.md) | `Sheaf.Object` | its set is open, by no gaps (`held_iff`); its pieces glue, by section 7.3 (`pieces_compatible`, `objSec_glues`); immutability is restriction (`objSec_restrict`) |
+| [A world is a sheaf](literate-sheaf/40-world.md) | `Sheaf.World` | any two copies of an object are prefixes of one another in every world built by events (`Events.copiesAgree`); the sections of a world glue, uniquely (`world_sheaf`); a new number is new content, checked piece by piece, holds of the whole (`world_newContent`) |
+| [Pins and accepted copies](literate-sheaf/50-pins.md) | `Sheaf.Pins` | a pin names a section, in any world, unless inventories collide (`pin_names_section`); an accepted copy holds the vetted content at another point (`acceptedCopy_agrees`) |
+| [A story, as a sheaf](literate-sheaf/60-story.md) | `Sheaf.Story` | the model's story as a sheaf, by computation; a forged copy and a reused number do not glue |
 
 ## Modelling choices
 
@@ -74,8 +96,9 @@ Install Lean with [elan](https://github.com/leanprover/elan) and the
 literate tools, then
 
     pip install -r requirements-literate.txt
-    literate tangle      # write the Lean files from the chapters
-    lake build --wfail   # check every proof
+    literate tangle                       # the model's Lean files
+    literate tangle literate-sheaf/*.md   # the sheaf's Lean files
+    lake build --wfail                    # check every proof
 
 The model has no dependencies beyond Lean's standard library.
 
