@@ -12,8 +12,8 @@ theorem pin_names_section {o c : Obj D} {p : Pin D} {v u : Version D}
     (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
     (ho : resolveEntry hash (some (.live o)) p = .ok v)
     (hc : resolveEntry hash (some (.live c)) p = .ok u) :
-    (∀ x, Held c p.version x ↔ Held o p.version x) ∧
-    ∀ x (hx : Held c p.version x) (hx' : Held o p.version x),
+    (∀ x, Covers c p.version x ↔ Covers o p.version x) ∧
+    ∀ x (hx : Covers c p.version x) (hx' : Covers o p.version x),
       objSec c p.version x hx = objSec o p.version x hx' := by
   obtain ⟨_, hdo⟩ := resolveEntry_live_ok hash ho
   obtain ⟨_, hdc⟩ := resolveEntry_live_ok hash hc
@@ -23,7 +23,7 @@ theorem pin_names_section {o c : Obj D} {p : Pin D} {v u : Version D}
   have ht : c.versions.take p.version = o.versions.take p.version :=
     congrArg Inventory.versions heq
   refine ⟨fun x => ?_, fun x _ _ => ?_⟩
-  · simp only [Held, ha, hi, ht]
+  · simp only [Covers, ha, hi, ht]
   · simp only [objSec, ht]
 
 omit [DecidableEq D] in
@@ -40,7 +40,7 @@ theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
 /-- The version a pin resolves to is the value of the section at the named
 document version it holds. -/
 theorem resolve_value {o : Obj D} (hwf : WellFormed o.versions) {p : Pin D} {v : Version D}
-    (ho : resolveEntry hash (some (.live o)) p = .ok v) (hx : Held o p.version (o.name v)) :
+    (ho : resolveEntry hash (some (.live o)) p = .ok v) (hx : Covers o p.version (o.name v)) :
     objSec o p.version (o.name v) hx = v.content :=
   objSec_piece hwf (versionAt_mem_take (resolveEntry_live_ok hash ho).1) hx
 
@@ -50,7 +50,7 @@ of an accepted copy at its first document version is the content of the
 revision it copies, a document (section 10.5). -/
 theorem acceptedCopy_value (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
     (d c m : String) (hm : v.members = none)
-    (hx : Held (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩) :
+    (hx : Covers (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩) :
     objSec (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩ hx = v.content := by
   simp [objSec, docContent, acceptedCopy, copyVersion, Version.content, hm]
 
@@ -59,8 +59,8 @@ different named document versions. -/
 theorem acceptedCopy_agrees {o : Obj D} (hwf : WellFormed o.versions) {src : Pin D}
     {v : Version D} (ho : resolveEntry hash (some (.live o)) src = .ok v)
     (hm : v.members = none) (s : ArchiveId) (cid : ObjectId) (d c m : String)
-    (hx : Held (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩)
-    (hy : Held o src.version (o.name v)) :
+    (hx : Covers (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩)
+    (hy : Covers o src.version (o.name v)) :
     objSec (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩ hx =
       objSec o src.version (o.name v) hy := by
   rw [acceptedCopy_value s cid src v d c m hm, resolve_value hash hwf ho]

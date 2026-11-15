@@ -32,58 +32,15 @@ the object live there.
 
     variable {D : Type} [DecidableEq D] (hash : Hash D)
 
-A live copy, kept anywhere, *holds* a named document version with an
-object version; the object is *taken down* when its own archive has a
-tombstone for it. The invariants of the model kept by every event are
-gathered as `Kept`.
-
-    /-- A live copy, kept anywhere, holds the named document version `x` with the
-    object version `v`. -/
-    def Holds (w : World D) (x : Name) (v : Version D) : Prop :=
-      ∃ b i c, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ c.name v = x
+The object named by a named document version is *taken down* when its own
+archive has a tombstone for it. Holding, `Kept` and the lemmas about them
+are in the chapter [The sections of a world glue](40-world.md).
 
     omit [DecidableEq D] in
     /-- The object named by `x` has been taken down in its own archive. -/
     def Tomb (w : World D) (x : Name) : Prop := ∃ n d, lookup w x.archive x.object = some (.tomb n d)
 
-    /-- What the model keeps through every event. -/
-    abbrev Kept (w : World D) : Prop := SoundWorld hash w ∧ MirrorsOk w ∧ CopiesAgree w
-
-    theorem Events.kept {w : World D} (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
-        Kept hash w :=
-      ⟨Events.sound hash hs, Events.mirrorsOk hash hs, Events.copiesAgree hash hs⟩
-
-A world holds a named document version exactly when some version of some
-copy holds it.
-
-    theorem heldIn_iff {w : World D} (hw : SoundWorld hash w) (x : Name) :
-        HeldIn w x ↔ ∃ v, Holds w x v := by
-      constructor
-      · rintro ⟨⟨b, i, c, hl, n⟩, hx⟩
-        obtain ⟨v, hv, rfl⟩ := (held_iff (hw.1 _ _ _ hl).history n _).mp hx
-        exact ⟨v, b, i, c, hl, List.mem_of_mem_take hv, rfl⟩
-      · rintro ⟨v, b, i, c, hl, hv, rfl⟩
-        exact heldIn_of_live hash hw hl hv
-
 ## One event
-
-In a world whose copies agree, two versions holding the same named document
-version have the same content: their copies are prefixes of one another,
-and a number has one content.
-
-    /-- In a world whose copies agree, two versions holding the same named
-    document version have the same content. -/
-    theorem holds_agree {w : World D} (hk : Kept hash w) {x : Name} {v v' : Version D}
-        (h : Holds w x v) (h' : Holds w x v') : sameContent v v' = true := by
-      obtain ⟨b, i, c, hl, hv, rfl⟩ := h
-      obtain ⟨b', i', c', hl', hv', hn⟩ := h'
-      simp only [Obj.name, Name.mk.injEq] at hn
-      obtain ⟨ha, hi, hd⟩ := hn
-      rcases hk.2.2 _ _ _ _ _ _ hl' hl ha hi with ⟨t, ht⟩ | ⟨t, ht⟩
-      · exact one_number_one_content (hk.1.1 _ _ _ hl).history
-          (hv) (by rw [ht]; exact List.mem_append_left _ hv') hd.symm
-      · exact one_number_one_content (hk.1.1 _ _ _ hl').history
-          (by rw [ht]; exact List.mem_append_left _ hv) hv' hd.symm
 
 A step keeps every holding, since copies only grow; a takedown holds
 nothing new.
@@ -113,8 +70,8 @@ after a step, or before a takedown.
         (hk' : Kept hash w') {x : Name} {v v' : Version D} (h : Holds w x v)
         (h' : Holds w' x v') : sameContent v v' = true := by
       cases he with
-      | step hs => exact holds_agree hash hk' (Step.holds (hs.toStep hash) h) h'
-      | takedown a oid o hl => exact holds_agree hash hk h (takedown_holds hash hl h')
+      | step hs => exact holds_agree hash hk'.1 hk'.2.2 (Step.holds (hs.toStep hash) h) h'
+      | takedown a oid o hl => exact holds_agree hash hk.1 hk.2.2 h (takedown_holds hash hl h')
 
 Through one event, a named document version stays held, or its object is
 taken down. A step keeps every copy. A takedown removes one copy: if it is
@@ -244,7 +201,7 @@ event, so they hold of every world that follows `w`.
         Eternal hash w w' :=
       hs.invariant _ (fun he h => Event.eternal hash he h)
         ⟨Events.kept hash hs0, fun _ v hv =>
-          ⟨fun _ hv' => holds_agree hash (Events.kept hash hs0) hv hv', Or.inl ⟨v, hv⟩⟩⟩
+          ⟨fun _ hv' => holds_agree hash (Events.kept hash hs0).1 (Events.kept hash hs0).2.2 hv hv', Or.inl ⟨v, hv⟩⟩⟩
 
 ## The theorems
 
@@ -277,21 +234,9 @@ anew under a tombstone, so it stays held nowhere.
         ⟨hk', ht, hgone⟩
       exact this.2.2
 
-In terms of the sheaf: the value of a glued section at a point is the
-content of any version holding it, so the glued sections of two worlds, one
-following the other, agree wherever both are defined.
-
-    /-- The value of a glued section is the content of any version holding the
-    point. -/
-    theorem glue_value {w : World D} (hw : SoundWorld hash w) {g : Sec (HeldIn w) (Content D)}
-        (hg : Glues (sections w) g) {x : Name} {v : Version D} (h : Holds w x v)
-        (hx : HeldIn w x) : g x hx = v.content := by
-      obtain ⟨b, i, c, hl, hv, rfl⟩ := h
-      have hwf := (hw.1 _ _ _ hl).history
-      have hc : Held c c.versions.length (c.name v) :=
-        (held_iff hwf _ _).mpr ⟨v, by rw [List.take_length]; exact hv, rfl⟩
-      have := congrFun (congrFun (hg ⟨b, i, c, hl, c.versions.length⟩) (c.name v)) hc
-      exact this.trans (objSec_piece hwf (by rw [List.take_length]; exact hv) hc)
+In terms of sections: the value of a glued section at a point is the
+content of any version holding it (`glue_value`), so the glued sections of
+two worlds, one following the other, agree wherever both are defined.
 
     /-- **Gluing over time.** The glued sections of a world and of any later
     world agree wherever both are defined. -/

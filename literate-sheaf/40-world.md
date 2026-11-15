@@ -51,7 +51,7 @@ world; being a union of open sets, it is open.
       version : Nat
 
     /-- The named document versions a source holds. -/
-    abbrev cover (w : World D) (i : Source w) : Name → Prop := Held i.obj i.version
+    abbrev cover (w : World D) (i : Source w) : Name → Prop := Covers i.obj i.version
 
     /-- The section of a source. -/
     abbrev sections (w : World D) (i : Source w) : Sec (cover w i) (Content D) :=
@@ -61,7 +61,7 @@ world; being a union of open sets, it is open.
     def HeldIn (w : World D) : Name → Prop := Union (cover w)
 
     theorem heldIn_open (w : World D) : deposit.IsOpen (HeldIn w) :=
-      deposit.union_open fun i => held_open i.obj i.version
+      deposit.union_open fun i => covers_open i.obj i.version
 
 ## The sections glue
 
@@ -133,6 +133,74 @@ the copy taken down, and the remaining ones still glue; the named document
 versions it held stay held if a mirror keeps them (chapter
 [Names are eternal](70-eternal.md), `Event.persist`).
 
+## Holding
+
+A live copy, kept anywhere, *holds* a named document version with an
+object version. A world holds a named document version exactly when some
+version of some copy holds it, and every version of a live copy holds a
+named document version of the world. The invariants of the model kept by
+every event are gathered as `Kept`.
+
+    /-- A live copy, kept anywhere, holds the named document version `x` with the
+    object version `v`. -/
+    def Holds (w : World D) (x : Name) (v : Version D) : Prop :=
+      ∃ b i c, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ c.name v = x
+
+    /-- What the model keeps through every event. -/
+    abbrev Kept (w : World D) : Prop := SoundWorld hash w ∧ MirrorsOk w ∧ CopiesAgree w
+
+    theorem Events.kept {w : World D} (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
+        Kept hash w :=
+      ⟨Events.sound hash hs, Events.mirrorsOk hash hs, Events.copiesAgree hash hs⟩
+
+    theorem heldIn_of_live {w : World D} (hw : SoundWorld hash w) {b : ArchiveId} {i : ObjectId}
+        {c : Obj D} (hl : lookup w b i = some (.live c)) {v : Version D} (hv : v ∈ c.versions) :
+        HeldIn w (c.name v) :=
+      ⟨⟨b, i, c, hl, c.versions.length⟩,
+        (covers_iff (hw.1 _ _ _ hl).history _ _).mpr ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
+
+    theorem heldIn_iff {w : World D} (hw : SoundWorld hash w) (x : Name) :
+        HeldIn w x ↔ ∃ v, Holds w x v := by
+      constructor
+      · rintro ⟨⟨b, i, c, hl, n⟩, hx⟩
+        obtain ⟨v, hv, rfl⟩ := (covers_iff (hw.1 _ _ _ hl).history n _).mp hx
+        exact ⟨v, b, i, c, hl, List.mem_of_mem_take hv, rfl⟩
+      · rintro ⟨v, b, i, c, hl, hv, rfl⟩
+        exact heldIn_of_live hash hw hl hv
+
+Two versions holding the same named document version have the same
+content, in a world whose objects are well formed and whose copies agree:
+their copies are prefixes of one another, and a number has one content.
+
+    /-- Two versions holding the same named document version have the same
+    content. -/
+    theorem holds_agree {w : World D} (hw : SoundWorld hash w) (hca : CopiesAgree w) {x : Name}
+        {v v' : Version D} (h : Holds w x v) (h' : Holds w x v') : sameContent v v' = true := by
+      obtain ⟨b, i, c, hl, hv, rfl⟩ := h
+      obtain ⟨b', i', c', hl', hv', hn⟩ := h'
+      simp only [Obj.name, Name.mk.injEq] at hn
+      obtain ⟨ha, hi, hd⟩ := hn
+      rcases hca _ _ _ _ _ _ hl' hl ha hi with ⟨t, ht⟩ | ⟨t, ht⟩
+      · exact one_number_one_content (hw.1 _ _ _ hl).history
+          (hv) (by rw [ht]; exact List.mem_append_left _ hv') hd.symm
+      · exact one_number_one_content (hw.1 _ _ _ hl').history
+          (by rw [ht]; exact List.mem_append_left _ hv) hv' hd.symm
+
+The value of a glued section at a point is the content of any version
+holding it.
+
+    /-- The value of a glued section is the content of any version holding the
+    point. -/
+    theorem glue_value {w : World D} (hw : SoundWorld hash w) {g : Sec (HeldIn w) (Content D)}
+        (hg : Glues (sections w) g) {x : Name} {v : Version D} (h : Holds w x v)
+        (hx : HeldIn w x) : g x hx = v.content := by
+      obtain ⟨b, i, c, hl, hv, rfl⟩ := h
+      have hwf := (hw.1 _ _ _ hl).history
+      have hc : Covers c c.versions.length (c.name v) :=
+        (covers_iff hwf _ _).mpr ⟨v, by rw [List.take_length]; exact hv, rfl⟩
+      have := congrFun (congrFun (hg ⟨b, i, c, hl, c.versions.length⟩) (c.name v)) hc
+      exact this.trans (objSec_piece hwf (by rw [List.take_length]; exact hv) hc)
+
 ## A check made piece by piece
 
 The second half of the rule of section 7.3 is a local condition: below a
@@ -150,11 +218,11 @@ the world as a whole, whichever copies the values are read from.
 
     /-- Each object version satisfies it (section 7.3). -/
     theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
-        (objSec o n).Satisfies deposit (held_open o n) NewContent := by
+        (objSec o n).Satisfies deposit (covers_open o n) NewContent := by
       intro x hx y hy hne heq
-      have hyx := held_open o n hy hx
-      obtain ⟨v, hv, rfl⟩ := (held_iff hwf n x).mp hx
-      obtain ⟨u, hu, rfl⟩ := (held_iff hwf n y).mp hyx
+      have hyx := covers_open o n hy hx
+      obtain ⟨v, hv, rfl⟩ := (covers_iff hwf n x).mp hx
+      obtain ⟨u, hu, rfl⟩ := (covers_iff hwf n y).mp hyx
       have heq' : objSec o n (o.name u) hyx = objSec o n (o.name v) hx := heq
       rw [objSec_piece hwf hu, objSec_piece hwf hv] at heq'
       exact hne (one_content_one_number hwf (List.mem_of_mem_take hu)
@@ -164,7 +232,7 @@ the world as a whole, whichever copies the values are read from.
     theorem world_newContent {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w) {g : Sec (HeldIn w) (Content D)}
         (hg : Glues (sections w) g) : g.Satisfies deposit (heldIn_open w) NewContent :=
-      glue_satisfies deposit (fun i => held_open i.obj i.version) hg NewContent
+      glue_satisfies deposit (fun i => covers_open i.obj i.version) hg NewContent
         fun i => objSec_newContent ((Events.sound hash hs).1 _ _ _ i.live).history i.version
 
     end OpenSheaf.Sheaf

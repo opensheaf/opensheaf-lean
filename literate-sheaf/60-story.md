@@ -148,7 +148,8 @@ of another archive's object that is not a prefix of the original.
 A verifier reading the forged copy through a pin of the author's version 1
 would report a mismatch (section 14), with a real digest; the toy digest of
 the story counts the files of a version but not their bytes, so it would
-not. Through a name alone, no verifier could tell. Names glue because the protocol makes copies agree; pins glue because
+not. Through a name alone, no verifier could tell. Names glue because the
+protocol makes copies agree; pins glue because
 of the digest.
 
 ## A number reused

@@ -90,6 +90,12 @@ def resolveEntry : Option (Entry D) → Pin D → Resolution D
 def resolve (w : World D) (p : Pin D) : Resolution D :=
   resolveEntry hash (lookup w p.archive p.object) p
 
+/-- Resolving a pin whose object is live is resolving it against the object. -/
+theorem resolve_live {w : World D} {p : Pin D} {o : Obj D}
+    (h : lookup w p.archive p.object = some (.live o)) :
+    resolve hash w p = resolveEntry hash (some (.live o)) p := by
+  unfold resolve; rw [h]
+
 /-- A version found through a live entry is the version at the pinned number,
 and the digest matches. -/
 theorem resolveEntry_live_ok {o : Obj D} {p : Pin D} {v : Version D}

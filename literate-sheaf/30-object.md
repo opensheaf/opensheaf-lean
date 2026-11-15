@@ -43,15 +43,15 @@ assumption.
       | none => Content.empty
 
     /-- The named document versions held by object version `n` of `o`. -/
-    def Held (o : Obj D) (n : Nat) (x : Name) : Prop :=
+    def Covers (o : Obj D) (n : Nat) (x : Name) : Prop :=
       x.archive = o.archive ∧ x.object = o.id ∧ 1 ≤ x.doc ∧
         x.doc ≤ docCount (o.versions.take n)
 
-    instance (o : Obj D) (n : Nat) (x : Name) : Decidable (Held o n x) := by
-      unfold Held; infer_instance
+    instance (o : Obj D) (n : Nat) (x : Name) : Decidable (Covers o n x) := by
+      unfold Covers; infer_instance
 
     /-- The section of object version `n`. -/
-    def objSec (o : Obj D) (n : Nat) : Sec (Held o n) (Content D) :=
+    def objSec (o : Obj D) (n : Nat) : Sec (Covers o n) (Content D) :=
       fun x _ => docContent (o.versions.take n) x.doc
 
 The pieces of object version `n` are the object versions up to `n`, each
@@ -72,7 +72,7 @@ version and the version it describes, for instance.
 The set held by an object version is closed downwards in the order of
 history, whatever the object: it is defined by an upper bound.
 
-    theorem held_open (o : Obj D) (n : Nat) : deposit.IsOpen (Held o n) := by
+    theorem covers_open (o : Obj D) (n : Nat) : deposit.IsOpen (Covers o n) := by
       intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
       refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
       cases hy : y.doc with
@@ -99,7 +99,7 @@ history extends the earlier one.
         simp only [docCount, List.cons_append]
         exact Nat.max_le.mpr ⟨Nat.le_max_left _ _, Nat.le_trans ih (Nat.le_max_right _ _)⟩
 
-    theorem held_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Held o m) (Held o n) := by
+    theorem covers_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Covers o m) (Covers o n) := by
       rintro x ⟨h1, h2, h3, h4⟩
       exact ⟨h1, h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
 
@@ -112,8 +112,8 @@ later object version has a top above it.
     def top (o : Obj D) (n : Nat) : Name := ⟨o.archive, o.id, docCount (o.versions.take n)⟩
 
     /-- **The open set of an object version is principal**, below its top. -/
-    theorem held_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.take n))
-        (x : Name) : Held o n x ↔ deposit.le x (top o n) := by
+    theorem covers_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.take n))
+        (x : Name) : Covers o n x ↔ deposit.le x (top o n) := by
       constructor
       · rintro ⟨h1, h2, h3, h4⟩
         exact ⟨h1, h2, h4, fun h0 => absurd h0 (by omega)⟩
@@ -156,7 +156,7 @@ with the others (one number, one content).
 
     /-- The section of an object version restricts to each of its pieces. -/
     theorem objSec_piece {o : Obj D} (hwf : WellFormed o.versions) {n : Nat} {v : Version D}
-        (hv : v ∈ o.versions.take n) (hx : Held o n (o.name v)) :
+        (hv : v ∈ o.versions.take n) (hx : Covers o n (o.name v)) :
         objSec o n (o.name v) hx = v.content := by
       obtain ⟨t, ht⟩ := take_prefix o.versions n
       exact docContent_eq hwf ht hx.2.2.1 hx.2.2.2 (List.mem_of_mem_take hv) rfl
@@ -167,8 +167,8 @@ start at 1.
 
     /-- The named document versions held by an object version are those of its
     pieces: the numbers from 1 to the last, without gaps. -/
-    theorem held_iff {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) (x : Name) :
-        Held o n x ↔ ∃ v ∈ o.versions.take n, x = o.name v := by
+    theorem covers_iff {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) (x : Name) :
+        Covers o n x ↔ ∃ v ∈ o.versions.take n, x = o.name v := by
       obtain ⟨t, ht⟩ := take_prefix o.versions n
       have hw : WellFormed (o.versions.take n) := by rw [ht] at hwf; exact hwf.prefix
       constructor
@@ -205,9 +205,9 @@ the rule, and whose pieces do not glue.
         (List.mem_of_mem_take i.2) (List.mem_of_mem_take j.2) hd)
 
     theorem union_pieces {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
-        Sub (Union (piece o n)) (Held o n) := by
+        Sub (Union (piece o n)) (Covers o n) := by
       rintro x ⟨i, rfl⟩
-      exact (held_iff hwf n _).mpr ⟨i.1, i.2, rfl⟩
+      exact (covers_iff hwf n _).mpr ⟨i.1, i.2, rfl⟩
 
     /-- **The section of an object version glues its pieces.** -/
     theorem objSec_glues {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
@@ -228,9 +228,9 @@ same fact is the chapter [Names are eternal](70-eternal.md).
     /-- **A later object version restricts to an earlier one** of the same
     history. -/
     theorem objSec_restrict {o : Obj D} (hwf : WellFormed o.versions) {m n : Nat}
-        (hmn : m ≤ n) : (objSec o n).restrict (held_mono hmn) = objSec o m := by
+        (hmn : m ≤ n) : (objSec o n).restrict (covers_mono hmn) = objSec o m := by
       funext x hx
-      obtain ⟨v, hv, rfl⟩ := (held_iff hwf m x).mp hx
+      obtain ⟨v, hv, rfl⟩ := (covers_iff hwf m x).mp hx
       have hvn : v ∈ o.versions.take n := by
         have : o.versions.take m = (o.versions.take n).take m := by
           rw [List.take_take, Nat.min_eq_left hmn]

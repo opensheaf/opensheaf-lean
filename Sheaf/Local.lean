@@ -70,8 +70,8 @@ theorem verify_local {w : World D}
   have hpm : p ∈ v.memberPins := by unfold Version.memberPins; rw [hm]; exact hp
   have hS : Support hash w x p.archive p.object := by
     rcases members_below hash hs hl hv hpm with ⟨o, u, ho, hr, hle'⟩ | hr
-    · have hre : resolveEntry hash (some (.live o)) p = .ok u := by
-        unfold resolve at hr; rw [ho] at hr; exact hr
+    · have hre : resolveEntry hash (some (.live o)) p = .ok u :=
+        (resolve_live hash ho).symm.trans hr
       exact Or.inl ⟨o, ho, u, versionAt_mem (resolveEntry_live_ok hash hre).1,
         (byPins hash w).trans hle' hle⟩
     · exact Or.inr ⟨(resolve_removed_iff hash).mp hr, b, i, c, v, p, hl, hv, hle, hpm, rfl, rfl⟩

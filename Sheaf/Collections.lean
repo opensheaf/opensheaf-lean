@@ -53,12 +53,12 @@ theorem heldIn_open_byPins {w : World D} (hw : SoundWorld hash w) :
   intro y x hb hx
   rcases hb with hh | ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hr, rfl⟩
   · exact heldIn_open w hh hx
-  · have hre : resolveEntry hash (some (.live o)) p = .ok u := by
-      unfold resolve at hr; rw [ho] at hr; exact hr
+  · have hre : resolveEntry hash (some (.live o)) p = .ok u :=
+      (resolve_live hash ho).symm.trans hr
     have hu := (resolveEntry_live_ok hash hre).1
     have hwf := (hw.1 _ _ _ ho).history
     exact ⟨⟨p.archive, p.object, o, ho, p.version⟩,
-      (held_iff hwf p.version _).mpr ⟨u, versionAt_mem_take hu, rfl⟩⟩
+      (covers_iff hwf p.version _).mpr ⟨u, versionAt_mem_take hu, rfl⟩⟩
 
 theorem below_of_ok {w : World D} {b : ArchiveId} {i : ObjectId} {c : Obj D}
     {v : Version D} {p : Pin D} {u : Version D} (hl : lookup w b i = some (.live c))
@@ -101,13 +101,10 @@ theorem glue_at_member {w : World D}
     {u : Version D} (ho : lookup w p.archive p.object = some (.live o))
     (hr : resolve hash w p = .ok u) (hy : HeldIn w (o.name u)) :
     g (o.name u) hy = u.content := by
-  have hwf := ((Events.sound hash hs).1 _ _ _ ho).history
-  have hre : resolveEntry hash (some (.live o)) p = .ok u := by
-    unfold resolve at hr; rw [ho] at hr; exact hr
-  have hx : Held o p.version (o.name u) :=
-    (held_iff hwf _ _).mpr ⟨u, versionAt_mem_take (resolveEntry_live_ok hash hre).1, rfl⟩
-  have := congrFun (congrFun (hg ⟨p.archive, p.object, o, ho, p.version⟩) (o.name u)) hx
-  exact this.trans (resolve_value hash hwf hre hx)
+  have hre : resolveEntry hash (some (.live o)) p = .ok u :=
+    (resolve_live hash ho).symm.trans hr
+  exact glue_value hash (Events.sound hash hs) hg
+    ⟨_, _, o, ho, versionAt_mem (resolveEntry_live_ok hash hre).1, rfl⟩ hy
 
 /-- **The stalk of a collection version**: each member it pins, with the
 content its pin fixes, or a takedown reported. -/
@@ -124,7 +121,7 @@ theorem collection_members {w : World D}
   · left
     have hx : HeldIn w (c.name v) := by
       have hwf := ((Events.sound hash hs).1 _ _ _ hl).history
-      exact ⟨⟨b, i, c, hl, c.versions.length⟩, (held_iff hwf _ _).mpr
+      exact ⟨⟨b, i, c, hl, c.versions.length⟩, (covers_iff hwf _ _).mpr
         ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
     have hy := heldIn_open_byPins hash (Events.sound hash hs) hle hx
     exact ⟨o, u, ho, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩

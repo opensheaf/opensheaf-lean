@@ -96,7 +96,7 @@ theorem proj_fibre {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Invent
     have e : proj G s hs = proj G s' hs' := h
     simp only [proj, docOf, Name.mk.injEq] at e
     refine ⟨e.1, e.2.1, ?_⟩
-    exact holds_agree hash hk ⟨i.archive, i.id, i.obj, i.live, hu, hp.symm⟩
+    exact holds_agree hash hk.1 hk.2.2 ⟨i.archive, i.id, i.obj, i.live, hu, hp.symm⟩
       ⟨i'.archive, i'.id, i'.obj, i'.live, hu', (h.trans hp').symm⟩
   · rintro ⟨ha, ho, hc⟩
     rw [hp, hp']
@@ -151,7 +151,7 @@ def docDescription (l : List (Version D)) (k : Nat) : String :=
 
 omit [DecidableEq D] in
 /-- The descriptions an object version gives. -/
-def descSec (o : Obj D) (n : Nat) : Sec (Held o n) String :=
+def descSec (o : Obj D) (n : Nat) : Sec (Covers o n) String :=
   fun x _ => docDescription (o.versions.take n) x.doc
 
 omit [DecidableEq D] in

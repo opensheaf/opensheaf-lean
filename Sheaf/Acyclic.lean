@@ -13,17 +13,11 @@ theorem deposit_antisymm {x y : Name} (h1 : deposit.le y x) (h2 : deposit.le x y
   subst a1; subst o1
   congr; omega
 
-theorem heldIn_of_live {w : World D} (hw : SoundWorld hash w) {b : ArchiveId} {i : ObjectId}
-    {c : Obj D} (hl : lookup w b i = some (.live c)) {v : Version D} (hv : v ∈ c.versions) :
-    HeldIn w (c.name v) :=
-  ⟨⟨b, i, c, hl, c.versions.length⟩,
-    (held_iff (hw.1 _ _ _ hl).history _ _).mpr ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
-
 theorem pinStep_lower {w : World D} (hw : SoundWorld hash w) {y x : Name}
     (h : PinStep hash w y x) : HeldIn w y := by
   obtain ⟨_, _, _, _, p, o, u, _, _, _, _, ho, hr, rfl⟩ := h
-  have hre : resolveEntry hash (some (.live o)) p = .ok u := by
-    unfold resolve at hr; rw [ho] at hr; exact hr
+  have hre : resolveEntry hash (some (.live o)) p = .ok u :=
+    (resolve_live hash ho).symm.trans hr
   exact heldIn_of_live hash hw ho (versionAt_mem (resolveEntry_live_ok hash hre).1)
 
 /-- A rank of named document versions in which deposit does not go down and
@@ -133,7 +127,7 @@ theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj 
 
 /-- A pin that holds before a step and resolves after it resolved before it,
 to the same version. -/
-theorem resolve_back {w w' : World D} (hs : Step w w') {p : Pin D} (hh : OpenSheaf.Held hash w p)
+theorem resolve_back {w w' : World D} (hs : Step w w') {p : Pin D} (hh : Held hash w p)
     {u : Version D} (hu : resolve hash w' p = .ok u) : resolve hash w p = .ok u := by
   rcases hh with ⟨u', hu'⟩ | hrem
   · rw [Step.resolve_ok hash hs hu'] at hu; cases hu; exact hu'
@@ -144,7 +138,7 @@ was made by it, so its pins were checked. -/
 theorem ValidStep.new_held {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
     {b : ArchiveId} {i : ObjectId} {c : Obj D} (hl : lookup w' b i = some (.live c))
     {v : Version D} (hv : v ∈ c.versions) (hnew : ¬ HeldIn w (c.name v))
-    {p : Pin D} (hp : p ∈ v.pins) : OpenSheaf.Held hash w p := by
+    {p : Pin D} (hp : p ∈ v.pins) : Held hash w p := by
   cases hs with
   | newArchive a ar ha hempty =>
     rw [lookup_newArchive ha hempty] at hl
@@ -172,15 +166,8 @@ theorem same_members {w : World D} (hw : SoundWorld hash w) (hca : CopiesAgree w
     (hl : lookup w b i = some (.live c)) (hl' : lookup w b' i' = some (.live c'))
     {v v' : Version D} (hv : v ∈ c.versions) (hv' : v' ∈ c'.versions)
     (hn : c.name v = c'.name v') : v.members = v'.members := by
-  simp only [Obj.name, Name.mk.injEq] at hn
-  obtain ⟨ha, hi, hd⟩ := hn
-  rcases hca _ _ _ _ _ _ hl hl' ha hi with ⟨t, ht⟩ | ⟨t, ht⟩
-  · have hwf := (hw.1 _ _ _ hl').history
-    have := one_number_one_content hwf (by rw [ht]; exact List.mem_append_left _ hv) hv' hd
-    exact ((sameContent_iff).mp this).2
-  · have hwf := (hw.1 _ _ _ hl).history
-    have := one_number_one_content hwf hv (by rw [ht]; exact List.mem_append_left _ hv') hd
-    exact ((sameContent_iff).mp this).2
+  exact ((sameContent_iff).mp
+    (holds_agree hash hw hca ⟨_, _, c, hl, hv, rfl⟩ ⟨_, _, c', hl', hv', hn.symm⟩)).2
 
 /-- **Valid steps keep a rank.** Named document versions held before the step
 keep their rank; the new ones get a rank above all others. -/
@@ -206,7 +193,7 @@ theorem ValidStep.nameRanked {w w' : World D} (hs : ValidStep hash w w') (hw : S
     by_cases hxw : HeldIn w (c.name v)
     · -- an old named document version: its pins resolved before the step
       obtain ⟨⟨b0, i0, c0, hl0, n⟩, hx0⟩ := hxw
-      obtain ⟨v0, hv0, hn0⟩ := (held_iff (hw.1 _ _ _ hl0).history n _).mp hx0
+      obtain ⟨v0, hv0, hn0⟩ := (covers_iff (hw.1 _ _ _ hl0).history n _).mp hx0
       have hv0' : v0 ∈ c0.versions := List.mem_of_mem_take hv0
       obtain ⟨c0', hl0', ha0, hi0, t0, ht0⟩ := Step.live_kept hstep hl0
       have hmem : v0 ∈ c0'.versions := by rw [ht0]; exact List.mem_append_left _ hv0'
@@ -240,8 +227,8 @@ theorem ValidStep.nameRanked {w w' : World D} (hs : ValidStep hash w w') (hw : S
       obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := Step.live_kept hstep ho0
       rw [ho] at ho0'; cases ho0'
       have hname : o.name u = o0.name u := by simp only [Obj.name, hoa, hoi]
-      have hre : resolveEntry hash (some (.live o0)) p = .ok u := by
-        unfold resolve at hres0; rw [ho0] at hres0; exact hres0
+      have hre : resolveEntry hash (some (.live o0)) p = .ok u :=
+        (resolve_live hash ho0).symm.trans hres0
       have hyw : HeldIn w (o0.name u) :=
         heldIn_of_live hash hw ho0 (versionAt_mem (resolveEntry_live_ok hash hre).1)
       dsimp only

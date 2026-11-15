@@ -19,7 +19,7 @@ something about descriptions.
 - **The highest document version deposited so far** (`top`, chapter
   [An object version is a section](30-object.md)). It is monotone
   (`top_mono`), and the open set of an object version is the principal open
-  below its top (`held_principal`). Its fibres are runs: a version that
+  below its top (`covers_principal`). Its fibres are runs: a version that
   deposits a document version, then the description-only versions that
   follow it, until the next deposit (`top_step_iff`).
 
@@ -158,7 +158,7 @@ agreement to compare versions kept in different places.
         have e : proj G s hs = proj G s' hs' := h
         simp only [proj, docOf, Name.mk.injEq] at e
         refine ⟨e.1, e.2.1, ?_⟩
-        exact holds_agree hash hk ⟨i.archive, i.id, i.obj, i.live, hu, hp.symm⟩
+        exact holds_agree hash hk.1 hk.2.2 ⟨i.archive, i.id, i.obj, i.live, hu, hp.symm⟩
           ⟨i'.archive, i'.id, i'.obj, i'.live, hu', (h.trans hp').symm⟩
       · rintro ⟨ha, ho, hc⟩
         rw [hp, hp']
@@ -228,7 +228,7 @@ compatible one.
 
     omit [DecidableEq D] in
     /-- The descriptions an object version gives. -/
-    def descSec (o : Obj D) (n : Nat) : Sec (Held o n) String :=
+    def descSec (o : Obj D) (n : Nat) : Sec (Covers o n) String :=
       fun x _ => docDescription (o.versions.take n) x.doc
 
     omit [DecidableEq D] in

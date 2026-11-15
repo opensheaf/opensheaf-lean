@@ -52,8 +52,8 @@ well-formed objects.
 
 ## The value at a point
 
-The value at a named document version is its *content*: the files of the
-document's own (sources, renditions, change note), and for a collection its
+The value at a named document version is its *content*: the document's
+own files (sources, renditions, change note), and for a collection its
 member list. The model compares content in this way (`sameContent` in the
 chapter "Objects and their history" of the model): files as a set, by path
 and digest, and the member list.

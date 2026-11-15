@@ -13,7 +13,7 @@ structure VSite where
   deriving DecidableEq, Repr
 
 /-- The order of object versions: earlier versions of the same object. -/
-def versions : Order VSite where
+def objOrder : Order VSite where
   le x y := x.archive = y.archive ∧ x.object = y.object ∧ x.version ≤ y.version ∧
     (x.version = 0 → y.version = 0)
   refl _ := ⟨rfl, rfl, Nat.le_refl _, id⟩
@@ -24,7 +24,7 @@ def versions : Order VSite where
 def SiteHeld (c : Obj D) (s : VSite) : Prop :=
   s.archive = c.archive ∧ s.object = c.id ∧ 1 ≤ s.version ∧ s.version ≤ c.versions.length
 
-theorem siteHeld_open (c : Obj D) : versions.IsOpen (SiteHeld c) := by
+theorem siteHeld_open (c : Obj D) : objOrder.IsOpen (SiteHeld c) := by
   intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
   refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
   cases hy : y.version with

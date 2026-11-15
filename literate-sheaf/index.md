@@ -46,7 +46,7 @@ shows which rules of the specification make the pieces agree:
 
 - within one object, the rule of section 7.3, which gives each document
   version one content, and which the verifier checks (section 14): the
-  the pieces of an object version glue because of it, and a history that
+  pieces of an object version glue because of it, and a history that
   breaks it has pieces that do not glue;
 - between copies kept in different archives, the rule that a mirror copies
   its original byte for byte (section 10.4): any two copies of an object
