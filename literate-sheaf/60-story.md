@@ -14,7 +14,7 @@ description-only version that retitles document version 1. The co-author's
 archive keeps a mirror of all three.
 
     -- in Sheaf/Story.lean:
-    import Sheaf.Pins
+    import Sheaf.Collections
     import OpenSheaf.Story
 
     namespace OpenSheaf.Sheaf.Story
@@ -86,6 +86,28 @@ document version 1, which the journal vetted.
       rw [show objSec copy 1 accepted accepted_held = v1.content from
           acceptedCopy_value _ _ _ _ _ _ _ rfl accepted_held]
       exact (objSec_piece (o := paper3) (n := 3) (v := v1) (by decide) (by decide) first_author).symm
+
+## The issue and what it vetted
+
+The journal's issue 7 is a selection whose first version pins version 1 of
+the paper. In the order with pins (chapter
+[Collections and what they pin](55-collections.md)), the paper's first
+document version lies below the issue's first; by computation, the pin
+resolves to `v1`, and the edge is built by hand.
+
+    def issue1 : Name := ⟨"journal", "issue-7", 1⟩
+
+    theorem paper_below_issue : (byPins toy w14).le first issue1 :=
+      Star.tail (Star.refl _)
+        (Or.inr ⟨"journal", "issue-7", issue, i1, pinV1, paper3, v1, rfl, by decide, rfl,
+          by decide, rfl, by decide, rfl⟩)
+
+Any section that glues the story world gives the paper's first document
+version, below the issue, the content of `v1`: what the journal vetted.
+
+    example {g : Sec (HeldIn w14) (Content Nat)} (hg : Glues (sections w14) g)
+        (hy : HeldIn w14 first) : g first hy = v1.content :=
+      glue_at_member toy events hg (p := pinV1) (o := paper3) (u := v1) rfl (by decide) hy
 
 ## A forged copy
 

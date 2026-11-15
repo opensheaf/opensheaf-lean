@@ -1,5 +1,5 @@
 -- Generated from literate-sheaf/60-story.md by opensheaf-literate: edit the document, not this file.
-import Sheaf.Pins
+import Sheaf.Collections
 import OpenSheaf.Story
 
 namespace OpenSheaf.Sheaf.Story
@@ -50,6 +50,17 @@ example : sections w14 acceptedPaper accepted accepted_held =
   rw [show objSec copy 1 accepted accepted_held = v1.content from
       acceptedCopy_value _ _ _ _ _ _ _ rfl accepted_held]
   exact (objSec_piece (o := paper3) (n := 3) (v := v1) (by decide) (by decide) first_author).symm
+
+def issue1 : Name := ⟨"journal", "issue-7", 1⟩
+
+theorem paper_below_issue : (byPins toy w14).le first issue1 :=
+  Star.tail (Star.refl _)
+    (Or.inr ⟨"journal", "issue-7", issue, i1, pinV1, paper3, v1, rfl, by decide, rfl,
+      by decide, rfl, by decide, rfl⟩)
+
+example {g : Sec (HeldIn w14) (Content Nat)} (hg : Glues (sections w14) g)
+    (hy : HeldIn w14 first) : g first hy = v1.content :=
+  glue_at_member toy events hg (p := pinV1) (o := paper3) (u := v1) rfl (by decide) hy
 
 def v1' : Version Nat := { v1 with files := [("paper.tm", 666), ("paper.pdf", 102)] }
 def forged : Obj Nat := { paper with versions := [v1'] }

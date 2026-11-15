@@ -50,6 +50,7 @@ This repository holds two literate programs, published together at
 | [An object version is a section](literate-sheaf/30-object.md) | `Sheaf.Object` | its set is open, by no gaps (`held_iff`); its pieces glue, by section 7.3 (`pieces_compatible`, `objSec_glues`); immutability is restriction (`objSec_restrict`) |
 | [A world is a sheaf](literate-sheaf/40-world.md) | `Sheaf.World` | with the model's `Events.copiesAgree`, the sections of a world glue, uniquely (`world_sheaf`); a new number is new content, checked piece by piece, holds of the whole (`world_newContent`) |
 | [Pins and accepted copies](literate-sheaf/50-pins.md) | `Sheaf.Pins` | a pin names a section, in any world, unless inventories collide (`pin_names_section`); an accepted copy holds the vetted content at another point (`acceptedCopy_agrees`) |
+| [Collections and what they pin](literate-sheaf/55-collections.md) | `Sheaf.Collections` | the pins of member lists in the order; what a world holds stays open (`heldIn_open_byPins`); below a collection version lies each member it pins, with the content its pin fixes, unless taken down (`members_below`, `collection_stalk`) |
 | [A story, as a sheaf](literate-sheaf/60-story.md) | `Sheaf.Story` | the model's story as a sheaf, by computation; a forged copy and a reused number do not glue |
 
 ## Modelling choices

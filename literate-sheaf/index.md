@@ -19,6 +19,9 @@ Like the model, it is **non-normative**. Where it and the
   Alexandrov topology of the order of history).
 - **The value** at a named document version is its content: the document's
   own files, and for a collection its member list.
+- **Collections.** A named document version also comes after the
+  versions its member list pins, so that below a selection version lies the
+  selection together with what it vetted.
 - **The sections** come from object versions. Each object version, kept in
   its own archive or in a mirror, says what every document version up to
   it holds: a section over an open set.
@@ -57,9 +60,13 @@ shows which rules of the specification make the pieces agree:
    one object version at a time holds of the whole;
 5. [Pins and accepted copies](50-pins.md): a pin names a section, in any
    world; an accepted copy holds the vetted content at another point;
-6. [A story, as a sheaf](60-story.md): the story of the model, read as a
-   sheaf and checked by computation, and two broken worlds that do not
-   glue: a forged copy, and a number reused.
+6. [Collections and what they pin](55-collections.md): the pins of member
+   lists added to the order; below a collection version lies each member
+   it pins, with the content its pin fixes, unless it was taken down;
+7. [A story, as a sheaf](60-story.md): the story of the model, read as a
+   sheaf and checked by computation (the journal's issue and the paper it
+   vetted among them), and two broken worlds that do not glue: a forged
+   copy, and a number reused.
 
 Each chapter writes one module of the library, `Sheaf/*.lean`, which
 imports the modules of the model it needs. The root of the library imports
@@ -71,6 +78,7 @@ every module:
     import Sheaf.Object
     import Sheaf.World
     import Sheaf.Pins
+    import Sheaf.Collections
     import Sheaf.Story
 
 ## What does not glue
@@ -93,17 +101,12 @@ of deposit, fixed by the inventories.
 
 ## What is left out
 
-- **References in the base.** A collection pins object versions of other
-  objects, and a document may pin the versions it refers to (issues #21 and
-  #28 of the specification). These pins could be added to the order of the
-  base, so that the open set of a collection version would contain the
-  versions it pins, and its stalk would be the collection together with
-  what it pins. The pins of a member list belong to the document version of
-  the collection, since the model counts the member list as content. The
-  pins of a document's references do not, in the model: a description-only
-  version may change them. They would belong to the base only if
-  references became part of the content (issue #28). This program keeps
-  the base to one object at a time.
+- **References of documents.** The pins of member lists are in the order
+  (chapter 6): below a collection version lies what it pins. The pins of a
+  document's references (issues #21 and #28 of the specification) are not:
+  in the model a description-only version may change them, so they belong
+  to object versions, not to document versions. They would join the order
+  if references became part of the content (issue #28).
 - **Completion.** A document version deposited without its sources may be
   completed later, keeping its number (section 7.3). Its content then
   grows, and the values would be partial maps from paths to digests,
