@@ -278,6 +278,15 @@ reversed list.
       · have := h l.length (by simp)
         simpa using this
 
+More generally, every prefix of a well-formed history is well formed: the
+condition on each version looks only at the versions before it.
+
+    theorem WellFormed.prefix {l t : List (Version D)} (h : WellFormed (l ++ t)) :
+        WellFormed l := by
+      intro i hi
+      have := h i (by simp; omega)
+      rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
+
 Two facts about the count: appending a version takes the maximum, and the
 count bounds every document version of the history.
 

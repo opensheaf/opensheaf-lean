@@ -186,6 +186,12 @@ theorem WellFormed.init {l : List (Version D)} {x : Version D}
   · have := h l.length (by simp)
     simpa using this
 
+theorem WellFormed.prefix {l t : List (Version D)} (h : WellFormed (l ++ t)) :
+    WellFormed l := by
+  intro i hi
+  have := h i (by simp; omega)
+  rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
+
 omit [DecidableEq D] in
 theorem docCount_append (l : List (Version D)) (x : Version D) :
     docCount (l ++ [x]) = max (docCount l) x.documentVersion := by

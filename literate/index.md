@@ -35,7 +35,8 @@ The chapters build the model from the bottom up:
    reports removed;
 6. [Mirrors and accepted copies](48-copies.md): mirrors stay prefixes of
    their originals, and resolve the original's pins and nothing else; any
-   copy is authenticated by the pin, unless the digests collide;
+   two copies of an object are prefixes of one another, even after the
+   original is taken down; any copy is authenticated by the pin, unless the digests collide;
    resolution through mirrors (section 6.4); accepted copies survive the
    original and are never taken for it;
 7. [Who may act](49-acts.md): every change is an act of a writer of the

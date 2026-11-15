@@ -17,171 +17,20 @@ section. That the sections of a valid world agree is a property of the
 protocol, proved in two steps:
 
 1. **Copies agree.** Any two copies of an object, wherever they are kept,
-   have histories of which one is a prefix of the other. This is the git
-   notion of a fast-forward, and it holds in every world built by events.
-   The model proves part of it: a mirror is a prefix of its original while
-   the original is live (`MirrorsOk`). This chapter proves it for any two
-   copies, including two mirrors of an object that has been taken down.
+   have histories of which one is a prefix of the other: the git notion of
+   a fast-forward. The model proves it for every world built by events,
+   takedowns included (`Events.copiesAgree`, in its chapter "Mirrors and
+   accepted copies"). It is stronger than `MirrorsOk`, which relates a
+   mirror to its original only while the original is live.
 2. **Prefixes agree.** Two prefixes of a well-formed history give the same
    value to every document version they both hold, by the previous chapter.
 
-## Copies agree
-
     -- in Sheaf/World.lean:
     import Sheaf.Object
-    import OpenSheaf.Copies
 
     namespace OpenSheaf.Sheaf
 
     variable {D : Type}
-
-    /-- One list is a prefix of the other. -/
-    def Comparable {α : Type} (l l' : List α) : Prop :=
-      (∃ t, l' = l ++ t) ∨ (∃ t, l = l' ++ t)
-
-    theorem Comparable.symm {α : Type} {l l' : List α} (h : Comparable l l') : Comparable l' l :=
-      h.elim Or.inr Or.inl
-
-Two prefixes of one list are comparable, and a list comparable with
-another is comparable with each of its prefixes.
-
-    theorem comparable_of_prefixes {α : Type} {l1 l2 t1 t2 L : List α} (h1 : L = l1 ++ t1)
-        (h2 : L = l2 ++ t2) : Comparable l1 l2 := by
-      rcases List.append_eq_append_iff.mp (h1.symm.trans h2) with ⟨a, ha, _⟩ | ⟨c, hc, _⟩
-      · exact Or.inl ⟨a, ha⟩
-      · exact Or.inr ⟨c, hc⟩
-
-    /-- Comparable with a list, comparable with each of its prefixes. -/
-    theorem Comparable.of_prefix {α : Type} {m o L t : List α} (h : Comparable m L)
-        (ho : L = o ++ t) : Comparable m o := by
-      rcases h with ⟨t', ht'⟩ | ⟨t', ht'⟩
-      · exact comparable_of_prefixes ht' ho
-      · exact Or.inr ⟨t ++ t', by rw [ht', ho, List.append_assoc]⟩
-
-An object is named by the archive and identifier it records (`archive` and
-`id` of the model's objects), not by where it is kept: a mirror kept in
-archive `b` records the archive of its original.
-
-    /-- **Copies agree.** Any two live objects with the same name, wherever they
-    are kept, have histories of which one is a prefix of the other. -/
-    def CopiesAgree (w : World D) : Prop :=
-      ∀ b x m b' x' m', lookup w b x = some (.live m) → lookup w b' x' = some (.live m') →
-        m.archive = m'.archive → m.id = m'.id → Comparable m.versions m'.versions
-
-A step writes one entry. It keeps copies in agreement if the object it
-writes is comparable with every other copy of it.
-
-    theorem copiesAgree_setEntry {w : World D} {a : ArchiveId} {ar : Archive D}
-        {oid : ObjectId} {o : Obj D} (ha : w a = some ar) (hw : CopiesAgree w)
-        (hnew : ∀ b x m, lookup w b x = some (.live m) → ¬ (b = a ∧ x = oid) →
-          m.archive = o.archive → m.id = o.id → Comparable m.versions o.versions) :
-        CopiesAgree (setEntry w a oid (.live o)) := by
-      intro b x m b' x' m' hl hl' h1 h2
-      rw [lookup_setEntry ha] at hl hl'
-      by_cases hc : b = a ∧ x = oid <;> by_cases hc' : b' = a ∧ x' = oid
-      · rw [if_yes hc] at hl; rw [if_yes hc'] at hl'
-        cases hl; cases hl'
-        exact Or.inl ⟨[], by simp⟩
-      · rw [if_yes hc] at hl; rw [if_no hc'] at hl'
-        cases hl
-        exact (hnew _ _ _ hl' hc' h1.symm h2.symm).symm
-      · rw [if_no hc] at hl; rw [if_yes hc'] at hl'
-        cases hl'
-        exact hnew _ _ _ hl hc h1 h2
-      · rw [if_no hc] at hl; rw [if_no hc'] at hl'
-        exact hw _ _ _ _ _ _ hl hl' h1 h2
-
-A takedown only removes a copy.
-
-    variable (hash : Hash D)
-
-    /-- A takedown keeps copies in agreement: it only removes one. -/
-    theorem takedown_copiesAgree {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-        (hl : lookup w a oid = some (.live o)) (hw : CopiesAgree w) :
-        CopiesAgree (takedown hash w a oid o) :=
-      fun _ _ _ _ _ _ h h' => hw _ _ _ _ _ _ (lookup_takedown hash hl h).2 (lookup_takedown hash hl h').2
-
-A valid step writes an object in its own archive, or a mirror (the premise
-`hhome` of the model's valid steps). The proof takes the cases:
-
-- **a new object in its own archive.** No other copy can exist. A copy in
-  the same archive would be the same entry. A copy elsewhere would be a
-  mirror, and a mirror's original is never missing (`MirrorsOk`), but the
-  entry is new.
-- **a new mirror.** It is a prefix of its original, and any other copy is
-  comparable with the original, so with the mirror.
-- **a version added in the object's own archive.** Every other copy is a
-  mirror, a prefix of the object before the step, so of the object after.
-- **a version added to a mirror.** As for a new mirror.
-
-The proof uses what the model already proves of every valid world: objects
-are well formed, so an object kept under `x` has identifier `x`, and
-mirrors are prefixes of their live originals.
-
-    variable [DecidableEq D]
-
-    /-- Valid steps keep copies in agreement. -/
-    theorem ValidStep.copiesAgree {w w' : World D} (hs : ValidStep hash w w')
-        (hsound : SoundWorld hash w) (hmir : MirrorsOk w) (hw : CopiesAgree w) :
-        CopiesAgree w' := by
-      cases hs with
-      | newArchive a ar ha hempty =>
-        intro b x m b' x' m' hl hl'
-        rw [lookup_newArchive ha hempty] at hl hl'
-        exact hw _ _ _ _ _ _ hl hl'
-      | create a ar oid o ha ho hwf _ hhome _ =>
-        have hnone : lookup w a oid = none := by simp [lookup, ha, ho]
-        apply copiesAgree_setEntry ha hw
-        intro b x m hl hne h1 h2
-        have hmid : m.id = x := (hsound.1 _ _ _ hl).id
-        rcases hhome with hh | ⟨orig, hlo, harch, t, ht⟩
-        · exfalso
-          by_cases hb : b = a
-          · exact hne ⟨hb, by rw [← hmid, h2, hwf.id]⟩
-          · have hma : m.archive = a := h1.trans hh
-            have := (hmir b x m hl (by rw [hma]; exact fun e => hb e.symm)).1
-            rw [hma, h2, hwf.id] at this
-            exact this hnone
-        · have hoid : orig.id = o.id := (hsound.1 _ _ _ hlo).id
-          exact (hw _ _ _ _ _ _ hl hlo (h1.trans harch.symm) (h2.trans hoid.symm)).of_prefix ht
-      | append a ar oid o y ha ho _ _ _ _ _ hhome _ =>
-        have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
-        have hoid : o.id = oid := (hsound.1 _ _ _ hlo).id
-        apply copiesAgree_setEntry ha hw
-        intro b x m hl hne h1 h2
-        have hmid : m.id = x := (hsound.1 _ _ _ hl).id
-        rcases hhome with hh | ⟨orig, hlo', harch, t, ht⟩
-        · by_cases hb : b = a
-          · exact absurd ⟨hb, by rw [← hmid]; exact h2.trans hoid⟩ hne
-          · have hma : m.archive = a := h1.trans hh
-            obtain ⟨_, hpre⟩ := hmir b x m hl (by rw [hma]; exact fun e => hb e.symm)
-            have hlo2 : lookup w m.archive m.id = some (.live o) := by
-              rw [hma, show m.id = oid from h2.trans hoid]; exact hlo
-            obtain ⟨_, t, ht⟩ := hpre o hlo2
-            exact Or.inl ⟨t ++ [y], by simp [Obj.append, ht]⟩
-        · have hoid' : orig.id = (o.append y).id := (hsound.1 _ _ _ hlo').id
-          exact (hw _ _ _ _ _ _ hl hlo' (h1.trans harch.symm) (h2.trans hoid'.symm)).of_prefix ht
-
-The three properties are kept together by every event, and hold of the
-empty world, so they hold of every world built by events.
-
-    /-- What events keep, together. -/
-    def Kept (w : World D) : Prop := SoundWorld hash w ∧ MirrorsOk w ∧ CopiesAgree w
-
-    theorem Event.kept {w w' : World D} (he : Event hash w w') (hw : Kept hash w) :
-        Kept hash w' := by
-      obtain ⟨h1, h2, h3⟩ := hw
-      refine ⟨he.sound hash h1, he.mirrorsOk hash h2, ?_⟩
-      cases he with
-      | step hs => exact ValidStep.copiesAgree hash hs h1 h2 h3
-      | takedown a oid o hl => exact takedown_copiesAgree hash hl h3
-
-    /-- **Copies agree in every world built by events.** -/
-    theorem Events.copiesAgree {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) : CopiesAgree w :=
-      (hs.invariant _ (fun he hw => Event.kept hash he hw)
-        ⟨SoundWorld.empty hash, fun _ _ _ h => by simp [lookup] at h,
-         fun _ _ _ _ _ _ h => by simp [lookup] at h⟩).2.2
 
 ## The cover of a world
 
@@ -209,11 +58,12 @@ world; being a union of open sets, it is open.
     /-- The named document versions held anywhere in a world. -/
     def HeldIn (w : World D) : Name → Prop := Union (cover w)
 
-    omit [DecidableEq D] in
     theorem heldIn_open (w : World D) : history.IsOpen (HeldIn w) :=
       history.union_open fun i => held_open i.obj i.version
 
 ## The sections glue
+
+    variable [DecidableEq D] (hash : Hash D)
 
 Two prefixes of one well-formed history give the same value to a document
 version they both hold: both give the content of every object version

@@ -98,69 +98,16 @@ model says they have the same content.
         funext f
         exact propext (hf f)
 
-    theorem sameContent_symm {v u : Version D} (h : sameContent v u = true) :
-        sameContent u v = true := by
-      rw [sameContent_iff] at *
-      exact ⟨fun f => (h.1 f).symm, h.2.symm⟩
-
-    theorem sameContent_trans {v u t : Version D} (h1 : sameContent v u = true)
-        (h2 : sameContent u t = true) : sameContent v t = true := by
-      rw [sameContent_iff] at *
-      exact ⟨fun f => (h1.1 f).trans (h2.1 f), h1.2.trans h2.2⟩
-
 ## Numbers and content
 
-The rule of section 7.3 has two directions. The model proves one of them
-(`one_number_one_content`, in its chapter "What cannot happen"): in a
-well-formed history, object versions with the same document version have
-the same content. The other direction is proved here: object versions with
-the same content have the same number, since a new number is given only to
-content not deposited before. Together they say that, within one history,
-numbers and contents correspond one to one.
-
-    /-- **One content, one number.** In a well-formed history, versions with the
-    same content hold the same document version. -/
-    theorem one_content_one_number {l : List (Version D)} (h : WellFormed l)
-        {v u : Version D} (hv : v ∈ l) (hu : u ∈ l) (heq : sameContent v u = true) :
-        v.documentVersion = u.documentVersion := by
-      induction l using snoc_induction generalizing v u with
-      | nil => cases hv
-      | snoc l x ih =>
-        obtain ⟨hwf, hx⟩ := h.init
-        have key : ∀ y ∈ l, sameContent y x = true → y.documentVersion = x.documentVersion := by
-          intro y hy hyx
-          rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, _⟩
-          · exact (ih hwf hy hz (sameContent_trans hyx (sameContent_symm hzx))).trans hxz.symm
-          · rw [hnew y hy] at hyx; cases hyx
-        simp only [List.mem_append, List.mem_singleton] at hv hu
-        rcases hv with hv | rfl <;> rcases hu with hu | rfl
-        · exact ih hwf hv hu heq
-        · exact key v hv heq
-        · exact (key u hu (sameContent_symm heq)).symm
-        · rfl
-
-Two smaller facts about well-formed histories: document versions are
-numbered from 1, and a prefix of a well-formed history is well formed.
-
-    /-- In a well-formed history, every document version is numbered from 1. -/
-    theorem doc_pos {l : List (Version D)} (h : WellFormed l) {v : Version D} (hv : v ∈ l) :
-        1 ≤ v.documentVersion := by
-      induction l using snoc_induction generalizing v with
-      | nil => cases hv
-      | snoc l x ih =>
-        obtain ⟨hwf, hx⟩ := h.init
-        simp only [List.mem_append, List.mem_singleton] at hv
-        rcases hv with hv | rfl
-        · exact ih hwf hv
-        · rcases hx with ⟨z, hz, _, hxz⟩ | ⟨_, hxn⟩
-          · rw [hxz]; exact ih hwf hz
-          · omega
-
-    /-- A prefix of a well-formed history is well formed. -/
-    theorem _root_.OpenSheaf.WellFormed.prefix {l t : List (Version D)} (h : WellFormed (l ++ t)) :
-        WellFormed l := by
-      intro i hi
-      have := h i (by simp; omega)
-      rwa [List.take_append_of_le_length (Nat.le_of_lt hi), List.getElem_append_left hi] at this
+The rule of section 7.3 has two directions, and the model proves both, in
+its chapter "What cannot happen": in a well-formed history, object versions
+with the same document version have the same content
+(`one_number_one_content`), and object versions with the same content have
+the same document version (`one_content_one_number`). Within one history,
+numbers and contents correspond one to one. The model also proves that the
+numbers start at 1 and have no gaps (`doc_pos`, `no_gaps`), and that a
+prefix of a well-formed history is well formed (`WellFormed.prefix`). The
+next chapters use these facts.
 
     end OpenSheaf.Sheaf

@@ -16,7 +16,8 @@ for resolving pins through them (section 6.4):
 
 This chapter proves that the two behave as the specification says. A
 mirror resolves exactly the pins of the original that it has copied, and
-nothing else. Any copy, mirror or not, trusted or not, resolves a pin only
+nothing else. Any two copies of an object, wherever they are kept, are
+prefixes of one another. Any copy, mirror or not, trusted or not, resolves a pin only
 to the original's version, unless the digests collide. An accepted copy
 survives a takedown of the original, and, unless the digests collide, is
 never taken for it.
@@ -199,6 +200,150 @@ version.
       obtain ⟨harch, t, ht⟩ := (Events.mirrorsOk hash hs b x m hm hb).2 o ho
       have hid : o.id = m.id := ((Events.sound hash hs).1 _ _ _ ho).id
       exact mirror_agrees hash ⟨harch.symm, hid.symm⟩ ht hp h
+
+## Copies agree
+
+`MirrorsOk` relates a mirror to its original while the original is live.
+After a takedown it says nothing: two mirrors of an object taken down could,
+as far as it goes, have diverged. They cannot. A stronger invariant holds
+in every world built by events: any two copies of an object, wherever they
+are kept, have histories of which one is a prefix of the other. This is the
+git notion of a fast-forward. A copy is named by the archive and identifier
+it records, not by where it is kept.
+
+    /-- One list is a prefix of the other. -/
+    def Comparable {α : Type} (l l' : List α) : Prop :=
+      (∃ t, l' = l ++ t) ∨ (∃ t, l = l' ++ t)
+
+    theorem Comparable.symm {α : Type} {l l' : List α} (h : Comparable l l') : Comparable l' l :=
+      h.elim Or.inr Or.inl
+
+    theorem comparable_of_prefixes {α : Type} {l1 l2 t1 t2 L : List α} (h1 : L = l1 ++ t1)
+        (h2 : L = l2 ++ t2) : Comparable l1 l2 := by
+      rcases List.append_eq_append_iff.mp (h1.symm.trans h2) with ⟨a, ha, _⟩ | ⟨c, hc, _⟩
+      · exact Or.inl ⟨a, ha⟩
+      · exact Or.inr ⟨c, hc⟩
+
+    /-- Comparable with a list, comparable with each of its prefixes. -/
+    theorem Comparable.of_prefix {α : Type} {m o L t : List α} (h : Comparable m L)
+        (ho : L = o ++ t) : Comparable m o := by
+      rcases h with ⟨t', ht'⟩ | ⟨t', ht'⟩
+      · exact comparable_of_prefixes ht' ho
+      · exact Or.inr ⟨t ++ t', by rw [ht', ho, List.append_assoc]⟩
+
+    omit [DecidableEq D] in
+    /-- **Copies agree.** Any two live objects with the same name, wherever they
+    are kept, have histories of which one is a prefix of the other. -/
+    def CopiesAgree (w : World D) : Prop :=
+      ∀ b x m b' x' m', lookup w b x = some (.live m) → lookup w b' x' = some (.live m') →
+        m.archive = m'.archive → m.id = m'.id → Comparable m.versions m'.versions
+
+A step writes one entry. It keeps copies in agreement if the object it
+writes is comparable with every other copy of it.
+
+    omit [DecidableEq D] in
+    theorem copiesAgree_setEntry {w : World D} {a : ArchiveId} {ar : Archive D}
+        {oid : ObjectId} {o : Obj D} (ha : w a = some ar) (hw : CopiesAgree w)
+        (hnew : ∀ b x m, lookup w b x = some (.live m) → ¬ (b = a ∧ x = oid) →
+          m.archive = o.archive → m.id = o.id → Comparable m.versions o.versions) :
+        CopiesAgree (setEntry w a oid (.live o)) := by
+      intro b x m b' x' m' hl hl' h1 h2
+      rw [lookup_setEntry ha] at hl hl'
+      by_cases hc : b = a ∧ x = oid <;> by_cases hc' : b' = a ∧ x' = oid
+      · rw [if_yes hc] at hl; rw [if_yes hc'] at hl'
+        cases hl; cases hl'
+        exact Or.inl ⟨[], by simp⟩
+      · rw [if_yes hc] at hl; rw [if_no hc'] at hl'
+        cases hl
+        exact (hnew _ _ _ hl' hc' h1.symm h2.symm).symm
+      · rw [if_no hc] at hl; rw [if_yes hc'] at hl'
+        cases hl'
+        exact hnew _ _ _ hl hc h1 h2
+      · rw [if_no hc] at hl; rw [if_no hc'] at hl'
+        exact hw _ _ _ _ _ _ hl hl' h1 h2
+
+A valid step writes an object in its own archive, or a mirror (the premise
+`hhome`). The proof takes the cases:
+
+- **a new object in its own archive.** No other copy can exist. A copy in
+  the same archive would be the same entry. A copy elsewhere would be a
+  mirror, whose original is never missing (`MirrorsOk`), but the entry is
+  new.
+- **a new mirror.** It is a prefix of its original, and any other copy is
+  comparable with the original, so with the mirror.
+- **a version added in the object's own archive.** Every other copy is a
+  mirror, a prefix of the object before the step, so of the object after.
+- **a version added to a mirror.** As for a new mirror.
+
+The proof uses that objects of a sound world are well formed, so that an
+object kept under `x` has identifier `x`.
+
+    /-- Valid steps keep copies in agreement. -/
+    theorem ValidStep.copiesAgree {w w' : World D} (hs : ValidStep hash w w')
+        (hsound : SoundWorld hash w) (hmir : MirrorsOk w) (hw : CopiesAgree w) :
+        CopiesAgree w' := by
+      cases hs with
+      | newArchive a ar ha hempty =>
+        intro b x m b' x' m' hl hl'
+        rw [lookup_newArchive ha hempty] at hl hl'
+        exact hw _ _ _ _ _ _ hl hl'
+      | create a ar oid o ha ho hwf _ hhome _ =>
+        have hnone : lookup w a oid = none := by simp [lookup, ha, ho]
+        apply copiesAgree_setEntry ha hw
+        intro b x m hl hne h1 h2
+        have hmid : m.id = x := (hsound.1 _ _ _ hl).id
+        rcases hhome with hh | ⟨orig, hlo, harch, t, ht⟩
+        · exfalso
+          by_cases hb : b = a
+          · exact hne ⟨hb, by rw [← hmid, h2, hwf.id]⟩
+          · have hma : m.archive = a := h1.trans hh
+            have := (hmir b x m hl (by rw [hma]; exact fun e => hb e.symm)).1
+            rw [hma, h2, hwf.id] at this
+            exact this hnone
+        · have hoid : orig.id = o.id := (hsound.1 _ _ _ hlo).id
+          exact (hw _ _ _ _ _ _ hl hlo (h1.trans harch.symm) (h2.trans hoid.symm)).of_prefix ht
+      | append a ar oid o y ha ho _ _ _ _ _ hhome _ =>
+        have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
+        have hoid : o.id = oid := (hsound.1 _ _ _ hlo).id
+        apply copiesAgree_setEntry ha hw
+        intro b x m hl hne h1 h2
+        have hmid : m.id = x := (hsound.1 _ _ _ hl).id
+        rcases hhome with hh | ⟨orig, hlo', harch, t, ht⟩
+        · by_cases hb : b = a
+          · exact absurd ⟨hb, by rw [← hmid]; exact h2.trans hoid⟩ hne
+          · have hma : m.archive = a := h1.trans hh
+            obtain ⟨_, hpre⟩ := hmir b x m hl (by rw [hma]; exact fun e => hb e.symm)
+            have hlo2 : lookup w m.archive m.id = some (.live o) := by
+              rw [hma, show m.id = oid from h2.trans hoid]; exact hlo
+            obtain ⟨_, t, ht⟩ := hpre o hlo2
+            exact Or.inl ⟨t ++ [y], by simp [Obj.append, ht]⟩
+        · have hoid' : orig.id = (o.append y).id := (hsound.1 _ _ _ hlo').id
+          exact (hw _ _ _ _ _ _ hl hlo' (h1.trans harch.symm) (h2.trans hoid'.symm)).of_prefix ht
+
+A takedown only removes a copy. Soundness, mirrors and copies are kept
+together by every event, and hold of the empty world.
+
+    omit [DecidableEq D] in
+    theorem takedown_copiesAgree {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+        (hl : lookup w a oid = some (.live o)) (hw : CopiesAgree w) :
+        CopiesAgree (takedown hash w a oid o) :=
+      fun _ _ _ _ _ _ h h' => hw _ _ _ _ _ _ (lookup_takedown hash hl h).2 (lookup_takedown hash hl h').2
+
+    theorem Event.copiesAgree {w w' : World D} (he : Event hash w w')
+        (hw : SoundWorld hash w ∧ MirrorsOk w ∧ CopiesAgree w) :
+        SoundWorld hash w' ∧ MirrorsOk w' ∧ CopiesAgree w' := by
+      obtain ⟨h1, h2, h3⟩ := hw
+      refine ⟨he.sound hash h1, he.mirrorsOk hash h2, ?_⟩
+      cases he with
+      | step hs => exact hs.copiesAgree hash h1 h2 h3
+      | takedown a oid o hl => exact takedown_copiesAgree hash hl h3
+
+    /-- **Copies agree in every world built by events**, takedowns included. -/
+    theorem Events.copiesAgree {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) : CopiesAgree w :=
+      (hs.invariant _ (fun he hw => Event.copiesAgree hash he hw)
+        ⟨SoundWorld.empty hash, fun _ _ _ h => by simp [lookup] at h,
+         fun _ _ _ _ _ _ h => by simp [lookup] at h⟩).2.2
 
 ## Any copy, from anywhere
 

@@ -10,7 +10,7 @@ detected. These are the negative tests of the model.
 | A pin changes its meaning | immutability: once a pin resolves to a version, no step changes that version |
 | An archive rewrites the history of an object | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving (unless the inventories collide) |
 | An identifier taken down names another object | tombstones stay |
-| One document version number for two contents, or a gap in the numbering | the counting rule of section 7.3 |
+| One document version number for two contents, two numbers for one content, or a gap in the numbering | the counting rule of section 7.3 |
 | Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already |
 | A withdrawn object becomes active again | valid steps forbid it (the model's choice on issue #25) |
 
@@ -133,7 +133,43 @@ all the others.
           exact ⟨fun f => (this.1 f).symm, this.2.symm⟩
         · exact sameContent_self _
 
-No gaps: every number from 1 to the highest is held by some version.
+The converse holds too. Two versions with the same content hold the same
+number: a new number is given only to content not deposited before, and
+earlier content takes the number it already had. So within one history,
+numbers and contents correspond one to one.
+
+    theorem sameContent_symm {v u : Version D} (h : sameContent v u = true) :
+        sameContent u v = true := by
+      rw [sameContent_iff] at *
+      exact ⟨fun f => (h.1 f).symm, h.2.symm⟩
+
+    theorem sameContent_trans {v u t : Version D} (h1 : sameContent v u = true)
+        (h2 : sameContent u t = true) : sameContent v t = true := by
+      rw [sameContent_iff] at *
+      exact ⟨fun f => (h1.1 f).trans (h2.1 f), h1.2.trans h2.2⟩
+
+    /-- **One content, one document version.** -/
+    theorem one_content_one_number {l : List (Version D)} (h : WellFormed l)
+        {v u : Version D} (hv : v ∈ l) (hu : u ∈ l) (heq : sameContent v u = true) :
+        v.documentVersion = u.documentVersion := by
+      induction l using snoc_induction generalizing v u with
+      | nil => cases hv
+      | snoc l x ih =>
+        obtain ⟨hwf, hx⟩ := h.init
+        have key : ∀ y ∈ l, sameContent y x = true → y.documentVersion = x.documentVersion := by
+          intro y hy hyx
+          rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, _⟩
+          · exact (ih hwf hy hz (sameContent_trans hyx (sameContent_symm hzx))).trans hxz.symm
+          · rw [hnew y hy] at hyx; cases hyx
+        simp only [List.mem_append, List.mem_singleton] at hv hu
+        rcases hv with hv | rfl <;> rcases hu with hu | rfl
+        · exact ih hwf hv hu heq
+        · exact key v hv heq
+        · exact (key u hu (sameContent_symm heq)).symm
+        · rfl
+
+No gaps: every number from 1 to the highest is held by some version, and
+none is below 1.
 
     /-- **Document versions have no gaps.** -/
     theorem no_gaps {l : List (Version D)} (h : WellFormed l) {k : Nat} (hk1 : 1 ≤ k)
@@ -149,6 +185,20 @@ No gaps: every number from 1 to the highest is held by some version.
         · rcases hx with ⟨z, hz, _, hxz⟩ | ⟨_, hxn⟩
           · have := le_docCount hz; omega
           · exact ⟨x, by simp, by omega⟩
+
+    /-- Document versions are numbered from 1. -/
+    theorem doc_pos {l : List (Version D)} (h : WellFormed l) {v : Version D} (hv : v ∈ l) :
+        1 ≤ v.documentVersion := by
+      induction l using snoc_induction generalizing v with
+      | nil => cases hv
+      | snoc l x ih =>
+        obtain ⟨hwf, hx⟩ := h.init
+        simp only [List.mem_append, List.mem_singleton] at hv
+        rcases hv with hv | rfl
+        · exact ih hwf hv
+        · rcases hx with ⟨z, hz, _, hxz⟩ | ⟨_, hxn⟩
+          · rw [hxz]; exact ih hwf hz
+          · omega
 
 ## Pins cannot form cycles
 
