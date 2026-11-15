@@ -134,7 +134,7 @@ The model keeps only what the properties depend on.
 A second literate program in the same repository,
 [OpenSheaf as a sheaf](https://opensheaf.org/opensheaf-lean/sheaf/), reads
 the worlds of this model as sheaves: named document versions, ordered by
-history, are the base, and each object version, wherever it is kept, is a
+deposit, are the base, and each object version, wherever it is kept, is a
 section. It proves that in every world built by the events of this model
 the sections of all copies glue into exactly one.
 

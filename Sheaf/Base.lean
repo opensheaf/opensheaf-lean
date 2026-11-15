@@ -12,8 +12,8 @@ structure Name where
   doc : Nat
   deriving DecidableEq, Repr
 
-/-- The order of history: earlier document versions of the same object. -/
-def history : Order Name where
+/-- The order of deposit: earlier document versions of the same object. -/
+def deposit : Order Name where
   le x y := x.archive = y.archive ∧ x.object = y.object ∧ x.doc ≤ y.doc ∧ (x.doc = 0 → y.doc = 0)
   refl _ := ⟨rfl, rfl, Nat.le_refl _, id⟩
   trans := fun ⟨h1, h2, h3, h4⟩ ⟨h1', h2', h3', h4'⟩ =>

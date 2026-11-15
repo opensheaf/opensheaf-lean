@@ -31,9 +31,9 @@ def PinStep (w : World D) (y x : Name) : Prop :=
       y = o.name u
 
 /-- One step down: an earlier version of the same object, or a pinned member. -/
-def Before (w : World D) (y x : Name) : Prop := history.le y x ∨ PinStep hash w y x
+def Before (w : World D) (y x : Name) : Prop := deposit.le y x ∨ PinStep hash w y x
 
-/-- The order of history and pins: any number of steps down. -/
+/-- The order of deposit and pins: any number of steps down. -/
 def byPins (w : World D) : Order Name where
   le := Star (Before hash w)
   refl x := Star.refl x
@@ -42,8 +42,6 @@ def byPins (w : World D) : Order Name where
 theorem open_of_before {w : World D} {U : Name → Prop}
     (h : ∀ {y x}, Before hash w y x → U x → U y) : (byPins hash w).IsOpen U := by
   intro x y hle
-  revert x
-  intro x hle
   induction hle with
   | refl => exact id
   | tail _ hr ih => exact fun hx => ih (h hr hx)
@@ -62,6 +60,17 @@ theorem heldIn_open_byPins {w : World D} (hw : SoundWorld hash w) :
     exact ⟨⟨p.archive, p.object, o, ho, p.version⟩,
       (held_iff hwf p.version _).mpr ⟨u, versionAt_mem_take hu, rfl⟩⟩
 
+theorem below_of_ok {w : World D} {b : ArchiveId} {i : ObjectId} {c : Obj D}
+    {v : Version D} {p : Pin D} {u : Version D} (hl : lookup w b i = some (.live c))
+    (hv : v ∈ c.versions) (hp : p ∈ v.memberPins) (hu : resolve hash w p = .ok u) :
+    ∃ o, lookup w p.archive p.object = some (.live o) ∧
+      (byPins hash w).le (o.name u) (c.name v) := by
+  have hu' := hu
+  unfold resolve at hu'
+  obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
+  exact ⟨o, ho, Star.tail (Star.refl _)
+    (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+
 /-- **Every member lies below its collection**, or was taken down. -/
 theorem members_below {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
@@ -70,12 +79,8 @@ theorem members_below {w : World D}
     (∃ o u, lookup w p.archive p.object = some (.live o) ∧ resolve hash w p = .ok u ∧
       (byPins hash w).le (o.name u) (c.name v)) ∨ resolve hash w p = .removed := by
   rcases (Events.sound hash hs).2 _ _ _ hl v hv p (memberPins_sub hp) with ⟨u, hu⟩ | hr
-  · left
-    have hu' := hu
-    unfold resolve at hu'
-    obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
-    exact ⟨o, u, ho, hu, Star.tail (Star.refl _)
-      (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+  · obtain ⟨o, ho, hle⟩ := below_of_ok hash hl hv hp hu
+    exact Or.inl ⟨o, u, ho, hu, hle⟩
   · exact Or.inr hr
 
 /-- Without takedowns, every member lies below its collection. -/
@@ -86,11 +91,8 @@ theorem members_below_valid {w : World D}
     ∃ o u, lookup w p.archive p.object = some (.live o) ∧ resolve hash w p = .ok u ∧
       (byPins hash w).le (o.name u) (c.name v) := by
   obtain ⟨u, hu⟩ := ValidSteps.pins_ok hash hs _ _ _ hl v hv p (memberPins_sub hp)
-  have hu' := hu
-  unfold resolve at hu'
-  obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
-  exact ⟨o, u, ho, hu, Star.tail (Star.refl _)
-    (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+  obtain ⟨o, ho, hle⟩ := below_of_ok hash hl hv hp hu
+  exact ⟨o, u, ho, hu, hle⟩
 
 /-- **The value at a member is what its pin fixes.** -/
 theorem glue_at_member {w : World D}

@@ -8,8 +8,9 @@ sections:
 
 - the set it is defined on is open: no gaps in the numbers (section 7.3);
 - it is the gluing of its *pieces*, the object versions it lists, each
-  saying what one document version holds; the pieces are compatible exactly
-  because of the rule of section 7.3, "one number, one content";
+  saying what one document version holds; the pieces are compatible
+  because of the rule of section 7.3, "one number, one content", and a
+  history that breaks the rule has pieces that are not;
 - a later object version restricts to an earlier one: that versions are
   fixed once deposited (sections 1 and 7.3) is restriction.
 
@@ -69,7 +70,7 @@ version and the version it describes, for instance.
 The set held by an object version is closed downwards in the order of
 history, whatever the object: it is defined by an upper bound.
 
-    theorem held_open (o : Obj D) (n : Nat) : history.IsOpen (Held o n) := by
+    theorem held_open (o : Obj D) (n : Nat) : deposit.IsOpen (Held o n) := by
       intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
       refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
       cases hy : y.doc with

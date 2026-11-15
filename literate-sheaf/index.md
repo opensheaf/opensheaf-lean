@@ -16,7 +16,7 @@ Like the model, it is **non-normative**. Where it and the
 - **The base** is the set of *named document versions*: an object, named
   by its archive and identifier, and a document version number. Its open
   sets are the sets closed under earlier versions of the same object (the
-  Alexandrov topology of the order of history).
+  Alexandrov topology of the order of deposit).
 - **The value** at a named document version is its content: the document's
   own files, and for a collection its member list.
 - **Collections.** A named document version also comes after the
@@ -31,13 +31,21 @@ Like the model, it is **non-normative**. Where it and the
   named document version, whichever copy and whichever object version it is
   read from.
 
+Precisely: the sections over a set, with values in the contents, form a
+sheaf for general reasons (chapter 1), whatever the protocol. What the
+theorem says about OpenSheaf is that the data of a world form a compatible
+family of sections. So a world defines one section of that sheaf, over the
+open set of what it holds, and every copy and every object version is a
+restriction of it. That is the sense of "a world is a sheaf" below.
+
 A name carries no digest, so this is not automatic. Two copies could hold
 different content under the same name, and then nothing glues. The proof
 shows which rules of the specification make the pieces agree:
 
 - within one object, the rule of section 7.3, which gives each document
   version one content, and which the verifier checks (section 14): the
-  pieces of an object version glue exactly because of it;
+  the pieces of an object version glue because of it, and a history that
+  breaks it has pieces that do not glue;
 - between copies kept in different archives, the rule that a mirror copies
   its original byte for byte (section 10.4): any two copies of an object
   have histories of which one is a prefix of the other;
@@ -49,7 +57,7 @@ shows which rules of the specification make the pieces agree:
 1. [Sheaves on an order](10-order.md): the mathematics, without Mathlib:
    sections, the sheaf condition, and local conditions, which glue on an
    Alexandrov space;
-2. [Named document versions](20-base.md): the base, the order of history,
+2. [Named document versions](20-base.md): the base, the order of deposit,
    the content of a document version, and the rule "one number, one
    content" in both directions;
 3. [An object version is a section](30-object.md): its set is open (no

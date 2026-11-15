@@ -7,7 +7,7 @@ that fits them.
 The space is a set of points with a preorder, and its open sets are the
 sets closed downwards. This is the Alexandrov topology of the preorder. In
 the later chapters a point is a named document version, and the order is
-the order of history, so an open set is a set of document versions that
+the order of deposit, so an open set is a set of document versions that
 holds, with each one, every earlier version of the same object.
 
 A *section* over a set `U` gives a value at each point of `U`. The values

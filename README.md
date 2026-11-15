@@ -19,7 +19,7 @@ This repository holds two literate programs, published together at
   <https://opensheaf.org/opensheaf-lean/model/>;
 - **OpenSheaf as a sheaf** (`literate-sheaf/`, the library `Sheaf`), an
   application of the model, at <https://opensheaf.org/opensheaf-lean/sheaf/>:
-  named document versions, ordered by history, are the base, each object
+  named document versions, ordered by deposit, are the base, each object
   version is a section, and in every world built by events the sections of
   all copies glue into exactly one.
 
@@ -46,7 +46,7 @@ This repository holds two literate programs, published together at
 | Chapter | Module | What it proves |
 |---|---|---|
 | [Sheaves on an order](literate-sheaf/10-order.md) | `Sheaf.Order` | the sheaf condition for sections on a preorder (`sheaf`); local conditions glue on an Alexandrov space (`glue_satisfies`) |
-| [Named document versions](literate-sheaf/20-base.md) | `Sheaf.Base` | the base and the order of history; the content of a document version, as a value |
+| [Named document versions](literate-sheaf/20-base.md) | `Sheaf.Base` | the base and the order of deposit; the content of a document version, as a value |
 | [An object version is a section](literate-sheaf/30-object.md) | `Sheaf.Object` | its set is open, by no gaps (`held_iff`); its pieces glue, by section 7.3 (`pieces_compatible`, `objSec_glues`); immutability is restriction (`objSec_restrict`) |
 | [A world is a sheaf](literate-sheaf/40-world.md) | `Sheaf.World` | with the model's `Events.copiesAgree`, the sections of a world glue, uniquely (`world_sheaf`); a new number is new content, checked piece by piece, holds of the whole (`world_newContent`) |
 | [Pins and accepted copies](literate-sheaf/50-pins.md) | `Sheaf.Pins` | a pin names a section, in any world, unless inventories collide (`pin_names_section`); an accepted copy holds the vetted content at another point (`acceptedCopy_agrees`) |

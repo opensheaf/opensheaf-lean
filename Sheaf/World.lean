@@ -24,8 +24,8 @@ abbrev sections (w : World D) (i : Source w) : Sec (cover w i) (Content D) :=
 /-- The named document versions held anywhere in a world. -/
 def HeldIn (w : World D) : Name → Prop := Union (cover w)
 
-theorem heldIn_open (w : World D) : history.IsOpen (HeldIn w) :=
-  history.union_open fun i => held_open i.obj i.version
+theorem heldIn_open (w : World D) : deposit.IsOpen (HeldIn w) :=
+  deposit.union_open fun i => held_open i.obj i.version
 
 variable [DecidableEq D] (hash : Hash D)
 
@@ -71,12 +71,12 @@ theorem world_sheaf {w : World D}
 
 /-- A new number is new content: below a point, no earlier document version of
 the same object has the same content. -/
-def NewContent : LocalCond history (Content D) :=
-  fun x f => ∀ y (hy : history.le y x), y.doc ≠ x.doc → f y hy ≠ f x (history.refl x)
+def NewContent : LocalCond deposit (Content D) :=
+  fun x f => ∀ y (hy : deposit.le y x), y.doc ≠ x.doc → f y hy ≠ f x (deposit.refl x)
 
 /-- Each object version satisfies it (section 7.3). -/
 theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
-    (objSec o n).Satisfies history (held_open o n) NewContent := by
+    (objSec o n).Satisfies deposit (held_open o n) NewContent := by
   intro x hx y hy hne heq
   have hyx := held_open o n hy hx
   obtain ⟨v, hv, rfl⟩ := (held_iff hwf n x).mp hx
@@ -89,8 +89,8 @@ theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
 /-- **So does the glued section**, which takes its values from many copies. -/
 theorem world_newContent {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w) {g : Sec (HeldIn w) (Content D)}
-    (hg : Glues (sections w) g) : g.Satisfies history (heldIn_open w) NewContent :=
-  glue_satisfies history (fun i => held_open i.obj i.version) hg NewContent
+    (hg : Glues (sections w) g) : g.Satisfies deposit (heldIn_open w) NewContent :=
+  glue_satisfies deposit (fun i => held_open i.obj i.version) hg NewContent
     fun i => objSec_newContent ((Events.sound hash hs).1 _ _ _ i.live).history i.version
 
 end OpenSheaf.Sheaf

@@ -66,6 +66,8 @@ def v1' : Version Nat := { v1 with files := [("paper.tm", 666), ("paper.pdf", 10
 def forged : Obj Nat := { paper with versions := [v1'] }
 def wForged : World Nat := setEntry w14 "coauthor" "paper" (.live forged)
 
+example : WellFormed forged.versions := by decide
+
 def authorPaper' : Source wForged := ⟨"author", "paper", paper3, rfl, 3⟩
 def forgedPaper : Source wForged := ⟨"coauthor", "paper", forged, rfl, 1⟩
 

@@ -121,6 +121,8 @@ the world are not compatible, and nothing glues them.
     def forged : Obj Nat := { paper with versions := [v1'] }
     def wForged : World Nat := setEntry w14 "coauthor" "paper" (.live forged)
 
+    example : WellFormed forged.versions := by decide
+
     def authorPaper' : Source wForged := ⟨"author", "paper", paper3, rfl, 3⟩
     def forgedPaper : Source wForged := ⟨"coauthor", "paper", forged, rfl, 1⟩
 

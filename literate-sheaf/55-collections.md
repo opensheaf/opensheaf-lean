@@ -27,9 +27,9 @@ A pin names an object version, not a document version. The edge goes to
 the document version that the object version holds, which the world tells:
 it is where the pin resolves. So the order depends on the world, and on the
 digest function, through resolution. Where a pin resolves is fixed once it
-resolves (immutability, in the model), so the edges of a world are kept by
-every later step, except for a takedown, which removes the edges into the
-object taken down.
+resolves (immutability, in the model), so we expect the edges of a world
+to be kept by every later step, except for a takedown, which removes the
+edges into the object taken down; this program does not prove it.
 
 The edge goes to the name of the object found, which is the name the
 object records. A pin that names a mirror is resolved by the model to the
@@ -74,9 +74,9 @@ versions.
           y = o.name u
 
     /-- One step down: an earlier version of the same object, or a pinned member. -/
-    def Before (w : World D) (y x : Name) : Prop := history.le y x ∨ PinStep hash w y x
+    def Before (w : World D) (y x : Name) : Prop := deposit.le y x ∨ PinStep hash w y x
 
-    /-- The order of history and pins: any number of steps down. -/
+    /-- The order of deposit and pins: any number of steps down. -/
     def byPins (w : World D) : Order Name where
       le := Star (Before hash w)
       refl x := Star.refl x
@@ -88,16 +88,17 @@ general case follows along the steps.
     theorem open_of_before {w : World D} {U : Name → Prop}
         (h : ∀ {y x}, Before hash w y x → U x → U y) : (byPins hash w).IsOpen U := by
       intro x y hle
-      revert x
-      intro x hle
       induction hle with
       | refl => exact id
       | tail _ hr ih => exact fun hx => ih (h hr hx)
 
-The order is a preorder. The model proves that pins form no cycles in any
-world built by events (`no_cycles_events`, on object versions), which makes
-it a partial order on what such a world holds; this program does not need
-that, and does not restate it.
+The order is a preorder, and nothing below needs more. Whether it is a
+partial order on what a world holds is not proved here. The model proves
+that pins form no cycles in any world built by events
+(`no_cycles_events`), but on object versions, and the order here mixes pin
+edges with the order of deposit on document versions; an argument would
+have to show that every edge goes to a document version deposited before
+the one it starts from.
 
 ## What a world holds is open
 
@@ -122,6 +123,20 @@ version pinned: resolution found that object live, and the version in it.
 
 ## Every member lies below its collection
 
+A pin that resolves gives an edge, from the collection version that holds
+it down to the member.
+
+    theorem below_of_ok {w : World D} {b : ArchiveId} {i : ObjectId} {c : Obj D}
+        {v : Version D} {p : Pin D} {u : Version D} (hl : lookup w b i = some (.live c))
+        (hv : v ∈ c.versions) (hp : p ∈ v.memberPins) (hu : resolve hash w p = .ok u) :
+        ∃ o, lookup w p.archive p.object = some (.live o) ∧
+          (byPins hash w).le (o.name u) (c.name v) := by
+      have hu' := hu
+      unfold resolve at hu'
+      obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
+      exact ⟨o, ho, Star.tail (Star.refl _)
+        (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+
 In a world built by events, every pin held by a version resolves or reports
 `removed` (`Events.sound`, in the model). So every member pinned by a
 collection version, kept anywhere, lies one step below it, unless the
@@ -137,12 +152,8 @@ verifier reports as removed (section 14).
         (∃ o u, lookup w p.archive p.object = some (.live o) ∧ resolve hash w p = .ok u ∧
           (byPins hash w).le (o.name u) (c.name v)) ∨ resolve hash w p = .removed := by
       rcases (Events.sound hash hs).2 _ _ _ hl v hv p (memberPins_sub hp) with ⟨u, hu⟩ | hr
-      · left
-        have hu' := hu
-        unfold resolve at hu'
-        obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
-        exact ⟨o, u, ho, hu, Star.tail (Star.refl _)
-          (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+      · obtain ⟨o, ho, hle⟩ := below_of_ok hash hl hv hp hu
+        exact Or.inl ⟨o, u, ho, hu, hle⟩
       · exact Or.inr hr
 
 Without takedowns, the second case cannot occur: in a world built by valid
@@ -156,11 +167,8 @@ steps, every pin held resolves (`ValidSteps.pins_ok`, in the model).
         ∃ o u, lookup w p.archive p.object = some (.live o) ∧ resolve hash w p = .ok u ∧
           (byPins hash w).le (o.name u) (c.name v) := by
       obtain ⟨u, hu⟩ := ValidSteps.pins_ok hash hs _ _ _ hl v hv p (memberPins_sub hp)
-      have hu' := hu
-      unfold resolve at hu'
-      obtain ⟨o, ho⟩ := resolveEntry_ok_live hash hu'
-      exact ⟨o, u, ho, hu, Star.tail (Star.refl _)
-        (Or.inr ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hu, rfl⟩)⟩
+      obtain ⟨o, ho, hle⟩ := below_of_ok hash hl hv hp hu
+      exact ⟨o, u, ho, hu, hle⟩
 
 ## The value at a member
 

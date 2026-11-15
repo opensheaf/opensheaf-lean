@@ -19,7 +19,7 @@ work is meant, not what that version holds.
       doc : Nat
       deriving DecidableEq, Repr
 
-## The order of history
+## The order of deposit
 
 A named document version comes after the earlier document versions of the
 same object. The archive numbers document versions in the order in which
@@ -39,8 +39,12 @@ earlier, and a later object version may correct it, so it changes; the
 order of deposit does not. The reading order is a structure on top of the
 sheaf, not part of its base.
 
-    /-- The order of history: earlier document versions of the same object. -/
-    def history : Order Name where
+The order is called `deposit` in the code, not `history`, which is the
+name of the reading order in `object.json` and of a field of the model's
+well-formed objects.
+
+    /-- The order of deposit: earlier document versions of the same object. -/
+    def deposit : Order Name where
       le x y := x.archive = y.archive ∧ x.object = y.object ∧ x.doc ≤ y.doc ∧ (x.doc = 0 → y.doc = 0)
       refl _ := ⟨rfl, rfl, Nat.le_refl _, id⟩
       trans := fun ⟨h1, h2, h3, h4⟩ ⟨h1', h2', h3', h4'⟩ =>

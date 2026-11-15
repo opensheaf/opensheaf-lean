@@ -35,7 +35,7 @@ def piece (o : Obj D) (n : Nat) (i : {v // v ∈ o.versions.take n}) (x : Name) 
 def pieces (o : Obj D) (n : Nat) : ∀ i, Sec (piece o n i) (Content D) :=
   fun i _ _ => i.1.content
 
-theorem held_open (o : Obj D) (n : Nat) : history.IsOpen (Held o n) := by
+theorem held_open (o : Obj D) (n : Nat) : deposit.IsOpen (Held o n) := by
   intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
   refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
   cases hy : y.doc with
