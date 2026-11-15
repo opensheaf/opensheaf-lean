@@ -46,8 +46,9 @@ The chapters build the model from the bottom up:
    and what it guarantees;
 9. [Use cases as theorems](60-patterns.md): the promises of the use cases
    (a journal issue does not change, a co-author's catalogue follows a
-   paper, a withdrawal keeps what was vetted, a takedown is reported),
-   proved for every world;
+   paper, a withdrawal keeps what was vetted, a takedown is reported, the
+   owner decides, a mirror is a receipt, a record deleted at the end of its
+   retention), proved for every world;
 10. [What cannot happen](65-impossible.md): breaks of the protocol, shown
    impossible or detected: a pin changing its meaning, history rewritten,
    identifiers reused, document versions ambiguous or with gaps, cycles of
@@ -56,7 +57,12 @@ The chapters build the model from the bottom up:
    steps from nothing (an author, a journal, a co-author with a catalogue
    and a mirror, an accepted copy), then an archive lost and a takedown,
    with the verifier's reports checked by `decide`, as tests, and attempts
-   to break the protocol that fail.
+   to break the protocol that fail;
+12. [A learning record, checked by computation](75-record.md): a second
+   story, a student's thesis and the department's record of it, with a
+   receipt of each submission, comments tied to the version commented on,
+   a rewrite caught by the receipt, and the record deleted at the end of
+   its retention.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -76,6 +82,7 @@ every module:
     import OpenSheaf.Patterns
     import OpenSheaf.Impossible
     import OpenSheaf.Story
+    import OpenSheaf.Record
 
 ## Modelling choices
 

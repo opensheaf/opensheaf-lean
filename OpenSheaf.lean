@@ -10,3 +10,4 @@ import OpenSheaf.States
 import OpenSheaf.Patterns
 import OpenSheaf.Impossible
 import OpenSheaf.Story
+import OpenSheaf.Record
