@@ -1,7 +1,9 @@
 # What lies below is fixed
 
 Citing a selection version by its pin is meant to fix what the selection
-vetted: the revisions it pins, what they pin in turn, and so on. In the
+vetted: the revisions it pins and, for those that are collections, what
+their member lists pin, and so on. The references of documents are not in
+the order (see the introduction). In the
 order with pins (chapter [Collections and what they pin](55-collections.md))
 these lie below the selection version, together with the earlier versions
 of each, which the selection did not vet (section 10.1) but which its pins

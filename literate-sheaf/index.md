@@ -64,13 +64,15 @@ shows which rules of the specification make the pieces agree:
    the content of a document version, and the rule "one number, one
    content" in both directions;
 3. [An object version is a section](30-object.md): its set is open, and
-   is what its pieces hold (no gaps), it glues its pieces (section 7.3), and a later object version
-   restricts to an earlier one (versions are fixed);
+   is what its pieces hold (no gaps), it glues its pieces (section 7.3),
+   and a later object version restricts to an earlier one (versions are
+   fixed);
 4. [The sections of a world glue](40-world.md): copies agree in every world built by
    events, so the sections of a world glue, uniquely; a condition checked
    one object version at a time holds of the whole;
 5. [Pins and accepted copies](50-pins.md): a pin names a section, in any
-   world; an accepted copy holds the vetted content at another point;
+   world; an accepted copy holds the vetted content at another point, and
+   every copy in a world built by events holds the files of its source;
 6. [Collections and what they pin](55-collections.md): the pins of member
    lists added to the order; below a collection version lies each member
    it pins, with the content its pin fixes, unless it was taken down;
@@ -128,7 +130,9 @@ every module:
 
 **Descriptions.** Two object versions may describe the same document
 version differently: a description-only version adds a DOI, corrects a
-stage or a title, adds a notice or a withdrawal (section 7.3). Their
+stage or a title, or adds a withdrawal (section 7.3); a notice, which the
+specification also adds this way, is a file, so new content in the model
+(chapter [Named document versions](20-base.md)). Their
 descriptions do not agree, and are not meant to. The specification settles
 them by authority, not by agreement: the head of the object describes it,
 and earlier object versions keep the description as it was known when they

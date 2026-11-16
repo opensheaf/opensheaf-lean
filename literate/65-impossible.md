@@ -51,7 +51,7 @@ is therefore not reachable by any sequence of steps.
         {oid : ObjectId} {o o' : Obj D} (hl : lookup w a oid = some (.live o))
         (hl' : lookup w' a oid = some (.live o'))
         (hrew : o'.versions.take o.versions.length ≠ o.versions) : False := by
-      obtain ⟨o2, h2, _, _, t, ht⟩ := Steps.live_grows hs hl
+      obtain ⟨o2, h2, _, _, _, t, ht⟩ := Steps.live_grows hs hl
       rw [hl'] at h2
       cases h2
       apply hrew

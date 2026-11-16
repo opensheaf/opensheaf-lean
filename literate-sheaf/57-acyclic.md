@@ -121,8 +121,9 @@ only points of the order of deposit above it, which are not held either.
 
 A step keeps every live copy, with the same name and a longer history, and
 keeps where every pin that resolves resolves (`Step.live_grows` and
-`Step.resolve_ok`, the immutability of the model). So it keeps every pin edge, and with it the
-whole order. This holds for any step of the model, valid or not.
+`Step.resolve_ok`, the immutability of the model). So it keeps every pin
+edge, and with it the whole order. This holds for any step of the model,
+valid or not.
 
     /-- **Steps keep the edges.** -/
     theorem Step.pinStep {w w' : World D} (hs : Step w w') {y x : Name}
@@ -178,9 +179,9 @@ A takedown keeps the rank as it is: it holds less, and adds no edge.
         fun y x hd hx => hdep y x hd (heldIn_takedown hash hl0 hx),
         fun y x hp => hpin y x (takedown_pinStep hash hl0 hp)⟩
 
-A valid step needs two facts, besides the model's `Step.ok_back`: a pin
-held before the step that resolves after it resolved before it, to the
-same version.
+Besides the model's `Step.ok_back` (a pin held before a step that
+resolves after it resolved before it, to the same version), a valid step
+needs two facts.
 
 A named document version that was not held before the step was made by
 it, so the step checked its pins: they resolved, or reported `removed`,

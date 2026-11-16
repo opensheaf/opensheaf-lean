@@ -278,24 +278,7 @@ example : resolve toy wDown pinCopy = resolve toy w14 pinCopy := by decide
 
 example : (resolve toy wDown pinCopy).isOk = true := by decide
 
-def freshPin : Pin Nat := ⟨"author", "paper", 2, toy (paper3.inventory 2)⟩
-
-theorem heldBy_setEntry {w : World Nat} {a : ArchiveId} {oid : ObjectId} {e : Entry Nat}
-    {p : Pin Nat} (h : HeldBy (setEntry w a oid e) p)
-    (he : ∀ c, e = .live c → ∀ v ∈ c.versions, p ∉ v.pins) : HeldBy w p := by
-  obtain ⟨b, i, c, v, hl, hv, hp⟩ := h
-  cases ha : w a with
-  | none =>
-    have : setEntry w a oid e = w := by
-      funext b'; unfold setEntry; by_cases hb : b' = a <;> simp [hb, ha]
-    rw [this] at hl; exact ⟨b, i, c, v, hl, hv, hp⟩
-  | some ar =>
-    rw [lookup_setEntry ha] at hl
-    by_cases hbi : b = a ∧ i = oid
-    · simp only [hbi, and_self, ite_true, Option.some.injEq] at hl
-      exact absurd hp (he c hl v hv)
-    · simp only [hbi, ite_false] at hl
-      exact ⟨b, i, c, v, hl, hv, hp⟩
+def pinV2 : Pin Nat := ⟨"author", "paper", 2, toy (paper3.inventory 2)⟩
 
 theorem heldBy_newArchive {w : World Nat} {x : ArchiveId} {ws : List Agent} {p : Pin Nat}
     (h : HeldBy (fun b => if b = x then some (emptyArchive ws) else w b) p) :
@@ -305,10 +288,10 @@ theorem heldBy_newArchive {w : World Nat} {x : ArchiveId} {ws : List Agent} {p :
   · simp [lookup, hb, emptyArchive] at hl
   · exact ⟨b, i, c, v, by simpa [lookup, hb] using hl, hv, hp⟩
 
-theorem freshPin_unheld : ¬ HeldBy wDown freshPin := by
+theorem pinV2_unheld : ¬ HeldBy wDown pinV2 := by
   intro h
-  have no : ∀ (o : Obj Nat), (∀ v ∈ o.versions, freshPin ∉ v.pins) →
-      ∀ c, Entry.live o = .live c → ∀ v ∈ c.versions, freshPin ∉ v.pins := by
+  have no : ∀ (o : Obj Nat), (∀ v ∈ o.versions, pinV2 ∉ v.pins) →
+      ∀ c, Entry.live o = .live c → ∀ v ∈ c.versions, pinV2 ∉ v.pins := by
     intro o ho c hc; cases hc; exact ho
   have h := heldBy_setEntry h (fun c hc => by cases hc)
   have h := heldBy_setEntry h (no _ (by decide))
@@ -326,11 +309,11 @@ theorem freshPin_unheld : ¬ HeldBy wDown freshPin := by
   obtain ⟨_, _, _, _, hl, _⟩ := h
   simp [lookup, w0] at hl
 
-example : ¬ PinOk toy wDown freshPin := by
+example : ¬ PinOk toy wDown pinV2 := by
   rintro (⟨t, ht⟩ | ⟨_, hh⟩)
-  · have h : resolve toy wDown freshPin = .removed := by decide
+  · have h : resolve toy wDown pinV2 = .removed := by decide
     rw [h] at ht; cases ht
-  · exact freshPin_unheld hh
+  · exact pinV2_unheld hh
 
 def i2 : Version Nat :=
   Version.describe issue.versions i1 "Issue 7 (one paper taken down)" "editor"
@@ -438,8 +421,6 @@ theorem upToW12 : ValidSteps toy w0 w12 :=
   (upToIssue.trans (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
     ⟨_, s7⟩) ⟨_, s8⟩) ⟨_, s9⟩) ⟨_, s10⟩) ⟨_, s11⟩) ⟨_, s12⟩)).mono
     fun ⟨_, h⟩ => h.toValidStep toy
-
-def pinV2 : Pin Nat := ⟨"author", "paper", 2, toy (paper3.inventory 2)⟩
 
 example : lookup w12 "coauthor" "paper" = some (.live paper2) := rfl
 

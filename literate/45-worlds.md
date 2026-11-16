@@ -207,6 +207,28 @@ down, which no verifier could ever check.
     theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk hash w p) : Held hash w p :=
       h.elim Or.inl fun h => Or.inr h.1
 
+A pin held after an entry is set was held before, unless the new entry
+holds it. With it, one shows that a world does not hold a pin by walking
+back through the steps that built it (chapter [A story](70-story.md)).
+
+    omit [DecidableEq D] in
+    theorem heldBy_setEntry {w : World D} {a : ArchiveId} {oid : ObjectId} {e : Entry D}
+        {p : Pin D} (h : HeldBy (setEntry w a oid e) p)
+        (he : ∀ c, e = .live c → ∀ v ∈ c.versions, p ∉ v.pins) : HeldBy w p := by
+      obtain ⟨b, i, c, v, hl, hv, hp⟩ := h
+      cases ha : w a with
+      | none =>
+        have : setEntry w a oid e = w := by
+          funext b'; unfold setEntry; by_cases hb : b' = a <;> simp [hb, ha]
+        rw [this] at hl; exact ⟨b, i, c, v, hl, hv, hp⟩
+      | some ar =>
+        rw [lookup_setEntry ha] at hl
+        by_cases hbi : b = a ∧ i = oid
+        · simp only [hbi, and_self, ite_true, Option.some.injEq] at hl
+          exact absurd hp (he c hl v hv)
+        · simp only [hbi, ite_false] at hl
+          exact ⟨b, i, c, v, hl, hv, hp⟩
+
 A version that records the version it copies (an accepted copy, section
 10.5) holds exactly that version's files, when the source resolves. Section
 14 asks the verifier to check this "when the source is available"; the
@@ -380,13 +402,15 @@ makes a step: it is proved in [chapter 7](49-acts.md).
     omit [DecidableEq D] in
     theorem Steps.live_grows {w w' : World D} (hs : Steps w w') {b : ArchiveId} {x : ObjectId}
         {o : Obj D} (h : lookup w b x = some (.live o)) :
-        ∃ o', lookup w' b x = some (.live o') ∧ o'.id = o.id ∧ o'.kind = o.kind ∧
-          ∃ t, o'.versions = o.versions ++ t := by
-      refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧ o'.id = o.id ∧
-        o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_ ⟨o, h, rfl, rfl, [], by simp⟩
-      rintro _ _ hstep ⟨o1, h1, hid1, hk1, t1, ht1⟩
-      obtain ⟨o2, h2, _, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
-      exact ⟨o2, h2, hid2.trans hid1, hk2.trans hk1, t1 ++ t2, by rw [ht2, ht1, List.append_assoc]⟩
+        ∃ o', lookup w' b x = some (.live o') ∧ o'.archive = o.archive ∧ o'.id = o.id ∧
+          o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t := by
+      refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧
+        o'.archive = o.archive ∧ o'.id = o.id ∧ o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_
+        ⟨o, h, rfl, rfl, rfl, [], by simp⟩
+      rintro _ _ hstep ⟨o1, h1, ha1, hid1, hk1, t1, ht1⟩
+      obtain ⟨o2, h2, ha2, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
+      exact ⟨o2, h2, ha2.trans ha1, hid2.trans hid1, hk2.trans hk1, t1 ++ t2,
+        by rw [ht2, ht1, List.append_assoc]⟩
 
 ## Valid steps keep worlds well formed
 

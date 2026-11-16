@@ -58,7 +58,8 @@ The chapters build the model from the bottom up:
    steps from nothing (an author, a journal, a co-author with a catalogue
    and a mirror, an accepted copy), then an archive lost and a takedown,
    with the verifier's reports checked by `decide`, as tests, and attempts
-   to break the protocol that fail;
+   to break the protocol that fail, among them a pin made afresh into an
+   object taken down;
 12. [A learning record, checked by computation](75-record.md): a second
    story, a student's thesis and the department's record of it, with a
    receipt of each submission, comments tied to the version commented on,

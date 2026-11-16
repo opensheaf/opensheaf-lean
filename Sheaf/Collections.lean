@@ -106,7 +106,7 @@ theorem glue_at_member {w : World D}
   exact glue_value hash (Events.sound hash hs) hg
     ⟨_, _, o, ho, versionAt_mem (resolveEntry_live_ok hash hre).1, rfl⟩ hy
 
-/-- **The stalk of a collection version**: each member it pins, with the
+/-- **What lies below a collection version**: each member it pins, with the
 content its pin fixes, or a takedown reported. -/
 theorem collection_members {w : World D}
     (hs : Events hash (fun _ => (none : Option (Archive D))) w)

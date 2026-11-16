@@ -94,6 +94,24 @@ def PinOk (w : World D) (p : Pin D) : Prop :=
 theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk hash w p) : Held hash w p :=
   h.elim Or.inl fun h => Or.inr h.1
 
+omit [DecidableEq D] in
+theorem heldBy_setEntry {w : World D} {a : ArchiveId} {oid : ObjectId} {e : Entry D}
+    {p : Pin D} (h : HeldBy (setEntry w a oid e) p)
+    (he : ∀ c, e = .live c → ∀ v ∈ c.versions, p ∉ v.pins) : HeldBy w p := by
+  obtain ⟨b, i, c, v, hl, hv, hp⟩ := h
+  cases ha : w a with
+  | none =>
+    have : setEntry w a oid e = w := by
+      funext b'; unfold setEntry; by_cases hb : b' = a <;> simp [hb, ha]
+    rw [this] at hl; exact ⟨b, i, c, v, hl, hv, hp⟩
+  | some ar =>
+    rw [lookup_setEntry ha] at hl
+    by_cases hbi : b = a ∧ i = oid
+    · simp only [hbi, and_self, ite_true, Option.some.injEq] at hl
+      exact absurd hp (he c hl v hv)
+    · simp only [hbi, ite_false] at hl
+      exact ⟨b, i, c, v, hl, hv, hp⟩
+
 /-- The source a version records, if any, is checked (sections 10.5, 14). -/
 def SourceOk (w : World D) (x : Version D) : Prop :=
   ∀ src, x.source = some src →
@@ -221,13 +239,15 @@ theorem Step.live_grows {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : O
 omit [DecidableEq D] in
 theorem Steps.live_grows {w w' : World D} (hs : Steps w w') {b : ArchiveId} {x : ObjectId}
     {o : Obj D} (h : lookup w b x = some (.live o)) :
-    ∃ o', lookup w' b x = some (.live o') ∧ o'.id = o.id ∧ o'.kind = o.kind ∧
-      ∃ t, o'.versions = o.versions ++ t := by
-  refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧ o'.id = o.id ∧
-    o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_ ⟨o, h, rfl, rfl, [], by simp⟩
-  rintro _ _ hstep ⟨o1, h1, hid1, hk1, t1, ht1⟩
-  obtain ⟨o2, h2, _, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
-  exact ⟨o2, h2, hid2.trans hid1, hk2.trans hk1, t1 ++ t2, by rw [ht2, ht1, List.append_assoc]⟩
+    ∃ o', lookup w' b x = some (.live o') ∧ o'.archive = o.archive ∧ o'.id = o.id ∧
+      o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t := by
+  refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧
+    o'.archive = o.archive ∧ o'.id = o.id ∧ o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_
+    ⟨o, h, rfl, rfl, rfl, [], by simp⟩
+  rintro _ _ hstep ⟨o1, h1, ha1, hid1, hk1, t1, ht1⟩
+  obtain ⟨o2, h2, ha2, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
+  exact ⟨o2, h2, ha2.trans ha1, hid2.trans hid1, hk2.trans hk1, t1 ++ t2,
+    by rw [ht2, ht1, List.append_assoc]⟩
 
 theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')
     (hobj : ∀ a oid o, lookup w a oid = some (.live o) → o.WF oid)

@@ -131,8 +131,8 @@ histories agree that far have the same version `n`.
         List.take_append_of_le_length hn]
 
 Four facts about versions by number: a version found at a number is a
-version of the object, and one of the versions up to that number; after an append, a version is an old one or the one
-appended, at the next number.
+version of the object, and one of the versions up to that number; after an
+append, a version is an old one or the one appended, at the next number.
 
     theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
         v ∈ o.versions := by
@@ -183,25 +183,26 @@ same sources, renditions and change note as an earlier document version
 keeps its number". This covers a description-only version, which "MAY hold
 any document version, not only the current one", and a withdrawal.
 
-The rule does not say what happens to a version that only removes files,
-or that combines files of different earlier versions: it adds no new file,
-yet holds no earlier version's content. This is
-[issue #23](https://github.com/opensheaf/opensheaf.github.io/issues/23) of
-the specification, still open. **The model makes a choice**, to be revised
-when the issue is settled: a version keeps the number of an earlier version
-whose content it holds, and any other version gets a new number. Content is
+The rule does not say what happens to a version that only removes files, or
+that combines files of different earlier versions: it adds no new file, yet
+holds no earlier version's content. This is [issue
+#23](https://github.com/opensheaf/opensheaf.github.io/issues/23) of the
+specification, still open. **The model makes a choice**, to be revised when
+the issue is settled: a version keeps the number of an earlier version whose
+content it holds, and any other version gets a new number. Content is
 compared as a set of files, since the order in which files are listed means
 nothing, together with the member list, whose order is authoritative
 (section 10.2). Every file counts, including a file that holds a note, such
 as a notice or the reason of a withdrawal (section 9): adding one makes new
 content, so a new document version, where sections 7.3 and 11.1 add notices
 and withdrawals by description-only versions. The model does not yet tell
-the document's own files (sources, renditions, change note) from note
-files; see "Next" in the introduction. The choice decides three more cases of #23: a file renamed
-is new content (files are compared by path and digest); a version whose
-content returns to an earlier version's takes the earlier number, where
-#23 and the discussion of issue #2 propose a new one; and the change note,
-which the model does not have, plays no part.
+the document's own files (sources, renditions, change note) from note files;
+see ["Next"](https://github.com/opensheaf/opensheaf-lean#next) in the
+README. The choice decides three more cases of #23: a file renamed is new
+content (files are compared by path and digest); a version whose content
+returns to an earlier version's takes the earlier number, where #23 and the
+discussion of issue #2 propose a new one; and the change note, which the
+model does not have, plays no part.
 
 Two parts of section 7.3 are not modelled: the completion of a version
 deposited without its sources, which keeps its number while adding files,

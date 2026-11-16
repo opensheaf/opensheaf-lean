@@ -519,10 +519,12 @@ the same version whoever holds it.
 It holds exactly the files vetted. It is a well-formed object, whose only
 pins are the references of the revision; creating it is a valid step
 whenever the identifier is free in the selection's archive, the source pin
-resolves to the revision copied, the revision is a document (section 10.5:
-a copy of a collection would lose its member list), and the references may
-be held by a new version (they resolve, or report `removed` and are carried
-over).
+resolves to the revision copied, and the references may be held by a new
+version (they resolve, or report `removed` and are carried over). Section
+10.5 speaks of copying a revision, a document. The model does not check
+that: a copy of a collection version is a valid step too, and, since the
+model keeps member lists apart from files, the copy loses the member list.
+The tools copy only documents.
 
     omit [DecidableEq D] in
     theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
@@ -536,7 +538,7 @@ over).
 
     theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
         (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
-        (d c m : String) (hsrc : resolve hash w src = .ok v) (_hdoc : v.members = none)
+        (d c m : String) (hsrc : resolve hash w src = .ok v)
         (hrefs : ∀ r ∈ v.refs, PinOk hash w r.pin) :
         ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
       .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)

@@ -130,8 +130,10 @@ The main theorem follows from the sheaf condition of the first chapter.
 
 The theorem holds after takedowns too. A takedown removes the sections of
 the copy taken down, and the remaining ones still glue; the named document
-versions it held stay held if a mirror keeps them (chapter
-[Names are eternal](70-eternal.md), `Event.persist`).
+versions it held stay held if a mirror keeps them, since a takedown
+changes only the entry taken down (`lookup_takedown_eq`, in the model).
+Chapter [Names are eternal](70-eternal.md) proves what holds in general:
+a name stays held, or its object is taken down (`Event.persist`).
 
 ## Holding
 

@@ -356,7 +356,7 @@ theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Vers
 
 theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
     (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
-    (d c m : String) (hsrc : resolve hash w src = .ok v) (_hdoc : v.members = none)
+    (d c m : String) (hsrc : resolve hash w src = .ok v)
     (hrefs : ∀ r ∈ v.refs, PinOk hash w r.pin) :
     ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
   .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)

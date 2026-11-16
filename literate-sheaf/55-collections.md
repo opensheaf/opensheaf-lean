@@ -183,8 +183,9 @@ version its pin resolves to. The glued section restricts to the section of
 the member's own object, at the object version pinned, whose value there is
 that version's content (chapter [Pins and accepted copies](50-pins.md)). So
 below a selection version, the glued section gives the revisions it vetted
-the content their pins fix, and everything else below it (earlier versions,
-what the revisions pin in turn) the content it has; whichever copies the
+the content their pins fix, and everything else below it (earlier
+versions, what the member lists of collections among them pin) the content
+it has; whichever copies the
 values are read from, they agree.
 
     /-- **The value at a member is what its pin fixes.** -/
@@ -203,7 +204,7 @@ Together: in a world built by events, below every held collection version
 lies each member it pins, with the content its pin fixes, or the member
 was taken down and its pin reports `removed`.
 
-    /-- **The stalk of a collection version**: each member it pins, with the
+    /-- **What lies below a collection version**: each member it pins, with the
     content its pin fixes, or a takedown reported. -/
     theorem collection_members {w : World D}
         (hs : Events hash (fun _ => (none : Option (Archive D))) w)
