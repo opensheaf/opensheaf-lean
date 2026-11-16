@@ -57,7 +57,9 @@ receives it by mirroring it: the mirror is the receipt.
 The supervisor's comments are a document of the department, deposited by
 the supervisor. They point to the version commented on by a `Reviews`
 reference ([chapter 13](80-references.md)), which pins version 1 of the
-thesis; the step checks that the pin resolves.
+thesis; the step checks that the pin resolves. In the specification,
+`Reviews` is a DataCite relation that tools do not follow; here it is the
+pinned reference proposed in issues #21 and #28.
 
     def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
 

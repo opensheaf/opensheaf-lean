@@ -208,10 +208,7 @@ was taken down and its pin reports `removed`.
           resolve hash w p = .removed := by
       rcases members_below hash hs hl hv hp with ⟨o, u, ho, hr, hle⟩ | hr
       · left
-        have hx : HeldIn w (c.name v) := by
-          have hwf := ((Events.sound hash hs).1 _ _ _ hl).history
-          exact ⟨⟨b, i, c, hl, c.versions.length⟩, (covers_iff hwf _ _).mpr
-            ⟨v, by rw [List.take_length]; exact hv, rfl⟩⟩
+        have hx := heldIn_of_live hash (Events.sound hash hs) hl hv
         have hy := heldIn_open_byPins hash (Events.sound hash hs) hle hx
         exact ⟨o, u, ho, hr, hle, hy, glue_at_member hash hs hg ho hr hy⟩
       · exact Or.inr hr

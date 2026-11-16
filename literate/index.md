@@ -118,8 +118,10 @@ The model keeps only what the properties depend on.
   when they are made (or report `removed`, if carried over from a version
   already held), mirrors that may start as a
   partial copy (issue #13), the states of issue #29, and pinned references
-  between documents (issues #21 and #28), which accepted copies keep. Each
-  is marked in its chapter.
+  between documents (issues #21 and #28), which accepted copies keep,
+  resolution through mirrors that passes over a mismatch (issue #37), and
+  three choices in the check of a copy's source. Each is marked in its
+  chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
   the discovery document are left out. The pins of the model are those of

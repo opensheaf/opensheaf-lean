@@ -1,6 +1,6 @@
 # Pins and accepted copies
 
-The previous chapter proved that copies agree in a world built by valid
+The previous chapter proved that copies agree in a world built by
 events. There the agreement comes from the protocol: the steps that write
 mirrors, and the rule of section 7.3. A pin gives agreement in another way,
 from the digest. Any two objects that resolve the same pin give the same
