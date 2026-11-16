@@ -207,9 +207,10 @@ down, which no verifier could ever check.
     theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk hash w p) : Held hash w p :=
       h.elim Or.inl fun h => Or.inr h.1
 
-A pin held after an entry is set was held before, unless the new entry
-holds it. With it, one shows that a world does not hold a pin by walking
-back through the steps that built it (chapter [A story](70-story.md)).
+A pin held after an entry is set was held before, unless the new entry holds
+it; a new, empty archive holds none. With it, one shows that a world does
+not hold a pin by walking back through the steps that built it (chapter [A
+story](70-story.md)).
 
     omit [DecidableEq D] in
     theorem heldBy_setEntry {w : World D} {a : ArchiveId} {oid : ObjectId} {e : Entry D}
@@ -228,6 +229,14 @@ back through the steps that built it (chapter [A story](70-story.md)).
           exact absurd hp (he c hl v hv)
         · simp only [hbi, ite_false] at hl
           exact ⟨b, i, c, v, hl, hv, hp⟩
+
+    omit [DecidableEq D] in
+    theorem heldBy_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w a = none)
+        (hempty : ∀ x, ar.entries x = none) {p : Pin D}
+        (hb : HeldBy (fun b => if b = a then some ar else w b) p) : HeldBy w p := by
+      unfold HeldBy at hb ⊢
+      simp only [lookup_newArchive h hempty] at hb
+      exact hb
 
 A version that records the version it copies (an accepted copy, section
 10.5) holds exactly that version's files, when the source resolves. Section
@@ -263,7 +272,7 @@ ways, each a **modelling choice**:
       have := List.all_eq_true.mp h v hv
       simpa using this
 
-    /-- The steps that the specification allows. -/
+    /-- The valid steps: the model's reading of what the specification allows. -/
     inductive ValidStep : World D → World D → Prop
       | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
           (hempty : ∀ x, ar.entries x = none) :
@@ -517,7 +526,7 @@ asks, and its pins resolve.
       unfold Version.membersOk at hmo
       rw [hc] at hmo
       refine ⟨(hmo m hm).1, fun p hp => hw.2.1 _ _ _ hl v hv p ?_⟩
-      simp only [Version.pins, hc, Members.pins]
+      simp only [Version.pins, Version.memberPins, hc, Members.pins]
       exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
 ## Takedowns among the steps

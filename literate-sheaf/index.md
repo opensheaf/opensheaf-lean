@@ -26,8 +26,8 @@ Like the model, it is **non-normative**. Where it and the
 - **The sections** come from object versions. Each object version, kept in
   its own archive or in a mirror, says what every document version up to
   it holds: a section over an open set.
-- **The theorem.** In every world built from nothing by the events the
-  specification allows, the sections of all copies of all objects are
+- **The theorem.** In every world built from nothing by the model's valid
+  steps and takedowns, the sections of all copies of all objects are
   compatible, and glue into exactly one section: one content for each
   named document version, whichever copy and whichever object version it is
   read from.
@@ -72,7 +72,8 @@ shows which rules of the specification make the pieces agree:
    one object version at a time holds of the whole;
 5. [Pins and accepted copies](50-pins.md): a pin names a section, in any
    world; an accepted copy holds the vetted content at another point, and
-   every copy in a world built by events holds the files of its source;
+   every copy in a world built by events holds, at its first version, the
+   files of its source, when the source resolves;
 6. [Collections and what they pin](55-collections.md): the pins of member
    lists added to the order; below a collection version lies each member
    it pins, with the content its pin fixes, unless it was taken down;
@@ -90,7 +91,8 @@ shows which rules of the specification make the pieces agree:
    valid steps remove nothing, and the values below agree;
 11. [Verification is lifting](72-lifting.md): pins are points of a sheaf of
    digests, verification lifts them to the sheaf of inventories, the lift is
-   unique without collisions, and every copy gives the same verdict;
+   unique without collisions, and every copy that holds the pinned version
+   gives the same verdict;
 12. [Verification is local](74-local.md): restricting a world restricts its
    sheaf, and a collection verifies in its support as in the whole world;
 13. [Separate worlds](76-federation.md): worlds built by events refer only
@@ -130,9 +132,10 @@ every module:
 
 **Descriptions.** Two object versions may describe the same document
 version differently: a description-only version adds a DOI, corrects a
-stage or a title, or adds a withdrawal (section 7.3); a notice, which the
-specification also adds this way, is a file, so new content in the model
-(chapter [Named document versions](20-base.md)). Their
+stage or a title, or adds a withdrawal or a notice (section 7.3). A notice
+or the reason of a withdrawal kept as a file is new content in the model,
+so a new document version (chapter [Named document versions](20-base.md)).
+Their
 descriptions do not agree, and are not meant to. The specification settles
 them by authority, not by agreement: the head of the object describes it,
 and earlier object versions keep the description as it was known when they

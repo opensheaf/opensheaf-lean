@@ -187,20 +187,22 @@ theorem pinsTo_old {w w' : World D} (hw : SoundWorld hash w) (hstep : Step w w')
   · exact ⟨o, v, p, hl, hv, hp, ⟨u', hu'⟩, ht⟩
   · rw [Step.resolve_removed hash hstep hr] at hu; cases hu
 
-theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
-    {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
-    (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
-    (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
-    Held hash w p := by
+/-- After a valid step, a version is one the world had, at the same number,
+or its pins were checked by the step. -/
+theorem ValidStep.old_or_checked {w w' : World D} (hs : ValidStep hash w w')
+    {b : ArchiveId} {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
+    (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v) :
+    (∃ o, lookup w b x = some (.live o) ∧ o.versionAt n = some v) ∨
+      ∀ p ∈ v.pins, Held hash w p := by
   cases hs with
   | newArchive a ar ha hempty =>
     rw [lookup_newArchive ha hempty] at hl'
-    exact absurd ⟨o', v, hl', hv⟩ hnew
+    exact Or.inl ⟨o', hl', hv⟩
   | create a ar oid o ha ho _ hpins _ =>
     rw [lookup_setEntry ha] at hl'
     split at hl'
-    · cases hl'; exact (hpins v (versionAt_mem hv) p hp).held
-    · exact absurd ⟨o', v, hl', hv⟩ hnew
+    · cases hl'; exact Or.inr fun p hp => (hpins v (versionAt_mem hv) p hp).held
+    · exact Or.inl ⟨o', hl', hv⟩
   | append a ar oid o y ha ho _ _ _ _ hpins _ =>
     rw [lookup_setEntry ha] at hl'
     split at hl'
@@ -208,9 +210,18 @@ theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : Arch
       obtain ⟨rfl, rfl⟩ := hc
       cases hl'
       rcases versionAt_append hv with hv | ⟨_, rfl⟩
-      · exact absurd ⟨o, v, by simp [lookup, ha, ho], hv⟩ hnew
-      · exact (hpins p hp).held
-    · exact absurd ⟨o', v, hl', hv⟩ hnew
+      · exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
+      · exact Or.inr fun p hp => (hpins p hp).held
+    · exact Or.inl ⟨o', hl', hv⟩
+
+theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
+    {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
+    (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
+    (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
+    Held hash w p := by
+  rcases hs.old_or_checked hash hl' hv with ⟨o, ho, hvo⟩ | h
+  · exact absurd ⟨o, v, ho, hvo⟩ hnew
+  · exact h p hp
 
 theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
     (hr : Ranked hash w) : Ranked hash w' := by

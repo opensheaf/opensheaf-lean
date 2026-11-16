@@ -6,19 +6,10 @@ namespace OpenSheaf.Sheaf
 variable {D : Type} [DecidableEq D] (hash : Hash D)
 
 omit [DecidableEq D] in
-/-- The pins of the member list of an object version. -/
-def _root_.OpenSheaf.Version.memberPins (v : Version D) : List (Pin D) :=
-  match v.members with
-  | none => []
-  | some ms => ms.pins
-
-omit [DecidableEq D] in
-theorem memberPins_sub {v : Version D} {p : Pin D} (h : p ∈ v.memberPins) : p ∈ v.pins := by
-  unfold Version.memberPins at h
-  unfold Version.pins
-  cases hm : v.members with
-  | none => simp [hm] at h
-  | some ms => simp only [hm] at h ⊢; exact List.mem_append_left _ h
+/-- The pins of a member list (the model's `Version.memberPins`) are pins
+of the version. -/
+theorem memberPins_sub {v : Version D} {p : Pin D} (h : p ∈ v.memberPins) : p ∈ v.pins :=
+  List.mem_append_left _ h
 
 /-- `y` comes before `x` by a pin: a version holding `x`, kept anywhere,
 pins in its member list an object version that resolves, and that holds

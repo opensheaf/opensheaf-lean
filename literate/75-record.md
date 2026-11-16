@@ -47,21 +47,22 @@ receives it by mirroring it: the mirror is the receipt.
 
     theorem a3 : StepBy toy "student" r2 r3 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [thesis1, t1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+        (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
     theorem a4 : StepBy toy "registry" r3 r4 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [thesis1, t1, Version.pins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
+        (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
         (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 The supervisor's comments are a document of the department, deposited by
-the supervisor. In the specification they point to the version commented
-on by a `Reviews` relation; the model's references
-([chapter 13](80-references.md)) could carry it, but the record below
-simply pins both.
+the supervisor. They point to the version commented on by a `Reviews`
+reference ([chapter 13](80-references.md)), which pins version 1 of the
+thesis; the step checks that the pin resolves.
+
+    def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
 
     def c1 : Version Nat :=
-      { documentVersion := 1, files := [("comments.pdf", 41)],
+      { documentVersion := 1, files := [("comments.pdf", 41)], refs := [⟨"Reviews", pinT1⟩],
         description := "Comments on version 1", depositor := "supervisor", message := "comments" }
 
     def comments : Obj Nat :=
@@ -71,7 +72,9 @@ simply pins both.
 
     theorem a5 : StepBy toy "supervisor" r4 r5 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [comments, c1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+        (fun v hv p hp => pinOk_of_isOk ((by decide :
+          ∀ v ∈ comments.versions, ∀ p ∈ v.pins, (resolve toy r4 p).isOk = true) v hv p hp))
+        (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 ## The record
 
@@ -79,7 +82,6 @@ The record is a selection of the department, which pins each document of
 the process in the version that played its part: here, version 1 of the
 thesis and the comments on it. The registry deposits it.
 
-    def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
     def pinC1 : Pin Nat := ⟨"dept", "comments-1", 1, toy (comments.inventory 1)⟩
 
     def rec1 : Members Nat :=
@@ -119,11 +121,11 @@ examiner reports on version 2.
 
     theorem a7 : StepBy toy "student" r6 r7 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
+        (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
     theorem a8 : StepBy toy "registry" r7 r8 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
+        (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
         (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
     def e1 : Version Nat :=
@@ -137,7 +139,7 @@ examiner reports on version 2.
 
     theorem a9 : StepBy toy "examiner" r8 r9 :=
       .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [report, e1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+        (by simp [report, e1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 The registry records the examination: a new version of the record, whose
 revision set for the thesis grows to versions 1 and 2, and which adds the
@@ -192,9 +194,11 @@ played its part.
         [(pinT1, .ok t1), (pinT2, .ok t2), (pinC1, .ok c1), (pinE1, .ok e1)] := by decide
 
 The comments still point to version 1, the version they were written about,
-although the thesis has moved on: the head of the thesis is version 2.
+although the thesis has moved on: the reference of the comments resolves
+to version 1, while the head of the thesis is version 2.
 
-    example : resolve toy r10 pinT1 = .ok t1 ∧ headPin toy r10 "student" "thesis" = some pinT2 := by
+    example : c1.refs.map (fun r => resolve toy r10 r.pin) = [.ok t1] ∧
+        headPin toy r10 "student" "thesis" = some pinT2 := by
       decide
 
 The record's first version is kept, as the history of the process: its pin

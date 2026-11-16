@@ -25,15 +25,17 @@ def r4 : World Nat := setEntry r3 "dept" "thesis" (.live thesis1)
 
 theorem a3 : StepBy toy "student" r2 r3 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [thesis1, t1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 theorem a4 : StepBy toy "registry" r3 r4 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [thesis1, t1, Version.pins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
+    (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
     (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
+def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
+
 def c1 : Version Nat :=
-  { documentVersion := 1, files := [("comments.pdf", 41)],
+  { documentVersion := 1, files := [("comments.pdf", 41)], refs := [⟨"Reviews", pinT1⟩],
     description := "Comments on version 1", depositor := "supervisor", message := "comments" }
 
 def comments : Obj Nat :=
@@ -43,9 +45,10 @@ def r5 : World Nat := setEntry r4 "dept" "comments-1" (.live comments)
 
 theorem a5 : StepBy toy "supervisor" r4 r5 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [comments, c1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    (fun v hv p hp => pinOk_of_isOk ((by decide :
+      ∀ v ∈ comments.versions, ∀ p ∈ v.pins, (resolve toy r4 p).isOk = true) v hv p hp))
+    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
-def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
 def pinC1 : Pin Nat := ⟨"dept", "comments-1", 1, toy (comments.inventory 1)⟩
 
 def rec1 : Members Nat :=
@@ -79,11 +82,11 @@ def r8 : World Nat := setEntry r7 "dept" "thesis" (.live thesis2)
 
 theorem a7 : StepBy toy "student" r6 r7 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [t2, Version.revise, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
+    (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
 theorem a8 : StepBy toy "registry" r7 r8 :=
   .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (by simp [t2, Version.revise, Version.pins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
+    (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
     (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
 
 def e1 : Version Nat :=
@@ -97,7 +100,7 @@ def r9 : World Nat := setEntry r8 "dept" "report-1" (.live report)
 
 theorem a9 : StepBy toy "examiner" r8 r9 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [report, e1, Version.pins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    (by simp [report, e1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinT2 : Pin Nat := ⟨"student", "thesis", 2, toy (thesis2.inventory 2)⟩
 def pinE1 : Pin Nat := ⟨"dept", "report-1", 1, toy (report.inventory 1)⟩
@@ -137,7 +140,8 @@ example : WFWorld toy r10 := valid.wf toy (WFWorld.empty toy)
 example : verify toy r10 rec2 =
     [(pinT1, .ok t1), (pinT2, .ok t2), (pinC1, .ok c1), (pinE1, .ok e1)] := by decide
 
-example : resolve toy r10 pinT1 = .ok t1 ∧ headPin toy r10 "student" "thesis" = some pinT2 := by
+example : c1.refs.map (fun r => resolve toy r10 r.pin) = [.ok t1] ∧
+    headPin toy r10 "student" "thesis" = some pinT2 := by
   decide
 
 def pinG1 : Pin Nat := ⟨"dept", "record", 1, toy (record2.inventory 1)⟩

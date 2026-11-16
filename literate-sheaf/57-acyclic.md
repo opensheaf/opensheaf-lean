@@ -183,9 +183,10 @@ Besides the model's `Step.ok_back` (a pin held before a step that
 resolves after it resolved before it, to the same version), a valid step
 needs two facts.
 
-A named document version that was not held before the step was made by
-it, so the step checked its pins: they resolved, or reported `removed`,
-before the step (the premise `hpins` of the model's valid steps).
+A named document version that was not held before the step was made by it,
+so the step checked its pins (the model's `ValidStep.old_or_checked`): they
+resolved, or reported `removed`, before the step (the premise `hpins` of the
+model's valid steps).
 
     /-- A version whose named document version was not held before a valid step
     was made by it, so its pins were checked. -/
@@ -193,25 +194,15 @@ before the step (the premise `hpins` of the model's valid steps).
         {b : ArchiveId} {i : ObjectId} {c : Obj D} (hl : lookup w' b i = some (.live c))
         {v : Version D} (hv : v ∈ c.versions) (hnew : ¬ HeldIn w (c.name v))
         {p : Pin D} (hp : p ∈ v.pins) : Held hash w p := by
-      cases hs with
-      | newArchive a ar ha hempty =>
-        rw [lookup_newArchive ha hempty] at hl
-        exact absurd (heldIn_of_live hash hw hl hv) hnew
-      | create a ar oid o ha ho _ hpins _ =>
-        rw [lookup_setEntry ha] at hl
-        split at hl
-        · cases hl; exact (hpins v hv p hp).held
-        · exact absurd (heldIn_of_live hash hw hl hv) hnew
-      | append a ar oid o y ha ho _ _ _ _ hpins _ =>
-        rw [lookup_setEntry ha] at hl
-        split at hl
-        · cases hl
-          have hlo : lookup w a oid = some (.live o) := by simp [lookup, ha, ho]
-          simp only [Obj.append, List.mem_append, List.mem_singleton] at hv
-          rcases hv with hv | rfl
-          · exact absurd (heldIn_of_live hash hw hlo hv) hnew
-          · exact (hpins p hp).held
-        · exact absurd (heldIn_of_live hash hw hl hv) hnew
+      obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hv
+      have hva : c.versionAt (k + 1) = some c.versions[k] := by
+        simp [Obj.versionAt, List.getElem?_eq_getElem hk]
+      rcases hs.old_or_checked hash hl hva with ⟨o, ho, hvo⟩ | h
+      · obtain ⟨c', hl', ha, hi, _⟩ := (hs.toStep hash).live_grows ho
+        rw [hl] at hl'; cases hl'
+        have he : o.name c.versions[k] = c.name c.versions[k] := by simp only [Obj.name, ha, hi]
+        exact absurd (he ▸ heldIn_of_live hash hw ho (versionAt_mem hvo)) hnew
+      · exact h p hp
 
 Two versions that hold the same named document version have the same
 member list, since they have the same content (`holds_agree`). So an edge out of a named

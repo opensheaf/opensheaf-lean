@@ -546,7 +546,7 @@ The tools copy only documents.
           intro x hx p hp
           simp only [acceptedCopy, List.mem_singleton] at hx
           subst hx
-          simp only [copyVersion, Version.pins, List.nil_append, List.mem_map] at hp
+          simp only [copyVersion, Version.pins, Version.memberPins, List.nil_append, List.mem_map] at hp
           obtain ⟨r, hr, rfl⟩ := hp
           exact hrefs r hr)
         (Or.inl rfl) (fun _ => by simp [HeadFollows, acceptedCopy, copyVersion, Version.FollowsHeads])

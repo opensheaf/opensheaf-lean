@@ -112,6 +112,14 @@ theorem heldBy_setEntry {w : World D} {a : ArchiveId} {oid : ObjectId} {e : Entr
     · simp only [hbi, ite_false] at hl
       exact ⟨b, i, c, v, hl, hv, hp⟩
 
+omit [DecidableEq D] in
+theorem heldBy_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w a = none)
+    (hempty : ∀ x, ar.entries x = none) {p : Pin D}
+    (hb : HeldBy (fun b => if b = a then some ar else w b) p) : HeldBy w p := by
+  unfold HeldBy at hb ⊢
+  simp only [lookup_newArchive h hempty] at hb
+  exact hb
+
 /-- The source a version records, if any, is checked (sections 10.5, 14). -/
 def SourceOk (w : World D) (x : Version D) : Prop :=
   ∀ src, x.source = some src →
@@ -130,7 +138,7 @@ theorem sourceOk_all_none {w : World D} {l : List (Version D)}
   have := List.all_eq_true.mp h v hv
   simpa using this
 
-/-- The steps that the specification allows. -/
+/-- The valid steps: the model's reading of what the specification allows. -/
 inductive ValidStep : World D → World D → Prop
   | newArchive (w : World D) (a : ArchiveId) (ar : Archive D) (h : w a = none)
       (hempty : ∀ x, ar.entries x = none) :
@@ -332,7 +340,7 @@ theorem ValidSteps.members_pinned {w : World D}
   unfold Version.membersOk at hmo
   rw [hc] at hmo
   refine ⟨(hmo m hm).1, fun p hp => hw.2.1 _ _ _ hl v hv p ?_⟩
-  simp only [Version.pins, hc, Members.pins]
+  simp only [Version.pins, Version.memberPins, hc, Members.pins]
   exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨m, hm, hp⟩)
 
 /-- A valid step, or a takedown (section 11.2). -/

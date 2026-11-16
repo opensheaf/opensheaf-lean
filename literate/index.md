@@ -28,7 +28,8 @@ The chapters build the model from the bottom up:
    change archives, immutability, and takedown;
 4. [Catalogues and selections](40-collection.md): what updating a
    collection does to each kind;
-5. [Well-formed worlds](45-worlds.md): the steps the specification allows,
+5. [Well-formed worlds](45-worlds.md): the valid steps, the model's reading
+   of what the specification allows,
    and what they guarantee: well-formed objects and member lists,
    identifiers never reused, objects that only grow, every member pinned;
    then takedowns among the events, after which every pin held resolves or
@@ -61,10 +62,10 @@ The chapters build the model from the bottom up:
    to break the protocol that fail, among them a pin made afresh into an
    object taken down;
 12. [A learning record, checked by computation](75-record.md): a second
-   story, a student's thesis and the department's record of it, with a
-   receipt of each submission, comments tied to the version commented on,
-   a rewrite caught by the receipt, and the record deleted at the end of
-   its retention;
+    story, a student's thesis and the department's record of it, with a
+    receipt of each submission, comments tied by a reference to the version
+    commented on, a rewrite caught by the receipt, and the record deleted at
+    the end of its retention;
 13. [References between documents](80-references.md): pinned references
    from one document to an exact version of another (the proposals of
    issues #21 and #28): they never dangle and form no cycles, a pin fixes

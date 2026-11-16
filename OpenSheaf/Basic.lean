@@ -80,11 +80,15 @@ structure Version (D : Type) where
 def Members.pins {D : Type} (c : Members D) : List (Pin D) :=
   c.members.flatMap (·.pins)
 
+/-- The pins of the member list of an object version, if any. -/
+def Version.memberPins {D : Type} (v : Version D) : List (Pin D) :=
+  match v.members with
+  | none => []
+  | some ms => ms.pins
+
 /-- The pins held by an object version: those of its member list and of its
 references. -/
 def Version.pins {D : Type} (v : Version D) : List (Pin D) :=
-  (match v.members with
-    | none => []
-    | some ms => ms.pins) ++ v.refs.map (·.pin)
+  v.memberPins ++ v.refs.map (·.pin)
 
 end OpenSheaf

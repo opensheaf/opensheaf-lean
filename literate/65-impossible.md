@@ -278,20 +278,22 @@ pins were checked by the step: they resolved before it, or reported
 `removed`. This is the only place where the proof looks at the kind of
 step.
 
-    theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
-        {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
-        (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
-        (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
-        Held hash w p := by
+    /-- After a valid step, a version is one the world had, at the same number,
+    or its pins were checked by the step. -/
+    theorem ValidStep.old_or_checked {w w' : World D} (hs : ValidStep hash w w')
+        {b : ArchiveId} {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
+        (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v) :
+        (∃ o, lookup w b x = some (.live o) ∧ o.versionAt n = some v) ∨
+          ∀ p ∈ v.pins, Held hash w p := by
       cases hs with
       | newArchive a ar ha hempty =>
         rw [lookup_newArchive ha hempty] at hl'
-        exact absurd ⟨o', v, hl', hv⟩ hnew
+        exact Or.inl ⟨o', hl', hv⟩
       | create a ar oid o ha ho _ hpins _ =>
         rw [lookup_setEntry ha] at hl'
         split at hl'
-        · cases hl'; exact (hpins v (versionAt_mem hv) p hp).held
-        · exact absurd ⟨o', v, hl', hv⟩ hnew
+        · cases hl'; exact Or.inr fun p hp => (hpins v (versionAt_mem hv) p hp).held
+        · exact Or.inl ⟨o', hl', hv⟩
       | append a ar oid o y ha ho _ _ _ _ hpins _ =>
         rw [lookup_setEntry ha] at hl'
         split at hl'
@@ -299,9 +301,18 @@ step.
           obtain ⟨rfl, rfl⟩ := hc
           cases hl'
           rcases versionAt_append hv with hv | ⟨_, rfl⟩
-          · exact absurd ⟨o, v, by simp [lookup, ha, ho], hv⟩ hnew
-          · exact (hpins p hp).held
-        · exact absurd ⟨o', v, hl', hv⟩ hnew
+          · exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
+          · exact Or.inr fun p hp => (hpins p hp).held
+        · exact Or.inl ⟨o', hl', hv⟩
+
+    theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
+        {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
+        (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
+        (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
+        Held hash w p := by
+      rcases hs.old_or_checked hash hl' hv with ⟨o, ho, hvo⟩ | h
+      · exact absurd ⟨o, v, ho, hvo⟩ hnew
+      · exact h p hp
 
 The main lemma: a valid step keeps a numbering in which pins go down. The
 versions that existed before the step keep their numbers, and the new ones
@@ -392,8 +403,9 @@ alone.
 
 In particular a version cannot pin itself, and two collections cannot pin
 each other: both would be cycles. Section 10.2 attributes this to the
-hashes (a pin names a digest, which cannot be known before the version
-exists). The model shows that the protocol is enough: a valid step pins
+hashes ("collections are hash trees"); the reason, in the model's reading,
+is that a pin names a digest, which cannot be known before the version
+exists. The model shows that the protocol is enough: a valid step pins
 only what already exists. The hashes make it hold also for copies that come
 from outside the protocol.
 

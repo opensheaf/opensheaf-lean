@@ -99,12 +99,12 @@ formed (`rfl` checks the identifier, `decide` the other five conditions),
 its versions hold no pins, and it belongs to the archive that keeps it.
 
     theorem s4 : StepBy toy "author" w3 w4 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins, Version.memberPins])
         (Or.inl rfl) (by decide)
         (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
     theorem s5 : StepBy toy "coauthor" w4 w5 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [notes, n1, Version.pins, Version.memberPins])
         (Or.inl rfl) (by decide)
         (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
@@ -174,7 +174,7 @@ and extends it (here, equals it).
     def w8 : World Nat := setEntry w7 "coauthor" "paper" (.live paper)
 
     theorem s8 : StepBy toy "coauthor" w7 w8 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins])
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩ (by simp [paper, v1, Version.pins, Version.memberPins])
         (Or.inr ⟨paper, rfl, rfl, [], by simp⟩) (by decide)
         (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
@@ -204,12 +204,12 @@ Both extend the history, as `decide` checks against the rule of section
 
     theorem s9 : StepBy toy "author" w8 w9 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [v2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
+        (by simp [v2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide)
         (by decide) (by decide) (sourceOk_none toy rfl)
 
     theorem s10 : StepBy toy "author" w9 w10 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [v3, v1, Version.describe, Version.pins]) (Or.inl rfl) (by decide)
+        (by simp [v3, v1, Version.describe, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide)
         (by decide) (by decide) (sourceOk_none toy rfl)
 
     example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
@@ -254,12 +254,12 @@ step is valid because it copies the original's next version.
 
     theorem s12 : StepBy toy "coauthor" w11 w12 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [v2, Version.revise, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩) (by decide)
+        (by simp [v2, Version.revise, Version.pins, Version.memberPins]) (Or.inr ⟨paper3, rfl, rfl, [v3], rfl⟩) (by decide)
         (by decide) (by decide) (sourceOk_none toy rfl)
 
     theorem s13 : StepBy toy "coauthor" w12 w13 :=
       .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [v3, v1, Version.describe, Version.pins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩) (by decide)
+        (by simp [v3, v1, Version.describe, Version.pins, Version.memberPins]) (Or.inr ⟨paper3, rfl, rfl, [], rfl⟩) (by decide)
         (by decide) (by decide) (sourceOk_none toy rfl)
 
 ## The journal keeps an accepted copy
@@ -274,7 +274,7 @@ The journal keeps its own copy of the revision it vetted (section 10.5).
 
     theorem s14 : StepBy toy "editor" w13 w14 :=
       .create _ _ _ _ _ rfl rfl (acceptedCopy_wf _ _ _ _ _ _ _)
-        (by simp [copy, acceptedCopy, copyVersion, Version.pins, v1]) (Or.inl rfl) (by decide)
+        (by simp [copy, acceptedCopy, copyVersion, Version.pins, Version.memberPins, v1]) (Or.inl rfl) (by decide)
         (by decide) (by decide)
         (by
           intro x hx src hs
@@ -426,18 +426,11 @@ touched.
 A pin of the paper made afresh, after the takedown, is refused: it reports
 `removed`, and no version of the world holds it already. Version 2 of the
 paper was never pinned, so a collection cannot start pinning it now. The
-proof walks back through the story with `heldBy_setEntry`
+proof walks back through the story with `heldBy_setEntry` and
+`heldBy_newArchive`
 ([chapter 5](45-worlds.md)): no step put such a pin in any version.
 
     def pinV2 : Pin Nat := ⟨"author", "paper", 2, toy (paper3.inventory 2)⟩
-
-    theorem heldBy_newArchive {w : World Nat} {x : ArchiveId} {ws : List Agent} {p : Pin Nat}
-        (h : HeldBy (fun b => if b = x then some (emptyArchive ws) else w b) p) :
-        HeldBy w p := by
-      obtain ⟨b, i, c, v, hl, hv, hp⟩ := h
-      by_cases hb : b = x
-      · simp [lookup, hb, emptyArchive] at hl
-      · exact ⟨b, i, c, v, by simpa [lookup, hb] using hl, hv, hp⟩
 
     theorem pinV2_unheld : ¬ HeldBy wDown pinV2 := by
       intro h
@@ -456,7 +449,9 @@ proof walks back through the story with `heldBy_setEntry`
       have h := heldBy_setEntry h (no _ (by decide))
       have h := heldBy_setEntry h (no _ (by decide))
       have h := heldBy_setEntry h (no _ (by decide))
-      have h := heldBy_newArchive (heldBy_newArchive (heldBy_newArchive h))
+      have h := heldBy_newArchive (ar := emptyArchive ["coauthor"]) rfl (fun _ => rfl) h
+      have h := heldBy_newArchive (ar := emptyArchive ["editor"]) rfl (fun _ => rfl) h
+      have h := heldBy_newArchive (ar := emptyArchive ["author"]) rfl (fun _ => rfl) h
       obtain ⟨_, _, _, _, hl, _⟩ := h
       simp [lookup, w0] at hl
 

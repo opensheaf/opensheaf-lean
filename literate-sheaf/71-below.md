@@ -3,12 +3,14 @@
 Citing a selection version by its pin is meant to fix what the selection
 vetted: the revisions it pins and, for those that are collections, what
 their member lists pin, and so on. The references of documents are not in
-the order (see the introduction). In the
-order with pins (chapter [Collections and what they pin](55-collections.md))
-these lie below the selection version, together with the earlier versions
-of each, which the selection did not vet (section 10.1) but which its pins
-fix all the same. This chapter proves that
-later events cannot change it, except by taking things down:
+the order (see the introduction). In the order with pins (chapter
+[Collections and what they pin](55-collections.md)) these lie below the
+selection version, together with more that the selection version did not
+vet but its pin fixes all the same: the earlier versions of each revision
+(section 10.1), and the selection's own earlier versions with what they
+pinned, including revisions the curator has since removed. This chapter
+proves that later events cannot change any of it, except by taking things
+down:
 
 - **nothing new below**: once a named document version is held, no later
   event adds anything below it; whatever lies below it in a later world,

@@ -96,7 +96,7 @@ def y3 : World Nat := setEntry y2 "author" "kpz-details" (.live details2)
 
 theorem b3 : StepBy toy "author" y2 y3 :=
   .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [details2, d1, d2, Version.revise, Version.pins]) (Or.inl rfl) (by decide)
+    (by simp [details2, d1, d2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide)
     (by decide) (by decide) (sourceOk_all_none toy (by decide))
 
 def pinD2 : Pin Nat := ⟨"author", "kpz-details", 2, toy (details2.inventory 2)⟩

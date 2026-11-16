@@ -4,8 +4,8 @@ A world of the model holds objects in archives, and the same object may be
 held in several places: in its own archive, and in the archives that mirror
 it (section 10.4). Each copy, and each object version of each copy, gives a
 section over the named document versions it holds. This chapter proves the
-main theorem: in every world built from nothing by the events the
-specification allows (valid steps and takedowns), these sections are
+main theorem: in every world built from nothing by the model's events
+(valid steps and takedowns), these sections are
 compatible, so they glue, into exactly one section over every named
 document version held anywhere. Whichever copy and whichever object version
 a reader takes a document version from, they read the same content.
