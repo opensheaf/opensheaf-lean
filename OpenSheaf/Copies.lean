@@ -356,7 +356,7 @@ theorem acceptedCopy_wf (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Vers
 
 theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
     (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
-    (d c m : String) (hsrc : resolve hash w src = .ok v)
+    (d c m : String) (hsrc : resolve hash w src = .ok v) (_hdoc : v.members = none)
     (hrefs : ∀ r ∈ v.refs, PinOk hash w r.pin) :
     ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
   .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)
@@ -478,7 +478,7 @@ theorem Events.copyChecks {w : World D}
     {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) : CopyChecks hash w c :=
   fun x src h1 hsx u hu => (Events.sourcesOk hash hs b i c hl x (versionAt_mem h1) src hsx).2 u hu
 
-/-- **An accepted copy survives the original.** -/
+/-- **An accepted copy survives the original**, as every other object does. -/
 theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
     {o c : Obj D} {x : Version D} (hl : lookup w a oid = some (.live o))
     (hc : lookup w s cid = some (.live c)) (h1 : c.versionAt 1 = some x)

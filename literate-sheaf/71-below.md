@@ -3,7 +3,9 @@
 Citing a selection version by its pin is meant to fix what the selection
 vetted: the revisions it pins, what they pin in turn, and so on. In the
 order with pins (chapter [Collections and what they pin](55-collections.md))
-that is everything below the selection version. This chapter proves that
+these lie below the selection version, together with the earlier versions
+of each, which the selection did not vet (section 10.1) but which its pins
+fix all the same. This chapter proves that
 later events cannot change it, except by taking things down:
 
 - **nothing new below**: once a named document version is held, no later
@@ -14,8 +16,9 @@ later events cannot change it, except by taking things down:
 - **the same values**: below it, the glued sections of the two worlds agree
   (`below_values`).
 
-This is the property a Merkle structure has, proved here across time within
-one world, from the protocol, with no hypothesis on the digest function:
+This is the property a Merkle structure is meant to give, proved here
+across time within one world, from the protocol, with no hypothesis on the
+digest function and no use of it:
 the members of a version are fixed by its content, which never changes, and
 their pins resolve, when they resolve, to the versions they resolved to
 when they were written. Across worlds built independently, the same

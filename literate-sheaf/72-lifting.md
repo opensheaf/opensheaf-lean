@@ -34,6 +34,16 @@ that hold the object version a pin names cannot disagree on it: a mismatch
 through one of them is a mismatch through all of them. A copy that does not
 hold that version yet, a mirror lagging behind, reports it unavailable.
 
+Two limits. First, the inventory at an object version is computed from the
+history, as in the model: OCFL keeps a separate inventory file for each
+version, whose bytes the pin of a later version does not fix
+([issue #46](https://github.com/opensheaf/opensheaf.github.io/issues/46),
+open). That a copy holding a later version gives the same verdict on an
+earlier one rests on this abstraction. Second, a copy holds the object
+versions of the archive and object its own data name; a pin that names the
+archive hosting a mirror (issue #38) is not a point of the copy's set, and
+these theorems say nothing about it.
+
     -- in Sheaf/Lifting.lean:
     import Sheaf.Eternal
 

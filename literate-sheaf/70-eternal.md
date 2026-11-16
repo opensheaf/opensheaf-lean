@@ -49,7 +49,7 @@ nothing new.
     theorem Step.holds {w w' : World D} (hs : Step w w') {x : Name} {v : Version D}
         (h : Holds w x v) : Holds w' x v := by
       obtain ⟨b, i, c, hl, hv, rfl⟩ := h
-      obtain ⟨c', hl', ha, hi, t, ht⟩ := Step.live_kept hs hl
+      obtain ⟨c', hl', ha, hi, _, t, ht⟩ := hs.live_grows hl
       exact ⟨b, i, c', hl', by rw [ht]; exact List.mem_append_left _ hv,
         by simp only [Obj.name, ha, hi]⟩
 

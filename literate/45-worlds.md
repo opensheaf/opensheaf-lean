@@ -34,9 +34,10 @@ withdrawal, a description, an update), and a mirror copies them (sections
 10.2 and 11.3). A pin made afresh into an object taken down is refused.
 Such a pin names an object that never comes back, so it never resolves
 again. The freedom from cycles of
-[chapter 10](65-impossible.md) rests on this choice; for pins of versions
-that cannot be reached, it rests on the hashes, which the model does not
-use there.
+[chapter 10](65-impossible.md) rests on the first half of this choice, that
+a pin resolves, or reports `removed`, when it is made; for pins of versions
+that cannot be reached, it would rest on the hashes, which the model does
+not use there.
 
 The chapter also proves two facts about all steps, valid or not: an
 identifier taken down is never reused, and an object only grows, so that
@@ -209,8 +210,18 @@ down, which no verifier could ever check.
 A version that records the version it copies (an accepted copy, section
 10.5) holds exactly that version's files, when the source resolves. Section
 14 asks the verifier to check this "when the source is available"; the
-model asks the step to. A source that reports `removed` is accepted only if
-a version of the world already records it, as for pins.
+model asks the step to, and goes further than the specification in three
+ways, each a **modelling choice**:
+
+- the files are compared as lists, path, digest and order, where content
+  is elsewhere compared as a set; a copy made by the tools lists them in
+  the same order;
+- the check applies to every version that records a source, not only to
+  the first document version of an accepted copy (sections 10.5 and 14); a
+  later version of the copy that keeps the field must keep the files too;
+- the source must resolve when the version is made, or report `removed`
+  and be recorded already by a version of the world, as for pins; a source
+  that is unavailable is refused, where section 14 would skip the check.
 
     /-- The source a version records, if any, is checked (sections 10.5, 14). -/
     def SourceOk (w : World D) (x : Version D) : Prop :=
@@ -358,13 +369,13 @@ makes a step: it is proved in [chapter 7](49-acts.md).
     /-- **Objects only grow.** -/
     theorem Step.live_grows {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
         {o : Obj D} (h : lookup w b x = some (.live o)) :
-        ∃ o', lookup w' b x = some (.live o') ∧ o'.id = o.id ∧ o'.kind = o.kind ∧
-          ∃ t, o'.versions = o.versions ++ t := by
+        ∃ o', lookup w' b x = some (.live o') ∧ o'.archive = o.archive ∧ o'.id = o.id ∧
+          o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t := by
       rcases hs.lookup_cases b x with h1 | h1 | ⟨o1, v, h1, h2⟩
-      · exact ⟨o, by rw [h1, h], rfl, rfl, [], by simp⟩
+      · exact ⟨o, by rw [h1, h], rfl, rfl, rfl, [], by simp⟩
       · rw [h] at h1; cases h1
       · rw [h] at h1; cases h1
-        exact ⟨o.append v, h2, rfl, rfl, [v], rfl⟩
+        exact ⟨o.append v, h2, rfl, rfl, rfl, [v], rfl⟩
 
     omit [DecidableEq D] in
     theorem Steps.live_grows {w w' : World D} (hs : Steps w w') {b : ArchiveId} {x : ObjectId}
@@ -374,7 +385,7 @@ makes a step: it is proved in [chapter 7](49-acts.md).
       refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧ o'.id = o.id ∧
         o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_ ⟨o, h, rfl, rfl, [], by simp⟩
       rintro _ _ hstep ⟨o1, h1, hid1, hk1, t1, ht1⟩
-      obtain ⟨o2, h2, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
+      obtain ⟨o2, h2, _, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
       exact ⟨o2, h2, hid2.trans hid1, hk2.trans hk1, t1 ++ t2, by rw [ht2, ht1, List.append_assoc]⟩
 
 ## Valid steps keep worlds well formed

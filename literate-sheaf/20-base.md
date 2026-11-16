@@ -52,13 +52,15 @@ well-formed objects.
 
 ## The value at a point
 
-The value at a named document version is its *content*: the document's
-own files (sources, renditions, change note), and for a collection its
-member list. The model compares content in this way (`sameContent` in the
-chapter "Objects and their history" of the model): files as a set, by path
-and digest, and the member list.
+The value at a named document version is its *content*: its files
+(sources, renditions, change note, and any file that holds a note), and
+for a collection its member list. The model compares content in this way
+(`sameContent` in the chapter "Objects and their history" of the model):
+files as a set, by path and digest, and the member list. A notice kept as a
+file is content, by the model's choice there; adding one makes a new
+document version.
 
-The description, the status and the notices are not content. Section 7.3
+The description and the status are not content. Section 7.3
 lets a description-only version change them while the document version
 stays the same. So they belong to object versions, not to named document
 versions, and they are not values of this sheaf (see the introduction).

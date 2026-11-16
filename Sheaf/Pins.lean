@@ -26,17 +26,6 @@ theorem pin_names_section {o c : Obj D} {p : Pin D} {v u : Version D}
   · simp only [Covers, ha, hi, ht]
   · simp only [objSec, ht]
 
-omit [DecidableEq D] in
-theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
-    (h : o.versionAt n = some v) : v ∈ o.versions.take n := by
-  unfold Obj.versionAt at h
-  split at h
-  · contradiction
-  · rename_i hn
-    have h' : (o.versions.take n)[n - 1]? = some v := by
-      rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
-    exact List.mem_of_getElem? h'
-
 /-- The version a pin resolves to is the value of the section at the named
 document version it holds. -/
 theorem resolve_value {o : Obj D} (hwf : WellFormed o.versions) {p : Pin D} {v : Version D}
@@ -64,5 +53,17 @@ theorem acceptedCopy_agrees {o : Obj D} (hwf : WellFormed o.versions) {src : Pin
     objSec (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩ hx =
       objSec o src.version (o.name v) hy := by
   rw [acceptedCopy_value s cid src v d c m hm, resolve_value hash hwf ho]
+
+/-- **Every copy holds the files of its source**, in every world built by
+events: the files of the value at the first document version of an object
+that records a source are those of the version the source resolves to. -/
+theorem Events.copy_files {w : World D}
+    (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
+    {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) {x : Version D}
+    (h1 : c.versionAt 1 = some x) {src : Pin D} (hsx : x.source = some src)
+    {u : Version D} (hu : resolve hash w src = .ok u) (hx : Covers c 1 (c.name x)) :
+    (objSec c 1 (c.name x) hx).files = u.content.files := by
+  rw [objSec_piece ((Events.sound hash hs).1 _ _ _ hl).history (versionAt_mem_take h1) hx]
+  simp only [Version.content, Events.copyChecks hash hs hl x src h1 hsx u hu]
 
 end OpenSheaf.Sheaf

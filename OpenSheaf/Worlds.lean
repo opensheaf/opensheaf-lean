@@ -210,13 +210,13 @@ omit [DecidableEq D] in
 /-- **Objects only grow.** -/
 theorem Step.live_grows {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
     {o : Obj D} (h : lookup w b x = some (.live o)) :
-    ∃ o', lookup w' b x = some (.live o') ∧ o'.id = o.id ∧ o'.kind = o.kind ∧
-      ∃ t, o'.versions = o.versions ++ t := by
+    ∃ o', lookup w' b x = some (.live o') ∧ o'.archive = o.archive ∧ o'.id = o.id ∧
+      o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t := by
   rcases hs.lookup_cases b x with h1 | h1 | ⟨o1, v, h1, h2⟩
-  · exact ⟨o, by rw [h1, h], rfl, rfl, [], by simp⟩
+  · exact ⟨o, by rw [h1, h], rfl, rfl, rfl, [], by simp⟩
   · rw [h] at h1; cases h1
   · rw [h] at h1; cases h1
-    exact ⟨o.append v, h2, rfl, rfl, [v], rfl⟩
+    exact ⟨o.append v, h2, rfl, rfl, rfl, [v], rfl⟩
 
 omit [DecidableEq D] in
 theorem Steps.live_grows {w w' : World D} (hs : Steps w w') {b : ArchiveId} {x : ObjectId}
@@ -226,7 +226,7 @@ theorem Steps.live_grows {w w' : World D} (hs : Steps w w') {b : ArchiveId} {x :
   refine hs.invariant (fun w => ∃ o', lookup w b x = some (.live o') ∧ o'.id = o.id ∧
     o'.kind = o.kind ∧ ∃ t, o'.versions = o.versions ++ t) ?_ ⟨o, h, rfl, rfl, [], by simp⟩
   rintro _ _ hstep ⟨o1, h1, hid1, hk1, t1, ht1⟩
-  obtain ⟨o2, h2, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
+  obtain ⟨o2, h2, _, hid2, hk2, t2, ht2⟩ := hstep.live_grows h1
   exact ⟨o2, h2, hid2.trans hid1, hk2.trans hk1, t1 ++ t2, by rw [ht2, ht1, List.append_assoc]⟩
 
 theorem ValidStep.entry {w w' : World D} (hs : ValidStep hash w w')

@@ -225,7 +225,7 @@ theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : Sound
     dsimp only
     by_cases hold : Live w (b, x, n)
     · obtain ⟨o, v0, hl, hv0⟩ := hold
-      obtain ⟨o2, h2, _, _, t2, ht2⟩ := hstep.live_grows hl
+      obtain ⟨o2, h2, _, _, _, t2, ht2⟩ := hstep.live_grows hl
       rw [hl'] at h2; cases h2
       have := versionAt_prefix (t := []) (by simp) ht2 (Obj.versionAt_bounds hv0).2 hv0
       rw [hv] at this; cases this

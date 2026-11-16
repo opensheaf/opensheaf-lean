@@ -31,7 +31,15 @@ each version names the archive and the object (section 9). The model's
 inventory is therefore the identity of the object together with the prefix
 of length `n` of its history, and its digest is a function `hash` of that.
 Since the inventory of version `n` describes all the versions before it, a
-pin of version `n` fixes them too. Since it names the object, two objects
+pin of version `n` fixes them too, in the model. **This is an
+abstraction**: in OCFL each version directory keeps its own copy of the
+inventory of that version, and the pin of version `n` fixes only the bytes
+of the inventory of `n`, which lists the files of the earlier versions but
+not the bytes of their inventories. The model computes every earlier
+inventory from the history, so it cannot tell a copy whose old inventory
+files were altered; this is
+[issue #46](https://github.com/opensheaf/opensheaf.github.io/issues/46)
+of the specification, still open. Since it names the object, two objects
 with the same versions, such as an accepted copy deposited with the
 original's description, still have different inventories.
 
@@ -122,8 +130,8 @@ histories agree that far have the same version `n`.
       rw [hid.1, hid.2, ho, ho', List.take_append_of_le_length hn,
         List.take_append_of_le_length hn]
 
-Three facts about versions by number: a version found at a number is a
-version of the object; after an append, a version is an old one or the one
+Four facts about versions by number: a version found at a number is a
+version of the object, and one of the versions up to that number; after an append, a version is an old one or the one
 appended, at the next number.
 
     theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
@@ -132,6 +140,16 @@ appended, at the next number.
       split at h
       · contradiction
       · exact List.mem_of_getElem? h
+
+    theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
+        (h : o.versionAt n = some v) : v ∈ o.versions.take n := by
+      unfold Obj.versionAt at h
+      split at h
+      · contradiction
+      · rename_i hn
+        have h' : (o.versions.take n)[n - 1]? = some v := by
+          rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
+        exact List.mem_of_getElem? h'
 
     theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
         (h : (o.append x).versionAt n = some v) :
@@ -384,12 +402,12 @@ is built for the history `l` it extends, and takes the status of its head.
         (description depositor message : String) : Version D :=
       { v with status := headStatus l, description, depositor, message }
 
-    omit [DecidableEq D] in
 `Version.withdraw` builds a withdrawal as section 11.1 defines it, a
 description-only version. The rules do not require it: a version with new
 content may also come with status `withdrawn`, which section 11.1 does not
 foresee. The model leaves this open, with issue #25.
 
+    omit [DecidableEq D] in
     /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }

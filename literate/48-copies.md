@@ -374,6 +374,20 @@ pin, not from the place". The model follows it: resolution through mirrors
 takes the first copy that gives the version, the member's own archive
 first, and otherwise reports what the member's own archive said.
 
+What to do when the member's own archive serves a copy that does not match
+the pin is
+[issue #37](https://github.com/opensheaf/opensheaf.github.io/issues/37)
+of the specification, still open. **The model makes a choice**, to be
+revised when the issue is settled: it passes over the mismatch and takes a
+mirror that gives the version. The reader gets the vetted version, but
+`resolveVia` no longer reports that the member's own archive was altered;
+the verifier, which resolves in the member's own archive (`verify`), still
+does. When no copy gives the version, the model reports what the member's
+own archive said, even when that is `unavailable` and a mirror reports a
+mismatch, where section 14 would report the mismatch. Only the mirrors
+listed in the member are tried; those of the discovery document (section
+6.4) are left out, as in the introduction.
+
     /-- Resolve a pin against the copy kept by archive `b`. -/
     def resolveAt (w : World D) (b : ArchiveId) (p : Pin D) : Resolution D :=
       resolveEntry hash (lookup w b p.object) p
@@ -505,8 +519,10 @@ the same version whoever holds it.
 It holds exactly the files vetted. It is a well-formed object, whose only
 pins are the references of the revision; creating it is a valid step
 whenever the identifier is free in the selection's archive, the source pin
-resolves to the revision copied, and the references may be held by a new
-version (they resolve, or report `removed` and are carried over).
+resolves to the revision copied, the revision is a document (section 10.5:
+a copy of a collection would lose its member list), and the references may
+be held by a new version (they resolve, or report `removed` and are carried
+over).
 
     omit [DecidableEq D] in
     theorem acceptedCopy_files (s : ArchiveId) (cid : ObjectId) (src : Pin D) (v : Version D)
@@ -520,7 +536,7 @@ version (they resolve, or report `removed` and are carried over).
 
     theorem acceptedCopy_valid {w : World D} {s : ArchiveId} {ar : Archive D} {cid : ObjectId}
         (hs : w s = some ar) (hfree : ar.entries cid = none) (src : Pin D) (v : Version D)
-        (d c m : String) (hsrc : resolve hash w src = .ok v)
+        (d c m : String) (hsrc : resolve hash w src = .ok v) (_hdoc : v.members = none)
         (hrefs : ∀ r ∈ v.refs, PinOk hash w r.pin) :
         ValidStep hash w (setEntry w s cid (.live (acceptedCopy s cid src v d c m))) :=
       .create w s ar cid _ hs hfree (acceptedCopy_wf s cid src v d c m)
@@ -655,9 +671,11 @@ that reports `removed` never resolves again; a takedown only removes.
 
 The copy is kept by the selection's archive, so a takedown of the original
 leaves it alone: the pin of its first version still resolves to it, whatever
-versions the copy has since. This is what accepted copies are for.
+versions the copy has since. This is what accepted copies are for. The
+theorem holds of every object other than the one taken down; nothing in it
+is particular to copies, which is the point: a copy is another object.
 
-    /-- **An accepted copy survives the original.** -/
+    /-- **An accepted copy survives the original**, as every other object does. -/
     theorem acceptedCopy_survives {w : World D} {a s : ArchiveId} {oid cid : ObjectId}
         {o c : Obj D} {x : Version D} (hl : lookup w a oid = some (.live o))
         (hc : lookup w s cid = some (.live c)) (h1 : c.versionAt 1 = some x)

@@ -62,17 +62,6 @@ The version a pin resolves to is one of the pieces of the pinned object
 version, so its content is the value of the section at the document
 version it holds.
 
-    omit [DecidableEq D] in
-    theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
-        (h : o.versionAt n = some v) : v ∈ o.versions.take n := by
-      unfold Obj.versionAt at h
-      split at h
-      · contradiction
-      · rename_i hn
-        have h' : (o.versions.take n)[n - 1]? = some v := by
-          rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
-        exact List.mem_of_getElem? h'
-
     /-- The version a pin resolves to is the value of the section at the named
     document version it holds. -/
     theorem resolve_value {o : Obj D} (hwf : WellFormed o.versions) {p : Pin D} {v : Version D}
@@ -83,10 +72,14 @@ version it holds.
 ## Accepted copies
 
 The first document version of an accepted copy holds the files of the
-revision it copies, byte for byte (section 10.5). In the model, a copy
-keeps the files and the references of the revision, and a copy is made of
-a document, which has no member list. So the value of the copy at its first
-document version is the content of the revision.
+revision it copies, byte for byte (section 10.5). Two statements say so.
+The first is about the copy the model builds (`acceptedCopy`): it keeps the
+files and the references of the revision, and a copy is made of a document,
+which has no member list, so the value of the copy at its first document
+version is the content of the revision. The second is about every copy in
+every world built by events, however it was made: by the model's check of
+sources (`Events.copyChecks`), the files at its first document version are
+those of the version its source resolves to.
 
     omit [DecidableEq D] in
     /-- **An accepted copy holds what was vetted, at another point.** The section
@@ -102,9 +95,9 @@ With the previous theorem, the copy and the original agree through the pin
 of the source. The two values are equal, at two different points: the
 copy's own name, and the revision's name. So an accepted copy is not a
 second section over the same set, as a mirror is: the theorem is an
-equality of the values at two different points of the base. The verifier checks that the
-map preserves it (section 14: "for each accepted copy, check that its first
-document version holds exactly the files of the source version").
+equality of the values at two different points of the base. Section 14
+asks the verifier to check it: "for each accepted copy, check that its
+first document version holds exactly the files of the source version".
 
     /-- So the copy and the original agree, through the pin of the source, on two
     different named document versions. -/
@@ -116,5 +109,20 @@ document version holds exactly the files of the source version").
         objSec (acceptedCopy s cid src v d c m) 1 ⟨s, cid, 1⟩ hx =
           objSec o src.version (o.name v) hy := by
       rw [acceptedCopy_value s cid src v d c m hm, resolve_value hash hwf ho]
+
+For any copy of a world built by events, the files agree; the member list
+is not checked by section 14, and the model does not check it either.
+
+    /-- **Every copy holds the files of its source**, in every world built by
+    events: the files of the value at the first document version of an object
+    that records a source are those of the version the source resolves to. -/
+    theorem Events.copy_files {w : World D}
+        (hs : Events hash (fun _ => (none : Option (Archive D))) w) {b : ArchiveId}
+        {i : ObjectId} {c : Obj D} (hl : lookup w b i = some (.live c)) {x : Version D}
+        (h1 : c.versionAt 1 = some x) {src : Pin D} (hsx : x.source = some src)
+        {u : Version D} (hu : resolve hash w src = .ok u) (hx : Covers c 1 (c.name x)) :
+        (objSec c 1 (c.name x) hx).files = u.content.files := by
+      rw [objSec_piece ((Events.sound hash hs).1 _ _ _ hl).history (versionAt_mem_take h1) hx]
+      simp only [Version.content, Events.copyChecks hash hs hl x src h1 hsx u hu]
 
     end OpenSheaf.Sheaf

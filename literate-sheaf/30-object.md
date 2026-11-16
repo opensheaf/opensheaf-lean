@@ -6,7 +6,9 @@ versions it holds. This chapter defines that section and proves three
 things about it, each a rule of the specification read as a statement about
 sections:
 
-- the set it is defined on is open: no gaps in the numbers (section 7.3);
+- the set it is defined on is open, by definition, and is exactly what its
+  pieces hold, since there are no gaps in the numbers (section 7.3,
+  `covers_iff`);
 - it is the gluing of its *pieces*, the object versions it lists, each
   saying what one document version holds; the pieces are compatible
   because of the rule of section 7.3, "one number, one content", and a
@@ -70,7 +72,7 @@ version and the version it describes, for instance.
 ## Open sets and immutability
 
 The set held by an object version is closed downwards in the order of
-history, whatever the object: it is defined by an upper bound.
+deposit, whatever the object: it is defined by an upper bound.
 
     theorem covers_open (o : Obj D) (n : Nat) : deposit.IsOpen (Covers o n) := by
       intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩

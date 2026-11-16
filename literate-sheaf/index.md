@@ -17,11 +17,12 @@ Like the model, it is **non-normative**. Where it and the
   by its archive and identifier, and a document version number. Its open
   sets are the sets closed under earlier versions of the same object (the
   Alexandrov topology of the order of deposit).
-- **The value** at a named document version is its content: the document's
-  own files, and for a collection its member list.
+- **The value** at a named document version is its content: its files,
+  and for a collection its member list.
 - **Collections.** A named document version also comes after the
   versions its member list pins, so that below a selection version lies the
-  selection together with what it vetted.
+  selection together with what it vetted, and the earlier versions of
+  those, which its pins fix too.
 - **The sections** come from object versions. Each object version, kept in
   its own archive or in a mirror, says what every document version up to
   it holds: a section over an open set.
@@ -62,8 +63,8 @@ shows which rules of the specification make the pieces agree:
 2. [Named document versions](20-base.md): the base, the order of deposit,
    the content of a document version, and the rule "one number, one
    content" in both directions;
-3. [An object version is a section](30-object.md): its set is open (no
-   gaps), it glues its pieces (section 7.3), and a later object version
+3. [An object version is a section](30-object.md): its set is open, and
+   is what its pieces hold (no gaps), it glues its pieces (section 7.3), and a later object version
    restricts to an earlier one (versions are fixed);
 4. [The sections of a world glue](40-world.md): copies agree in every world built by
    events, so the sections of a world glue, uniquely; a condition checked

@@ -5,7 +5,11 @@ nothing, in the order, about its members. But a collection version holds
 pins in its member list, and the model counts the member list as part of
 the content of the document version (section 7.4). A selection version is
 the selection *together with* the revisions it vetted, and a catalogue
-version the catalogue together with the versions it pinned.
+version the catalogue together with the versions it pinned. In the order
+with pins, below a selection version lies more than the selection: the
+order of deposit puts the earlier document versions of each revision below
+it too. Section 10.1 says they are not part of the selection; they lie
+below it because they are fixed by its pins, not because it vetted them.
 
 This chapter adds those pins to the order. A named document version comes
 before a collection version whose member list pins it. Below a collection
@@ -178,9 +182,10 @@ The glued section of a world gives each pinned member the content of the
 version its pin resolves to. The glued section restricts to the section of
 the member's own object, at the object version pinned, whose value there is
 that version's content (chapter [Pins and accepted copies](50-pins.md)). So
-below a selection version, the glued section is the selection together with
-exactly the revisions it vetted, as their pins fix them; whichever copies
-the values are read from, they agree.
+below a selection version, the glued section gives the revisions it vetted
+the content their pins fix, and everything else below it (earlier versions,
+what the revisions pin in turn) the content it has; whichever copies the
+values are read from, they agree.
 
     /-- **The value at a member is what its pin fixes.** -/
     theorem glue_at_member {w : World D}

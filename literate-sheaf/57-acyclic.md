@@ -120,27 +120,16 @@ only points of the order of deposit above it, which are not held either.
 ## Steps keep the edges
 
 A step keeps every live copy, with the same name and a longer history, and
-keeps where every pin that resolves resolves (`Step.resolve_ok`, the
-immutability of the model). So it keeps every pin edge, and with it the
+keeps where every pin that resolves resolves (`Step.live_grows` and
+`Step.resolve_ok`, the immutability of the model). So it keeps every pin edge, and with it the
 whole order. This holds for any step of the model, valid or not.
-
-    omit [DecidableEq D] in
-    theorem Step.live_kept {w w' : World D} (hs : Step w w') {b : ArchiveId} {i : ObjectId}
-        {c : Obj D} (hl : lookup w b i = some (.live c)) :
-        ∃ c', lookup w' b i = some (.live c') ∧ c'.archive = c.archive ∧ c'.id = c.id ∧
-          ∃ t, c'.versions = c.versions ++ t := by
-      rcases hs.lookup_cases b i with h | h | ⟨o, v, h1, h2⟩
-      · exact ⟨c, by rw [h, hl], rfl, rfl, [], by simp⟩
-      · rw [hl] at h; cases h
-      · rw [hl] at h1; cases h1
-        exact ⟨c.append v, h2, rfl, rfl, [v], rfl⟩
 
     /-- **Steps keep the edges.** -/
     theorem Step.pinStep {w w' : World D} (hs : Step w w') {y x : Name}
         (h : PinStep hash w y x) : PinStep hash w' y x := by
       obtain ⟨b, i, c, v, p, o, u, hl, hv, rfl, hp, ho, hr, rfl⟩ := h
-      obtain ⟨c', hl', ha, hi, t, ht⟩ := Step.live_kept hs hl
-      obtain ⟨o', ho', ha', hi', _, _⟩ := Step.live_kept hs ho
+      obtain ⟨c', hl', ha, hi, _, t, ht⟩ := hs.live_grows hl
+      obtain ⟨o', ho', ha', hi', _, _⟩ := hs.live_grows ho
       refine ⟨b, i, c', v, p, o', u, hl', by rw [ht]; exact List.mem_append_left _ hv, ?_, hp, ho',
         Step.resolve_ok hash hs hr, ?_⟩
       · simp only [Obj.name, ha, hi]
@@ -181,7 +170,7 @@ A takedown keeps the rank as it is: it holds less, and adds no edge.
       obtain ⟨⟨b, i, c, hl, n⟩, hx⟩ := h
       exact ⟨⟨b, i, c, (lookup_takedown hash hl0 hl).2, n⟩, hx⟩
 
-    theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
+    theorem takedown_nameRanked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
         (hl0 : lookup w a oid = some (.live o)) (hr : NameRanked hash w) :
         NameRanked hash (takedown hash w a oid o) := by
       obtain ⟨r, N, hN, hdep, hpin⟩ := hr
@@ -189,17 +178,9 @@ A takedown keeps the rank as it is: it holds less, and adds no edge.
         fun y x hd hx => hdep y x hd (heldIn_takedown hash hl0 hx),
         fun y x hp => hpin y x (takedown_pinStep hash hl0 hp)⟩
 
-A valid step needs three facts. A pin held before the step that resolves
-after it resolved before it, to the same version (a pin that reported
-`removed` still does).
-
-    /-- A pin that holds before a step and resolves after it resolved before it,
-    to the same version. -/
-    theorem resolve_back {w w' : World D} (hs : Step w w') {p : Pin D} (hh : Held hash w p)
-        {u : Version D} (hu : resolve hash w' p = .ok u) : resolve hash w p = .ok u := by
-      rcases hh with ⟨u', hu'⟩ | hrem
-      · rw [Step.resolve_ok hash hs hu'] at hu; cases hu; exact hu'
-      · rw [Step.resolve_removed hash hs hrem] at hu; cases hu
+A valid step needs two facts, besides the model's `Step.ok_back`: a pin
+held before the step that resolves after it resolved before it, to the
+same version.
 
 A named document version that was not held before the step was made by
 it, so the step checked its pins: they resolved, or reported `removed`,
@@ -257,18 +238,18 @@ before, whose pins resolved before the step, to the same versions.
       obtain ⟨⟨b0, i0, c0, hl0, n⟩, hx0⟩ := hx
       obtain ⟨v0, hv0, hn0⟩ := (covers_iff (hw.1 _ _ _ hl0).history n _).mp hx0
       have hv0' : v0 ∈ c0.versions := List.mem_of_mem_take hv0
-      obtain ⟨c0', hl0', ha0, hi0, t0, ht0⟩ := Step.live_kept hstep hl0
+      obtain ⟨c0', hl0', ha0, hi0, _, t0, ht0⟩ := hstep.live_grows hl0
       have hmem : v0 ∈ c0'.versions := by rw [ht0]; exact List.mem_append_left _ hv0'
       have hmembers := same_members hash hw' hca' hl hl0' hv hmem
         (by rw [hn0]; simp only [Obj.name, ha0, hi0])
       have hpm0 : p ∈ v0.memberPins := by
         unfold Version.memberPins at hpm ⊢; rw [← hmembers]; exact hpm
-      have hres0 := resolve_back hash hstep
+      have hres0 := Step.ok_back hash hstep
         (hw.2 _ _ _ hl0 v0 hv0' p (memberPins_sub hpm0)) hres
       have hres0' := hres0
       unfold resolve at hres0'
       obtain ⟨o0, ho0⟩ := resolveEntry_ok_live hash hres0'
-      obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := Step.live_kept hstep ho0
+      obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := hstep.live_grows ho0
       rw [ho] at ho0'; cases ho0'
       have hname : o.name u = o0.name u := by simp only [Obj.name, hoa, hoi]
       rw [hname, show c.name v = c0.name v0 from hn0]
@@ -310,12 +291,12 @@ before the step: it goes down to an old point, ranked below `N`.
           simp only [hyw, hxw, ↓reduceIte]
           exact hpin _ _ hedge
         · -- a new named document version: its pins were checked by the step
-          have hres0 := resolve_back hash hstep
+          have hres0 := Step.ok_back hash hstep
             (ValidStep.new_held hash hs hw hl hv hxw (memberPins_sub hpm)) hres
           have hres0' := hres0
           unfold resolve at hres0'
           obtain ⟨o0, ho0⟩ := resolveEntry_ok_live hash hres0'
-          obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := Step.live_kept hstep ho0
+          obtain ⟨o0', ho0', hoa, hoi, _, _⟩ := hstep.live_grows ho0
           rw [ho] at ho0'; cases ho0'
           have hname : o.name u = o0.name u := by simp only [Obj.name, hoa, hoi]
           have hre : resolveEntry hash (some (.live o0)) p = .ok u :=
@@ -343,7 +324,7 @@ is a partial order.
           refine ⟨hk', ?_⟩
           cases he with
           | step hs => exact ValidStep.nameRanked hash hs hk.1 hk'.1 hk'.2.2 hr
-          | takedown a oid o hl => exact takedown_ranked hash hl hr)
+          | takedown a oid o hl => exact takedown_nameRanked hash hl hr)
         ⟨⟨SoundWorld.empty hash, fun _ _ _ h => by simp [lookup] at h,
           fun _ _ _ _ _ _ h => by simp [lookup] at h⟩,
          fun _ => 0, 0, fun _ ⟨⟨_, _, _, h, _⟩, _⟩ => by simp [lookup] at h,

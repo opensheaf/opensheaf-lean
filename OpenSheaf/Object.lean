@@ -86,6 +86,16 @@ theorem versionAt_mem {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n =
   · contradiction
   · exact List.mem_of_getElem? h
 
+theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
+    (h : o.versionAt n = some v) : v ∈ o.versions.take n := by
+  unfold Obj.versionAt at h
+  split at h
+  · contradiction
+  · rename_i hn
+    have h' : (o.versions.take n)[n - 1]? = some v := by
+      rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
+    exact List.mem_of_getElem? h'
+
 theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
     (h : (o.append x).versionAt n = some v) :
     o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
@@ -260,7 +270,6 @@ def Version.describe (l : List (Version D)) (v : Version D)
   { v with status := headStatus l, description, depositor, message }
 
 omit [DecidableEq D] in
-
 /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }
