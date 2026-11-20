@@ -1,6 +1,5 @@
 -- Generated from literate-sheaf/78-fibres.md by opensheaf-literate: edit the document, not this file.
 import Sheaf.Lifting
-import Sheaf.Story
 
 namespace OpenSheaf.Sheaf
 
@@ -12,7 +11,7 @@ def lastV (i : Inventory D) : Option (Version D) := i.versions.getLast?
 /-- The named document version held by the last version of an inventory at
 an object version. -/
 def docOf (s : VSite) (i : Inventory D) : Name :=
-  ⟨s.archive, s.object, ((lastV i).map (·.documentVersion)).getD 0⟩
+  ⟨s.object, ((lastV i).map (·.documentVersion)).getD 0⟩
 
 /-- The map from the object versions held in a world to named document
 versions, read off the glued inventories. -/
@@ -36,27 +35,27 @@ theorem proj_eq {w : World D} {G : Sec (SitesIn w) (Inventory D)} (hG : Glues (i
       proj G s hs = i.obj.name v := by
   obtain ⟨i, hi⟩ := hs
   have hGi : G s ⟨i, hi⟩ = i.obj.inventory s.version := congrFun (congrFun (hG i) s) hi
-  obtain ⟨ha, ho, h1, h2⟩ := hi
+  obtain ⟨ho, h1, h2⟩ := hi
   obtain ⟨v, hl, hv, _⟩ := lastV_inventory h1 h2
   refine ⟨i, v, hv, by rw [hGi]; exact hl, ?_⟩
-  simp only [proj, docOf, hGi, hl, Option.map_some, Option.getD_some, Obj.name, ha, ho]
+  simp only [proj, docOf, hGi, hl, Option.map_some, Option.getD_some, Obj.name, ho]
 
-variable [DecidableEq D] (hash : Hash D)
+variable [DecidableEq D] (E : Env D)
 
 /-- **The image is what the world holds.** -/
-theorem proj_image {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Inventory D)}
+theorem proj_image {w : World D} (hk : Kept E w) {G : Sec (SitesIn w) (Inventory D)}
     (hG : Glues (invSections w) G) (x : Name) :
     HeldIn w x ↔ ∃ s hs, proj G s hs = x := by
   constructor
   · intro hx
-    obtain ⟨v, b, i, c, hl, hv, rfl⟩ := (heldIn_iff hash hk.1 x).mp hx
+    obtain ⟨v, b, i, c, hl, hkc, hv, rfl⟩ := (heldIn_iff E hk.1 x).mp hx
     obtain ⟨k, hk', rfl⟩ := List.mem_iff_getElem.mp hv
-    let s : VSite := ⟨c.archive, c.id, k + 1⟩
-    have hi : SiteHeld c s := ⟨rfl, rfl, by simp [s], by simp [s]; omega⟩
-    refine ⟨s, ⟨⟨b, i, c, hl⟩, hi⟩, ?_⟩
-    obtain ⟨j, v', hv', hlast, hp⟩ := proj_eq hG ⟨⟨b, i, c, hl⟩, hi⟩
-    have hGi : G s ⟨⟨b, i, c, hl⟩, hi⟩ = c.inventory (k + 1) :=
-      congrFun (congrFun (hG ⟨b, i, c, hl⟩) s) hi
+    let s : VSite := ⟨c.id, k + 1⟩
+    have hi : SiteHeld c s := ⟨rfl, by simp [s], by simp [s]; omega⟩
+    refine ⟨s, ⟨⟨b, i, c, hl, hkc⟩, hi⟩, ?_⟩
+    obtain ⟨j, v', hv', hlast, hp⟩ := proj_eq hG ⟨⟨b, i, c, hl, hkc⟩, hi⟩
+    have hGi : G s ⟨⟨b, i, c, hl, hkc⟩, hi⟩ = c.inventory (k + 1) :=
+      congrFun (congrFun (hG ⟨b, i, c, hl, hkc⟩) s) hi
     obtain ⟨u, hu, _, hk2⟩ := lastV_inventory (c := c) (n := k + 1) (by omega) (by omega)
     rw [hGi, hu] at hlast; cases hlast
     simp only [Nat.add_sub_cancel] at hk2
@@ -65,28 +64,27 @@ theorem proj_image {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Invent
   · rintro ⟨s, hs, rfl⟩
     obtain ⟨i, v, hv, _, hp⟩ := proj_eq hG hs
     rw [hp]
-    exact heldIn_of_live hash hk.1 i.live hv
+    exact heldIn_of_live E hk.1 i.live i.kind hv
 
 /-- **Content factors through the map.** The content sheaf at the image of an
 object version is the content of that object version. -/
-theorem content_factors {w : World D} (hk : Kept hash w)
+theorem content_factors {w : World D} (hk : Kept E w)
     {G : Sec (SitesIn w) (Inventory D)} (hG : Glues (invSections w) G)
     {g : Sec (HeldIn w) (Content D)} (hg : Glues (sections w) g) {s : VSite} (hs : SitesIn w s)
     (hx : HeldIn w (proj G s hs)) :
     ∃ v, lastV (G s hs) = some v ∧ g (proj G s hs) hx = v.content := by
   obtain ⟨i, v, hv, hl, hp⟩ := proj_eq hG hs
   refine ⟨v, hl, ?_⟩
-  have hh : Holds w (proj G s hs) v := ⟨i.archive, i.id, i.obj, i.live, hv, hp.symm⟩
-  exact glue_value hash hk.1 hg hh hx
+  have hh : Holds w (proj G s hs) v := ⟨i.archive, i.line, i.obj, i.live, i.kind, hv, hp.symm⟩
+  exact glue_value E hk.1 hg hh hx
 
 /-- **The fibres are the contents.** Two object versions held in a world go to
 the same named document version exactly when they are versions of the same
 object with the same content. -/
-theorem proj_fibre {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Inventory D)}
+theorem proj_fibre {w : World D} (hk : Kept E w) {G : Sec (SitesIn w) (Inventory D)}
     (hG : Glues (invSections w) G) {s s' : VSite} (hs : SitesIn w s) (hs' : SitesIn w s')
     {v v' : Version D} (hv : lastV (G s hs) = some v) (hv' : lastV (G s' hs') = some v') :
-    proj G s hs = proj G s' hs' ↔
-      s.archive = s'.archive ∧ s.object = s'.object ∧ sameContent v v' = true := by
+    proj G s hs = proj G s' hs' ↔ s.object = s'.object ∧ sameContent v v' = true := by
   obtain ⟨i, u, hu, hl, hp⟩ := proj_eq hG hs
   obtain ⟨i', u', hu', hl', hp'⟩ := proj_eq hG hs'
   rw [hv] at hl; cases hl
@@ -95,28 +93,29 @@ theorem proj_fibre {w : World D} (hk : Kept hash w) {G : Sec (SitesIn w) (Invent
   · intro h
     have e : proj G s hs = proj G s' hs' := h
     simp only [proj, docOf, Name.mk.injEq] at e
-    refine ⟨e.1, e.2.1, ?_⟩
-    exact holds_agree hash hk.1 hk.2.2 ⟨i.archive, i.id, i.obj, i.live, hu, hp.symm⟩
-      ⟨i'.archive, i'.id, i'.obj, i'.live, hu', (h.trans hp').symm⟩
-  · rintro ⟨ha, ho, hc⟩
+    refine ⟨e.1, ?_⟩
+    exact holds_agree E hk.1 hk.2 ⟨i.archive, i.line, i.obj, i.live, i.kind, hu, hp.symm⟩
+      ⟨i'.archive, i'.line, i'.obj, i'.live, i'.kind, hu', (h.trans hp').symm⟩
+  · rintro ⟨ho, hc⟩
     rw [hp, hp']
-    have hia : i.obj.archive = i'.obj.archive := by
-      have e1 : (proj G s hs).archive = i.obj.archive := by rw [hp]; rfl
-      have e2 : (proj G s' hs').archive = i'.obj.archive := by rw [hp']; rfl
-      simp only [proj, docOf] at e1 e2
-      rw [← e1, ← e2, ha]
     have hio : i.obj.id = i'.obj.id := by
       have e1 : (proj G s hs).object = i.obj.id := by rw [hp]; rfl
       have e2 : (proj G s' hs').object = i'.obj.id := by rw [hp']; rfl
       simp only [proj, docOf] at e1 e2
       rw [← e1, ← e2, ho]
+    have hll : i.line = i'.line := by
+      have h1 := (hk.1.1 _ _ _ i.live).id
+      have h2 := (hk.1.1 _ _ _ i'.live).id
+      exact ObjectId.line.inj (h1.symm.trans (hio.trans h2))
+    have hjl := i'.live
+    rw [← hll] at hjl
     have hd : v.documentVersion = v'.documentVersion := by
-      rcases hk.2.2 _ _ _ _ _ _ i.live i'.live hia hio with ⟨t, ht⟩ | ⟨t, ht⟩
-      · exact one_content_one_number (hk.1.1 _ _ _ i'.live).history
+      rcases hk.2 i.line _ _ _ _ i.live hjl i.kind i'.kind with ⟨t, ht⟩ | ⟨t, ht⟩
+      · exact one_content_one_number ((hk.1.1 _ _ _ i'.live).history i'.kind)
           (by rw [ht]; exact List.mem_append_left _ hu) hu' hc
-      · exact one_content_one_number (hk.1.1 _ _ _ i.live).history
+      · exact one_content_one_number ((hk.1.1 _ _ _ i.live).history i.kind)
           hu (by rw [ht]; exact List.mem_append_left _ hu') hc
-    simp only [Obj.name, hia, hio, hd]
+    simp only [Obj.name, hio, hd]
 
 /-- **The fibres of the top are runs.** In a well-formed history, version
 `k + 1` has the same top as version `k` exactly when it holds content
@@ -145,7 +144,7 @@ theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
 
 omit [DecidableEq D] in
 /-- The description a history gives to document version `k`: that of the last
-object version holding it, as `history` records (section 7.3). -/
+object version holding it, as `history` records (section 4.2). -/
 def docDescription (l : List (Version D)) (k : Nat) : String :=
   (((l.filter (·.documentVersion == k)).getLast?).map (·.description)).getD ""
 
@@ -157,30 +156,5 @@ def descSec (o : Obj D) (n : Nat) : Sec (Covers o n) String :=
 omit [DecidableEq D] in
 abbrev descSections (w : World D) (i : Source w) : Sec (cover w i) String :=
   descSec i.obj i.version
-
-namespace Story
-
-open OpenSheaf.Story
-
-def authorFirst : Source w14 := ⟨"author", "paper", paper3, rfl, 1⟩
-
-example : paper3.versions.map (·.documentVersion) = [1, 2, 1] := by decide
-
-example : (List.range 4).map (fun n => docCount (paper3.versions.take n)) = [0, 1, 2, 2] := by
-  decide
-
-/-- **Descriptions do not glue.** In the story, the author's object versions
-1 and 3 describe document version 1 differently. -/
-theorem descriptions_incompatible : ¬ Compatible (descSections w14) := by
-  intro h
-  have h3 : cover w14 authorPaper first := by decide
-  have h1 : cover w14 authorFirst first := by decide
-  have := h authorPaper authorFirst first h3 h1
-  change docDescription (paper3.versions.take 3) 1 = docDescription (paper3.versions.take 1) 1
-    at this
-  revert this
-  decide
-
-end Story
 
 end OpenSheaf.Sheaf

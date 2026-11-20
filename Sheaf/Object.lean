@@ -17,8 +17,7 @@ def docContent (l : List (Version D)) (k : Nat) : Content D :=
 
 /-- The named document versions held by object version `n` of `o`. -/
 def Covers (o : Obj D) (n : Nat) (x : Name) : Prop :=
-  x.archive = o.archive ∧ x.object = o.id ∧ 1 ≤ x.doc ∧
-    x.doc ≤ docCount (o.versions.take n)
+  x.object = o.id ∧ 1 ≤ x.doc ∧ x.doc ≤ docCount (o.versions.take n)
 
 instance (o : Obj D) (n : Nat) (x : Name) : Decidable (Covers o n x) := by
   unfold Covers; infer_instance
@@ -36,8 +35,8 @@ def pieces (o : Obj D) (n : Nat) : ∀ i, Sec (piece o n i) (Content D) :=
   fun i _ _ => i.1.content
 
 theorem covers_open (o : Obj D) (n : Nat) : deposit.IsOpen (Covers o n) := by
-  intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
-  refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
+  intro x y ⟨h2, h3, h4⟩ ⟨k2, k3, k4⟩
+  refine ⟨h2.trans k2, ?_, Nat.le_trans h3 k4⟩
   cases hy : y.doc with
   | zero => have := h4 hy; omega
   | succ _ => omega
@@ -60,20 +59,20 @@ theorem docCount_take_mono (l : List (Version D)) {m n : Nat} (hmn : m ≤ n) :
     exact Nat.max_le.mpr ⟨Nat.le_max_left _ _, Nat.le_trans ih (Nat.le_max_right _ _)⟩
 
 theorem covers_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Covers o m) (Covers o n) := by
-  rintro x ⟨h1, h2, h3, h4⟩
-  exact ⟨h1, h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
+  rintro x ⟨h2, h3, h4⟩
+  exact ⟨h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
 
 /-- The highest named document version deposited up to object version `n`. -/
-def top (o : Obj D) (n : Nat) : Name := ⟨o.archive, o.id, docCount (o.versions.take n)⟩
+def top (o : Obj D) (n : Nat) : Name := ⟨o.id, docCount (o.versions.take n)⟩
 
 /-- **The open set of an object version is principal**, below its top. -/
 theorem covers_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.take n))
     (x : Name) : Covers o n x ↔ deposit.le x (top o n) := by
   constructor
-  · rintro ⟨h1, h2, h3, h4⟩
-    exact ⟨h1, h2, h4, fun h0 => absurd h0 (by omega)⟩
-  · rintro ⟨h1, h2, h3, h4⟩
-    refine ⟨h1, h2, ?_, h3⟩
+  · rintro ⟨h2, h3, h4⟩
+    exact ⟨h2, h4, fun h0 => absurd h0 (by omega)⟩
+  · rintro ⟨h2, h3, h4⟩
+    refine ⟨h2, ?_, h3⟩
     cases hx : x.doc with
     | zero => have := h4 hx; simp only [top] at this; omega
     | succ _ => omega
@@ -81,7 +80,7 @@ theorem covers_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.t
 theorem top_mono (o : Obj D) {m n : Nat} (hmn : m ≤ n) (h : 1 ≤ docCount (o.versions.take m)) :
     deposit.le (top o m) (top o n) := by
   have := docCount_take_mono o.versions hmn
-  exact ⟨rfl, rfl, this, fun h0 => absurd h0 (by simp only [top]; omega)⟩
+  exact ⟨rfl, this, fun h0 => absurd h0 (by simp only [top]; omega)⟩
 
 variable [DecidableEq D]
 
@@ -107,7 +106,7 @@ theorem objSec_piece {o : Obj D} (hwf : WellFormed o.versions) {n : Nat} {v : Ve
     (hv : v ∈ o.versions.take n) (hx : Covers o n (o.name v)) :
     objSec o n (o.name v) hx = v.content := by
   obtain ⟨t, ht⟩ := take_prefix o.versions n
-  exact docContent_eq hwf ht hx.2.2.1 hx.2.2.2 (List.mem_of_mem_take hv) rfl
+  exact docContent_eq hwf ht hx.2.1 hx.2.2 (List.mem_of_mem_take hv) rfl
 
 /-- The named document versions held by an object version are those of its
 pieces: the numbers from 1 to the last, without gaps. -/
@@ -116,14 +115,14 @@ theorem covers_iff {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) (x : Name
   obtain ⟨t, ht⟩ := take_prefix o.versions n
   have hw : WellFormed (o.versions.take n) := by rw [ht] at hwf; exact hwf.prefix
   constructor
-  · rintro ⟨h1, h2, h3, h4⟩
+  · rintro ⟨h2, h3, h4⟩
     obtain ⟨v, hv, hvk⟩ := no_gaps hw h3 h4
     refine ⟨v, hv, ?_⟩
     cases x
     simp only [Obj.name] at *
-    rw [h1, h2, hvk]
+    rw [h2, hvk]
   · rintro ⟨v, hv, rfl⟩
-    exact ⟨rfl, rfl, doc_pos hw hv, le_docCount hv⟩
+    exact ⟨rfl, doc_pos hw hv, le_docCount hv⟩
 
 /-- **The pieces of a well-formed object version are compatible.** -/
 theorem pieces_compatible {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
@@ -133,7 +132,7 @@ theorem pieces_compatible {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
   have hd : i.1.documentVersion = j.1.documentVersion := by
     have := hi.symm.trans hj
     simp only [Obj.name, Name.mk.injEq] at this
-    exact this.2.2
+    exact this.2
   exact content_eq_iff.mpr (one_number_one_content hwf
     (List.mem_of_mem_take i.2) (List.mem_of_mem_take j.2) hd)
 

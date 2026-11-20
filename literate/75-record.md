@@ -2,12 +2,13 @@
 
 A second story, from the use case "A learning record": a student writes a
 thesis in an archive of their own, and the department keeps the record of
-the work. Like [the first story](70-story.md), it is told in steps made by
-agents, from nothing, and each check is proved by `decide`. It exercises
-what the first story does not: a mirror kept as a receipt of each
-submission, a selection whose revision set grows by the department's acts,
-comments that keep pointing to the version they were written about, and the
-deletion of the record at the end of its retention period.
+the work. Like [the first story](70-story.md), it is told in valid steps,
+from nothing, signatures and key logs included, and each check is proved
+by `decide`. It exercises what the first story does not: a mirror kept as
+a receipt of each submission, a selection whose revision set grows by the
+department's acts, comments that keep pointing to the version they were
+written about, and the deletion of the record at the end of its retention
+period.
 
     -- in OpenSheaf/Record.lean:
     import OpenSheaf.Story
@@ -18,229 +19,329 @@ deletion of the record at the end of its retention period.
 
 ## The cast
 
-Two archives: the student's (`student`), and the department's (`dept`),
-whose writers are its registry, a supervisor and an examiner. The digest is
-the toy digest of the first story.
+Two owners, the student and the department, each with a key log (section
+6): the student's current key is `s1`, the department's `d1`, each with a
+rotation key of four characters committed in its genesis record. The
+department's archive hosts the department, the student's the student;
+the department keeps a copy of the student's key log, beside the receipt
+(section 6.5). The digest is the toy digest of the first story.
 
-    def r0 : World Nat := fun _ => none
-    def r1 : World Nat := fun b => if b = "student" then some (emptyArchive ["student"]) else r0 b
-    def r2 : World Nat := fun b =>
-      if b = "dept" then some (emptyArchive ["registry", "supervisor", "examiner"]) else r1 b
+    def keysS : Keys Nat := { keys := ["s1"], threshold := 1, next := [4], nextThreshold := 1 }
+    def keysD : Keys Nat := { keys := ["d1"], threshold := 1, next := [4], nextThreshold := 1 }
 
-    theorem a1 : StepBy toy "student" r0 r1 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
-    theorem a2 : StepBy toy "registry" r1 r2 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
+    def genS : Genesis Nat := { kind := .owner, nonce := "student", keys := some keysS }
+    def genD : Genesis Nat := { kind := .owner, nonce := "dept", keys := some keysD }
+
+    def logS : Obj Nat := keyLog "student" genS
+    def logD : Obj Nat := keyLog "dept" genD
 
 ## The first submission
 
-The student deposits the thesis, version 1, and hands it in. The registry
+The student seals the thesis, version 1, and hands it in. The department
 receives it by mirroring it: the mirror is the receipt.
+
+    def genT : Genesis Nat := { kind := .document, nonce := "thesis", originator := "student" }
+    def thesisLine : LineId := ⟨"thesis", "student"⟩
 
     def t1 : Version Nat :=
       { documentVersion := 1, files := [("thesis.tm", 11), ("thesis.pdf", 12)],
         description := "A thesis", depositor := "student", message := "submitted for comments" }
 
-    def thesis1 : Obj Nat :=
-      { archive := "student", id := "thesis", kind := .document, versions := [t1] }
+    def thesis0 : Obj Nat :=
+      { id := .line thesisLine, kind := .document, genesis := some genT, versions := [t1] }
 
-    def r3 : World Nat := setEntry r2 "student" "thesis" (.live thesis1)
-    def r4 : World Nat := setEntry r3 "dept" "thesis" (.live thesis1)
+    def sigT1 : Sig Nat := ⟨thesisLine, 1, toy (thesis0.inventory 1), "s1", logPin "student" logS 1⟩
 
-    theorem a3 : StepBy toy "student" r2 r3 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    def thesis1 : Obj Nat := { thesis0 with sigs := [sigT1] }
 
-    theorem a4 : StepBy toy "registry" r3 r4 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [thesis1, t1, Version.pins, Version.memberPins]) (Or.inr ⟨thesis1, rfl, rfl, [], by simp⟩)
-        (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
-
-The supervisor's comments are a document of the department, deposited by
-the supervisor. They point to the version commented on by a `Reviews`
-reference ([chapter 13](80-references.md)), which pins version 1 of the
-thesis; the step checks that the pin resolves. In the specification,
-`Reviews` is a DataCite relation that tools do not follow; here it is the
+The supervisor's comments are a document of the department. They point to
+the version commented on by a `Reviews` reference ([chapter
+15](80-references.md)), which pins version 1 of the thesis, with the
+student's archive as its hint. In the specification, `Reviews` is a
+DataCite relation that tools do not follow (section 4.4); here it is the
 pinned reference proposed in issues #21 and #28.
 
-    def pinT1 : Pin Nat := ⟨"student", "thesis", 1, toy (thesis1.inventory 1)⟩
+    def pinT1 : Pin Nat := ⟨thesisLine, 1, toy (thesis1.inventory 1), ["student"]⟩
+
+    def genC1 : Genesis Nat := { kind := .document, nonce := "comments", originator := "dept" }
+    def commentsLine : LineId := ⟨"comments", "dept"⟩
 
     def c1 : Version Nat :=
       { documentVersion := 1, files := [("comments.pdf", 41)], refs := [⟨"Reviews", pinT1⟩],
         description := "Comments on version 1", depositor := "supervisor", message := "comments" }
 
-    def comments : Obj Nat :=
-      { archive := "dept", id := "comments-1", kind := .document, versions := [c1] }
+    def comments0 : Obj Nat :=
+      { id := .line commentsLine, kind := .document, genesis := some genC1, versions := [c1] }
 
-    def r5 : World Nat := setEntry r4 "dept" "comments-1" (.live comments)
+    def sigC1 : Sig Nat := ⟨commentsLine, 1, toy (comments0.inventory 1), "d1", logPin "dept" logD 1⟩
 
-    theorem a5 : StepBy toy "supervisor" r4 r5 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => pinOk_of_isOk ((by decide :
-          ∀ v ∈ comments.versions, ∀ p ∈ v.pins, (resolve toy r4 p).isOk = true) v hv p hp))
-        (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    def comments : Obj Nat := { comments0 with sigs := [sigC1] }
 
 ## The record
 
 The record is a selection of the department, which pins each document of
 the process in the version that played its part: here, version 1 of the
-thesis and the comments on it. The registry deposits it.
+thesis and the comments on it.
 
-    def pinC1 : Pin Nat := ⟨"dept", "comments-1", 1, toy (comments.inventory 1)⟩
+    def pinC1 : Pin Nat := ⟨commentsLine, 1, toy (comments.inventory 1), ["dept"]⟩
 
     def rec1 : Members Nat :=
       { type := .selection,
-        members := [{ archive := "student", object := "thesis", pins := [pinT1] },
-                    { archive := "dept", object := "comments-1", pins := [pinC1] }] }
+        members := [{ line := thesisLine, hints := ["student"], pins := [pinT1] },
+                    { line := commentsLine, hints := ["dept"], pins := [pinC1] }] }
+
+    def genR : Genesis Nat := { kind := .collection, nonce := "record", originator := "dept" }
+    def recordLine : LineId := ⟨"record", "dept"⟩
 
     def g1 : Version Nat :=
       { documentVersion := 1, files := [], members := some rec1, description := "Record",
         depositor := "registry", message := "first submission, with comments" }
 
-    def record1 : Obj Nat :=
-      { archive := "dept", id := "record", kind := .collection, versions := [g1] }
+    def record0 : Obj Nat :=
+      { id := .line recordLine, kind := .collection, genesis := some genR, versions := [g1] }
 
-    def r6 : World Nat := setEntry r5 "dept" "record" (.live record1)
+    def sigG1 : Sig Nat := ⟨recordLine, 1, toy (record0.inventory 1), "d1", logPin "dept" logD 1⟩
 
-    theorem a6 : StepBy toy "registry" r5 r6 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (fun v hv p hp => pinOk_of_isOk ((by decide :
-          ∀ v ∈ record1.versions, ∀ p ∈ v.pins, (resolve toy r5 p).isOk = true) v hv p hp))
-        (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    def record1 : Obj Nat := { record0 with sigs := [sigG1] }
 
 ## The second submission and the examination
 
 The student revises the thesis in answer to the comments, a new document
-version, and hands it in; the registry copies it into the receipt. The
-examiner reports on version 2.
+version, and hands it in; the department copies it into the receipt. The
+examiner reports on version 2, and the department records the
+examination: a new version of the record, whose revision set for the
+thesis grows to versions 1 and 2, and which adds the report.
 
     def t2 : Version Nat :=
       Version.revise [t1] [("thesis.tm", 21), ("thesis.pdf", 22)] none "A thesis" "student"
         "answers the comments"
 
-    def thesis2 : Obj Nat := thesis1.append t2
+    def sigT2 : Sig Nat :=
+      ⟨thesisLine, 2, toy ((thesis1.append t2).inventory 2), "s1", logPin "student" logS 1⟩
 
-    def r7 : World Nat := setEntry r6 "student" "thesis" (.live thesis2)
-    def r8 : World Nat := setEntry r7 "dept" "thesis" (.live thesis2)
+    def thesis2 : Obj Nat := thesis1.append t2 [sigT2]
 
-    theorem a7 : StepBy toy "student" r6 r7 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
-
-    theorem a8 : StepBy toy "registry" r7 r8 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins, Version.memberPins]) (Or.inr ⟨thesis2, rfl, rfl, [], (List.append_nil _).symm⟩)
-        (by decide) (by decide) (by decide) (sourceOk_none toy rfl)
+    def genE : Genesis Nat := { kind := .document, nonce := "report", originator := "dept" }
+    def reportLine : LineId := ⟨"report", "dept"⟩
 
     def e1 : Version Nat :=
       { documentVersion := 1, files := [("report.pdf", 51)],
         description := "Report on version 2", depositor := "examiner", message := "report" }
 
-    def report : Obj Nat :=
-      { archive := "dept", id := "report-1", kind := .document, versions := [e1] }
+    def report0 : Obj Nat :=
+      { id := .line reportLine, kind := .document, genesis := some genE, versions := [e1] }
 
-    def r9 : World Nat := setEntry r8 "dept" "report-1" (.live report)
+    def sigE1 : Sig Nat := ⟨reportLine, 1, toy (report0.inventory 1), "d1", logPin "dept" logD 1⟩
 
-    theorem a9 : StepBy toy "examiner" r8 r9 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-        (by simp [report, e1, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+    def report : Obj Nat := { report0 with sigs := [sigE1] }
 
-The registry records the examination: a new version of the record, whose
-revision set for the thesis grows to versions 1 and 2, and which adds the
-report. It is a new document version of the record, since its member list
-changed.
-
-    def pinT2 : Pin Nat := ⟨"student", "thesis", 2, toy (thesis2.inventory 2)⟩
-    def pinE1 : Pin Nat := ⟨"dept", "report-1", 1, toy (report.inventory 1)⟩
+    def pinT2 : Pin Nat := ⟨thesisLine, 2, toy (thesis2.inventory 2), ["student"]⟩
+    def pinE1 : Pin Nat := ⟨reportLine, 1, toy (report.inventory 1), ["dept"]⟩
 
     def rec2 : Members Nat :=
       { type := .selection,
-        members := [{ archive := "student", object := "thesis", pins := [pinT1, pinT2] },
-                    { archive := "dept", object := "comments-1", pins := [pinC1] },
-                    { archive := "dept", object := "report-1", pins := [pinE1] }] }
+        members := [{ line := thesisLine, hints := ["student"], pins := [pinT1, pinT2] },
+                    { line := commentsLine, hints := ["dept"], pins := [pinC1] },
+                    { line := reportLine, hints := ["dept"], pins := [pinE1] }] }
 
     def g2 : Version Nat :=
       Version.revise [g1] [] (some rec2) "Record" "registry" "examined: report on version 2"
 
-    def record2 : Obj Nat := record1.append g2
+    def sigG2 : Sig Nat :=
+      ⟨recordLine, 2, toy ((record1.append g2).inventory 2), "d1", logPin "dept" logD 1⟩
 
-    def r10 : World Nat := setEntry r9 "dept" "record" (.live record2)
+    def record2 : Obj Nat := record1.append g2 [sigG2]
 
-    theorem a10 : StepBy toy "registry" r9 r10 :=
-      .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-        (fun p hp => pinOk_of_isOk ((by decide :
-          ∀ p ∈ g2.pins, (resolve toy r9 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-        (by decide) (by decide) (sourceOk_none toy rfl)
+## The environment
+
+The signatures made are the story's, and the environment is the first
+story's, with them.
+
+    def madeR : List (Sig Nat) := [sigT1, sigC1, sigG1, sigT2, sigE1, sigG2]
+
+    def ER : Env Nat :=
+      { hash := toy, keyDigest := keyDigest, nameOf := nameOf, verifies := fun s => decide (s ∈ madeR) }
+
+## The steps
+
+    def r0 : World Nat := fun _ => none
+    def r1 : World Nat := fun b => if b = "student" then some (arch ["student"]) else r0 b
+    def r2 : World Nat := fun b => if b = "dept" then some (arch ["dept"]) else r1 b
+    def r3 : World Nat := setEntry r2 "student" (logLine "student") (.live logS)
+    def r4 : World Nat := setEntry r3 "dept" (logLine "dept") (.live logD)
+    def r5 : World Nat := setEntry r4 "dept" (logLine "student") (.live logS)
+    def r6 : World Nat := setEntry r5 "student" (.line thesisLine) (.live thesis1)
+    def r7 : World Nat := setEntry r6 "dept" (.line thesisLine) (.live thesis1)
+    def r8 : World Nat := setEntry r7 "dept" (.line commentsLine) (.live comments)
+    def r9 : World Nat := setEntry r8 "dept" (.line recordLine) (.live record1)
+    def r10 : World Nat := setEntry r9 "student" (.line thesisLine) (.live thesis2)
+    def r11 : World Nat := setEntry r10 "dept" (.line thesisLine) (.live thesis2)
+    def r12 : World Nat := setEntry r11 "dept" (.line reportLine) (.live report)
+    def r13 : World Nat := setEntry r12 "dept" (.line recordLine) (.live record2)
+
+    theorem a1 : ValidStep ER r0 r1 := .newArchive _ _ _ rfl (fun _ => rfl)
+    theorem a2 : ValidStep ER r1 r2 := .newArchive _ _ _ rfl (fun _ => rfl)
+
+The key logs, the student's twice, in its archive and beside the receipt:
+
+    theorem a3 : ValidStep ER r2 r3 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+        (by decide)
+
+    theorem a4 : ValidStep ER r3 r4 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+        (by decide)
+
+    theorem a5 : ValidStep ER r4 r5 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+        (by decide)
+
+The thesis is sealed and signed by the student; the department's receipt is
+a copy, valid only as one, since the department's archive does not host
+the student.
+
+    theorem a6 : ValidStep ER r5 r6 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
+
+    theorem copy_r6 : CopyOf r6 "dept" thesis1 := ⟨"student", thesis1, by decide, rfl, rfl, [], by simp⟩
+
+    theorem a7 : ValidStep ER r6 r7 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun h => absurd copy_r6 h) (fun h => absurd copy_r6 h)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r6⟩⟩
+        (by decide)
+
+The comments are created only because the version they review exists: the
+step resolves the reference's pin.
+
+    theorem a8 : ValidStep ER r7 r8 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+        by decide, rfl⟩
+        (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ comments.versions, ∀ p ∈ v.pins,
+          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r7 p).isOk = true) v hv p hp))
+        (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
+
+    theorem a9 : ValidStep ER r8 r9 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+        by decide, rfl⟩
+        (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ record1.versions, ∀ p ∈ v.pins,
+          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r8 p).isOk = true) v hv p hp))
+        (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
+
+The second submission, its receipt, the report, and the record's second
+version, a new document version of the record since its member list
+changed.
+
+    theorem a10 : ValidStep ER r9 r10 :=
+      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
+        (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
+        (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
+
+    theorem copy_r10 : CopyOf r10 "dept" thesis2 := ⟨"student", thesis2, by decide, rfl, rfl, [], by simp⟩
+
+    theorem a11 : ValidStep ER r10 r11 :=
+      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
+        (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
+        (fun h => absurd copy_r10 h) (fun h => absurd copy_r10 h)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r10⟩⟩
+        (by decide)
+
+    theorem a12 : ValidStep ER r11 r12 :=
+      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
+
+    theorem a13 : ValidStep ER r12 r13 :=
+      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
+        (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ g2.pins,
+          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r12 p).isOk = true) p hp))
+        (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
+        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+        (by decide)
 
 ## The record is valid
 
-The steps, listed once:
+    theorem valid : ValidSteps ER r0 r13 :=
+      .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
+        (.refl _) a1) a2) a3) a4) a5) a6) a7) a8) a9) a10) a11) a12) a13
 
-    theorem record_acts : Star ByAgent r0 r10 :=
-      .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
-        ⟨_, a1⟩) ⟨_, a2⟩) ⟨_, a3⟩) ⟨_, a4⟩) ⟨_, a5⟩) ⟨_, a6⟩) ⟨_, a7⟩) ⟨_, a8⟩) ⟨_, a9⟩)
-        ⟨_, a10⟩
+    theorem events : Events ER r0 r13 := valid.mono .step
 
-    theorem valid : ValidSteps toy r0 r10 :=
-      record_acts.mono fun ⟨_, h⟩ => h.toValidStep toy
-
-    theorem acts : Acts toy r0 r10 :=
-      record_acts.mono fun ⟨u, h⟩ => ⟨u, .step h⟩
-
-    example : WFWorld toy r10 := valid.wf toy (WFWorld.empty toy)
+    example : WFWorld ER r13 := valid.wf ER (WFWorld.empty ER)
 
 ## What the record shows
 
 The verifier checks the record: every pin resolves, to the version that
 played its part.
 
-    example : verify toy r10 rec2 =
+    example : verify ER r13 rec2 =
         [(pinT1, .ok t1), (pinT2, .ok t2), (pinC1, .ok c1), (pinE1, .ok e1)] := by decide
 
 The comments still point to version 1, the version they were written about,
 although the thesis has moved on: the reference of the comments resolves
 to version 1, while the head of the thesis is version 2.
 
-    example : c1.refs.map (fun r => resolve toy r10 r.pin) = [.ok t1] ∧
-        headPin toy r10 "student" "thesis" = some pinT2 := by
+    example : c1.refs.map (fun r => resolve toy r13 r.pin) = [.ok t1] ∧
+        headPin toy r13 ["student"] thesisLine = some pinT2 := by
       decide
 
 The record's first version is kept, as the history of the process: its pin
-resolves to the version deposited at the first submission.
+resolves to the version deposited at the first submission. The record is a
+selection: updating it changes nothing.
 
-    def pinG1 : Pin Nat := ⟨"dept", "record", 1, toy (record2.inventory 1)⟩
+    def pinG1 : Pin Nat := ⟨recordLine, 1, toy (record2.inventory 1), ["dept"]⟩
 
-    example : resolve toy r10 pinG1 = .ok g1 := by decide
+    example : resolve toy r13 pinG1 = .ok g1 := by decide
 
-The record is a selection: updating it changes nothing. The new revision of
-the thesis entered it by the registry's act, not by the tool.
-
-    example : collect toy r10 rec1 = rec1 := by decide
+    example : collect toy r13 rec1 = rec1 := by decide
 
 ## Who decides
 
-By `owner_controls` ([chapter 9](60-patterns.md)), every version of the
-record was deposited by the department's writers, and the student cannot
-change it. The same theorem, applied to the student's archive, says that
-the department cannot change the thesis.
+By the theorems of [chapter 8](47-acts.md), without looking at the
+objects: every copy of the record ends in a version the department signed,
+and the receipt ends in a version the student signed, although the
+department made the steps that copied it. The student cannot change the
+record without the department's keys, nor the department the thesis
+without the student's.
 
-    example : ∀ v ∈ record2.versions, v.depositor ∈ ["registry", "supervisor", "examiner"] :=
-      (owner_controls toy acts (a := "dept") (oid := "record") rfl rfl rfl).1
+    example : HeadSigned ER r13 recordLine record2 :=
+      Events.headsSigned ER events (b := "dept") rfl (by decide)
 
-    example (w' : World Nat) (h : Act toy "student" r10 w') :
-        lookup w' "dept" "record" = lookup r10 "dept" "record" :=
-      (owner_controls toy acts (a := "dept") (oid := "record") rfl rfl rfl).2 _ _ (by decide) h
-
-    example (w' : World Nat) (h : Act toy "registry" r10 w') :
-        lookup w' "student" "thesis" = lookup r10 "student" "thesis" :=
-      (owner_controls toy acts (a := "student") (oid := "thesis") rfl rfl rfl).2 _ _ (by decide) h
+    example : HeadSigned ER r13 thesisLine thesis2 :=
+      Events.headsSigned ER events (b := "dept") rfl (by decide)
 
 ## The receipt
 
-By `mirror_receipt`, the versions the department received are the
-student's, at the same numbers, in this world and in every later one:
+The versions the department received are the student's, at the same
+numbers, as `decide` checks; and each stays there, whatever the student's
+archive does later, by immutability at the department's archive.
 
-    example : thesis2.versionAt 1 = some t1 :=
-      mirror_receipt toy (ValidSteps.toEvents toy valid) (b := "dept") (x := "thesis") rfl
-        (by decide) rfl (by decide)
+    example : resolveAt toy r13 "dept" pinT1 = .ok t1 ∧ resolveAt toy r13 "dept" pinT2 = .ok t2 := by
+      decide
 
 The student rewrites version 1 in place, outside the protocol, to make the
 first submission look better. The pin of the first submission no longer
@@ -252,7 +353,7 @@ collide with the original, the case that `NoCollision` excludes.)
     def t1' : Version Nat := { t1 with description := "A thesis, much improved" }
 
     def rTamper : World Nat :=
-      setEntry r10 "student" "thesis" (.live { thesis2 with versions := [t1', t2] })
+      setEntry r13 "student" (.line thesisLine) (.live { thesis2 with versions := [t1', t2] })
 
     example : resolve toy rTamper pinT1 = .mismatch := by decide
 
@@ -260,33 +361,33 @@ collide with the original, the case that `NoCollision` excludes.)
 
 ## Retention
 
-At the end of the retention period, the registry takes the record down: an
-act of a writer of the department.
+At the end of the retention period, the department takes the record down
+(section 13.2), an event of the model.
 
-    def rDown : World Nat := takedown toy r10 "dept" "record" record2
+    def rDown : World Nat := takedown toy r13 "dept" (.line recordLine) record2
 
-    theorem down : Act toy "registry" r10 rDown := .takedown _ _ _ _ _ rfl rfl (by decide)
+    theorem down : Events ER r0 rDown := .tail events (.takedown _ _ _ _ (by decide) rfl)
 
-The record's pins report `removed`; the student's thesis, and the pins of
-it, are not affected.
+The record's pins report `removed` at the department's archive; the
+student's thesis, and the pins of it, are not affected.
 
-    def pinG2 : Pin Nat := ⟨"dept", "record", 2, toy (record2.inventory 2)⟩
+    def pinG2 : Pin Nat := ⟨recordLine, 2, toy (record2.inventory 2), ["dept"]⟩
 
     example : resolve toy rDown pinG1 = .removed ∧ resolve toy rDown pinG2 = .removed := by decide
 
     example : resolve toy rDown pinT2 = .ok t2 := by decide
 
-By `record_retention`, this holds from then on: the record's pins report
-`removed` in every later world, and the thesis's pins resolve as before
-through any later valid steps.
+By `record_retention` ([chapter 11](60-patterns.md)), this holds from then
+on: the record's pins report `removed` there in every later world, and the
+thesis's pins resolve as before through any later valid steps.
 
-    example (w' : World Nat) (h : Events toy rDown w') : resolve toy w' pinG2 = .removed :=
-      (record_retention toy (w := r10) (a := "dept") (oid := "record") (r := record2) rfl).1
-        pinG2 ⟨rfl, rfl⟩ w' h
+    example (w' : World Nat) (h : Events ER rDown w') : resolveAt toy w' "dept" pinG2 = .removed :=
+      (record_retention ER (w := r13) (a := "dept") (oid := .line recordLine) (r := record2) rfl).1
+        pinG2 rfl w' h
 
-    example (w' : World Nat) (h : ValidSteps toy rDown w') : resolve toy w' pinT2 = .ok t2 :=
-      (record_retention toy (w := r10) (a := "dept") (oid := "record") (r := record2) rfl).2
-        pinT2 (by decide) t2 (by decide) w' h
+    example (w' : World Nat) (h : ValidSteps ER rDown w') : resolveAt toy w' "student" pinT2 = .ok t2 :=
+      (record_retention ER (w := r13) (a := "dept") (oid := .line recordLine) (r := record2) rfl).2
+        "student" pinT2 (by decide) t2 (by decide) w' h
 
 The comments and the report are documents of their own, and stay; deleting
 them too is a takedown of each.

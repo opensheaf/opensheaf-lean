@@ -7,14 +7,14 @@ things about it, each a rule of the specification read as a statement about
 sections:
 
 - the set it is defined on is open, by definition, and is exactly what its
-  pieces hold, since there are no gaps in the numbers (section 7.3,
+  pieces hold, since there are no gaps in the numbers (section 4.2,
   `covers_iff`);
 - it is the gluing of its *pieces*, the object versions it lists, each
   saying what one document version holds; the pieces are compatible
-  because of the rule of section 7.3, "one number, one content", and a
+  because of the rule of section 4.2, "one number, one content", and a
   history that breaks the rule has pieces that are not;
 - a later object version restricts to an earlier one: that versions are
-  fixed once deposited (sections 1 and 7.3) is, within one history,
+  fixed once deposited (sections 1 and 4) is, within one history,
   restriction; across events it is the chapter
   [Names are eternal](70-eternal.md).
 
@@ -23,7 +23,7 @@ sections:
 Object version `n` of an object `o` holds the document versions of the
 first `n` object versions: the names of `o` with numbers from 1 to the
 highest of them. Its value at a document version is the content of the
-first object version that holds it. With the rule of section 7.3 any of
+first object version that holds it. With the rule of section 4.2 any of
 them would do, as the next sections prove; the definition makes no
 assumption.
 
@@ -46,8 +46,7 @@ assumption.
 
     /-- The named document versions held by object version `n` of `o`. -/
     def Covers (o : Obj D) (n : Nat) (x : Name) : Prop :=
-      x.archive = o.archive ∧ x.object = o.id ∧ 1 ≤ x.doc ∧
-        x.doc ≤ docCount (o.versions.take n)
+      x.object = o.id ∧ 1 ≤ x.doc ∧ x.doc ≤ docCount (o.versions.take n)
 
     instance (o : Obj D) (n : Nat) (x : Name) : Decidable (Covers o n x) := by
       unfold Covers; infer_instance
@@ -75,8 +74,8 @@ The set held by an object version is closed downwards in the order of
 deposit, whatever the object: it is defined by an upper bound.
 
     theorem covers_open (o : Obj D) (n : Nat) : deposit.IsOpen (Covers o n) := by
-      intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
-      refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
+      intro x y ⟨h2, h3, h4⟩ ⟨k2, k3, k4⟩
+      refine ⟨h2.trans k2, ?_, Nat.le_trans h3 k4⟩
       cases hy : y.doc with
       | zero => have := h4 hy; omega
       | succ _ => omega
@@ -102,8 +101,8 @@ history extends the earlier one.
         exact Nat.max_le.mpr ⟨Nat.le_max_left _ _, Nat.le_trans ih (Nat.le_max_right _ _)⟩
 
     theorem covers_mono {o : Obj D} {m n : Nat} (hmn : m ≤ n) : Sub (Covers o m) (Covers o n) := by
-      rintro x ⟨h1, h2, h3, h4⟩
-      exact ⟨h1, h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
+      rintro x ⟨h2, h3, h4⟩
+      exact ⟨h2, h3, Nat.le_trans h4 (docCount_take_mono o.versions hmn)⟩
 
 The open set of an object version is *principal*: it is what lies below one
 point, the highest document version deposited up to it, its **top**. So an
@@ -111,16 +110,16 @@ object version is an element of the Alexandrov stalk at its top, and a
 later object version has a top above it.
 
     /-- The highest named document version deposited up to object version `n`. -/
-    def top (o : Obj D) (n : Nat) : Name := ⟨o.archive, o.id, docCount (o.versions.take n)⟩
+    def top (o : Obj D) (n : Nat) : Name := ⟨o.id, docCount (o.versions.take n)⟩
 
     /-- **The open set of an object version is principal**, below its top. -/
     theorem covers_principal (o : Obj D) (n : Nat) (h : 1 ≤ docCount (o.versions.take n))
         (x : Name) : Covers o n x ↔ deposit.le x (top o n) := by
       constructor
-      · rintro ⟨h1, h2, h3, h4⟩
-        exact ⟨h1, h2, h4, fun h0 => absurd h0 (by omega)⟩
-      · rintro ⟨h1, h2, h3, h4⟩
-        refine ⟨h1, h2, ?_, h3⟩
+      · rintro ⟨h2, h3, h4⟩
+        exact ⟨h2, h4, fun h0 => absurd h0 (by omega)⟩
+      · rintro ⟨h2, h3, h4⟩
+        refine ⟨h2, ?_, h3⟩
         cases hx : x.doc with
         | zero => have := h4 hx; simp only [top] at this; omega
         | succ _ => omega
@@ -128,7 +127,7 @@ later object version has a top above it.
     theorem top_mono (o : Obj D) {m n : Nat} (hmn : m ≤ n) (h : 1 ≤ docCount (o.versions.take m)) :
         deposit.le (top o m) (top o n) := by
       have := docCount_take_mono o.versions hmn
-      exact ⟨rfl, rfl, this, fun h0 => absurd h0 (by simp only [top]; omega)⟩
+      exact ⟨rfl, this, fun h0 => absurd h0 (by simp only [top]; omega)⟩
 
 ## The value is that of any piece
 
@@ -161,7 +160,7 @@ with the others (one number, one content).
         (hv : v ∈ o.versions.take n) (hx : Covers o n (o.name v)) :
         objSec o n (o.name v) hx = v.content := by
       obtain ⟨t, ht⟩ := take_prefix o.versions n
-      exact docContent_eq hwf ht hx.2.2.1 hx.2.2.2 (List.mem_of_mem_take hv) rfl
+      exact docContent_eq hwf ht hx.2.1 hx.2.2 (List.mem_of_mem_take hv) rfl
 
 The set held by an object version is exactly the set of its pieces' names.
 One inclusion is that no number is skipped; the other, that the numbers
@@ -174,22 +173,22 @@ start at 1.
       obtain ⟨t, ht⟩ := take_prefix o.versions n
       have hw : WellFormed (o.versions.take n) := by rw [ht] at hwf; exact hwf.prefix
       constructor
-      · rintro ⟨h1, h2, h3, h4⟩
+      · rintro ⟨h2, h3, h4⟩
         obtain ⟨v, hv, hvk⟩ := no_gaps hw h3 h4
         refine ⟨v, hv, ?_⟩
         cases x
         simp only [Obj.name] at *
-        rw [h1, h2, hvk]
+        rw [h2, hvk]
       · rintro ⟨v, hv, rfl⟩
-        exact ⟨rfl, rfl, doc_pos hw hv, le_docCount hv⟩
+        exact ⟨rfl, doc_pos hw hv, le_docCount hv⟩
 
 ## The pieces glue
 
 The pieces of a well-formed object version are compatible: two object
 versions that hold the same document version have the same content. This
-is the first half of the rule of section 7.3, which the verifier checks
-(section 14: "object versions with the same document version have the same
-sources, renditions and change note"). The section of the object version
+is the first half of the rule of section 4.2, which the verifier checks
+(section 14.4: "the rules of sections 4.2 to 4.4 in every version and
+between versions (numbering, new versions, ...)"). The section of the object version
 glues them. So the check of section 14 is the check that an object's own
 pieces glue. The chapter [A story](60-story.md) gives a history that breaks
 the rule, and whose pieces do not glue.
@@ -202,7 +201,7 @@ the rule, and whose pieces do not glue.
       have hd : i.1.documentVersion = j.1.documentVersion := by
         have := hi.symm.trans hj
         simp only [Obj.name, Name.mk.injEq] at this
-        exact this.2.2
+        exact this.2
       exact content_eq_iff.mpr (one_number_one_content hwf
         (List.mem_of_mem_take i.2) (List.mem_of_mem_take j.2) hd)
 

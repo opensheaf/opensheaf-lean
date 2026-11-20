@@ -15,7 +15,8 @@ version, and to check that it hashes to the pin's digest. The chapter
 proves:
 
 - the inventories of every copy in a world built by events glue into one
-  section of the inventory sheaf (`inventory_glues`);
+  section of the inventory sheaf, when owners are honest and the copies of
+  a line share their genesis record (`inventory_glues`);
 - the digest morphism is injective wherever the inventories it compares do
   not collide, so a lift is unique when it exists (`digests_injective`,
   `lift_unique`); the model does not assume the digest function injective,
@@ -27,22 +28,32 @@ proves:
   section (`verdict_glue`);
 - a pin resolves exactly when it lifts (`lifts_iff`).
 
-Section 6.4 of the specification says that "any copy whose bytes match the
-pinned digest is acceptable: integrity comes from the pin, not from the
-place". The theorems here add that, in a world built by events, the copies
-that hold the object version a pin names cannot disagree on it: a mismatch
-through one of them is a mismatch through all of them. A copy that does not
-hold that version yet, a mirror lagging behind, reports it unavailable.
+Section 8.5 of the specification says that "any copy whose bytes match the
+pin will do". The theorems here add that, in a world built by events, the
+copies that hold the object version a pin names cannot disagree on it, when
+owners are honest: a mismatch through one of them is a mismatch through all
+of them. A copy that does not hold that version yet, a mirror lagging
+behind, reports it unavailable.
 
-Two limits. First, the inventory at an object version is computed from the
-history, as in the model: OCFL keeps a separate inventory file for each
-version, whose bytes the pin of a later version does not fix
-([issue #46](https://github.com/opensheaf/opensheaf.github.io/issues/46),
-open). That a copy holding a later version gives the same verdict on an
-earlier one rests on this abstraction. Second, a copy holds the object
-versions of the archive and object its own data name; a pin that names the
-archive hosting a mirror (issue #38) is not a point of the copy's set, and
-these theorems say nothing about it.
+The inventory at an object version is computed from the history, as in the
+model. In version 0.1 of the specification the bytes of earlier inventory
+files were not fixed by a later pin, and the theorems rested on that
+abstraction; version 0.2 fixes them by the inventory chain, `previous`
+(section 4.3, #46), so the abstraction is now exact.
+
+An inventory also holds the genesis record (section 4.1). Two copies of a
+line agree on their histories when the owner signs one history; that they
+hold the same genesis record is another matter. A line's name is a digest
+of its genesis record (section 5.2), and the model checks it when a copy is
+written (`IdentityOk`) and keeps it as an invariant, so two copies of one
+line with different genesis records need two records with a name in
+common: a collision. In a world built by events, the copies of a line hold
+one genesis record unless the names of two records collide (`Events.genesis_agree`, in the
+model, under a hypothesis on the names of the two records). Honest owners
+give it with no hypothesis on names: a copy that does not collide with its
+owner's history holds the genesis record of that history (the model's
+`Events.genesis_history`). The general lemmas below take it as
+`GenesisAgree`, and the theorems about worlds built by events derive it.
 
     -- in Sheaf/Lifting.lean:
     import Sheaf.Eternal
@@ -53,35 +64,33 @@ these theorems say nothing about it.
 
 ## The base and the inventory sheaf
 
-An object version is named by its archive, its object and its number. The
-order is that of the versions of one object, with number 0 kept apart as
-for named document versions.
+An object version is named by its object, a line, and its number, as a pin
+names it, wherever it is kept. The order is that of the versions of one
+object, with number 0 kept apart as for named document versions.
 
-    /-- An object version, named: its archive, its object, and its number. -/
+    /-- An object version, named: its object and its number. -/
     structure VSite where
-      archive : ArchiveId
       object : ObjectId
       version : Nat
       deriving DecidableEq, Repr
 
     /-- The order of object versions: earlier versions of the same object. -/
     def objOrder : Order VSite where
-      le x y := x.archive = y.archive ∧ x.object = y.object ∧ x.version ≤ y.version ∧
-        (x.version = 0 → y.version = 0)
-      refl _ := ⟨rfl, rfl, Nat.le_refl _, id⟩
-      trans := fun ⟨h1, h2, h3, h4⟩ ⟨h1', h2', h3', h4'⟩ =>
-        ⟨h1.trans h1', h2.trans h2', Nat.le_trans h3 h3', fun h => h4' (h4 h)⟩
+      le x y := x.object = y.object ∧ x.version ≤ y.version ∧ (x.version = 0 → y.version = 0)
+      refl _ := ⟨rfl, Nat.le_refl _, id⟩
+      trans := fun ⟨h2, h3, h4⟩ ⟨h2', h3', h4'⟩ =>
+        ⟨h2.trans h2', Nat.le_trans h3 h3', fun h => h4' (h4 h)⟩
 
 A copy holds its object versions, from 1 to its last, and gives each the
 inventory of that version. The sets held are open.
 
     /-- The object versions a copy holds. -/
     def SiteHeld (c : Obj D) (s : VSite) : Prop :=
-      s.archive = c.archive ∧ s.object = c.id ∧ 1 ≤ s.version ∧ s.version ≤ c.versions.length
+      s.object = c.id ∧ 1 ≤ s.version ∧ s.version ≤ c.versions.length
 
     theorem siteHeld_open (c : Obj D) : objOrder.IsOpen (SiteHeld c) := by
-      intro x y ⟨h1, h2, h3, h4⟩ ⟨k1, k2, k3, k4⟩
-      refine ⟨h1.trans k1, h2.trans k2, ?_, Nat.le_trans h3 k4⟩
+      intro x y ⟨h2, h3, h4⟩ ⟨k2, k3, k4⟩
+      refine ⟨h2.trans k2, ?_, Nat.le_trans h3 k4⟩
       cases hy : y.version with
       | zero => have := h4 hy; omega
       | succ _ => omega
@@ -89,15 +98,16 @@ inventory of that version. The sets held are open.
     /-- The section of a copy: the inventory of each object version it holds. -/
     def invSec (c : Obj D) : Sec (SiteHeld c) (Inventory D) := fun s _ => c.inventory s.version
 
-The live copies of a world give a family of sections of the inventory
-sheaf.
+The live copies of lines of a world, key logs apart, give a family of
+sections of the inventory sheaf.
 
-    /-- A live copy of a world. -/
+    /-- A live copy of a line of a world, not a key log. -/
     structure Copy (w : World D) where
       archive : ArchiveId
-      id : ObjectId
+      line : LineId
       obj : Obj D
-      live : lookup w archive id = some (.live obj)
+      live : lookup w archive (.line line) = some (.live obj)
+      kind : obj.kind ≠ .owner
 
     abbrev siteCover (w : World D) (i : Copy w) : VSite → Prop := SiteHeld i.obj
     abbrev invSections (w : World D) (i : Copy w) : Sec (siteCover w i) (Inventory D) := invSec i.obj
@@ -105,9 +115,10 @@ sheaf.
     /-- The object versions held anywhere in a world. -/
     def SitesIn (w : World D) : VSite → Prop := Union (siteCover w)
 
-Two copies with the same name have comparable histories, so their
-inventories agree at every object version both hold: the inventory of
-version `n` lists versions 1 to `n`, which the two histories share.
+Two copies of the same line, with comparable histories and the same genesis
+record, have the same inventory at every object version both hold: the
+inventory of version `n` lists versions 1 to `n`, which the two histories
+share.
 
     theorem take_comparable {α : Type} {l l' : List α} (h : Comparable l l') {n : Nat}
         (hn : n ≤ l.length) (hn' : n ≤ l'.length) : l.take n = l'.take n := by
@@ -115,23 +126,47 @@ version `n` lists versions 1 to `n`, which the two histories share.
       · rw [List.take_append_of_le_length hn]
       · rw [List.take_append_of_le_length hn']
 
+    variable [DecidableEq D] (E : Env D)
+
+    /-- The copies of each line, key logs apart, hold the same genesis record. -/
+    def GenesisAgree (w : World D) : Prop :=
+      ∀ b b' l o o', lookup w b (.line l) = some (.live o) → lookup w b' (.line l) = some (.live o') →
+        o.kind ≠ .owner → o'.kind ≠ .owner → o.genesis = o'.genesis
+
+    /-- In a world built by events with honest owners, copies of a line hold one
+    genesis record. -/
+    theorem Events.genesisAgree {w : World D}
+        (hs : Events E (fun _ => (none : Option (Archive D))) w) {H : Histories D}
+        (hh : Honest E H w) : GenesisAgree w :=
+      fun _ _ l _ _ hl hl' hk hk' =>
+        (Events.genesis_history E hs (hh.1 l) (hh.2 l) hl hk).trans
+          (Events.genesis_history E hs (hh.1 l) (hh.2 l) hl' hk').symm
+
     /-- **The inventories of a world are compatible**, wherever copies agree. -/
-    theorem inv_compatible {w : World D} (hca : CopiesAgree w) : Compatible (invSections w) := by
-      intro i j s ⟨a1, o1, _, n1⟩ ⟨a2, o2, _, n2⟩
-      have hc := hca _ _ _ _ _ _ i.live j.live (a1.symm.trans a2) (o1.symm.trans o2)
+    theorem inv_compatible {w : World D} (hwf : WFObjects w) (hca : ∀ l, CopiesAgree w l)
+        (hg : GenesisAgree w) : Compatible (invSections w) := by
+      intro i j s ⟨o1, _, n1⟩ ⟨o2, _, n2⟩
+      have hl : i.line = j.line := by
+        have h1 := (hwf _ _ _ i.live).1
+        have h2 := (hwf _ _ _ j.live).1
+        exact ObjectId.line.inj (h1.symm.trans (o1.symm.trans (o2.trans h2)))
+      have hjl := j.live
+      rw [← hl] at hjl
+      have hc := hca i.line _ _ _ _ i.live hjl i.kind j.kind
+      have hge := hg _ _ _ _ _ i.live hjl i.kind j.kind
       simp only [invSections, invSec, Obj.inventory]
-      rw [← a1, ← o1, a2, o2, take_comparable hc n1 n2]
+      rw [← o1, o2, hge, take_comparable hc n1 n2]
 
-In a world built by events, copies agree (the model's
-`Events.copiesAgree`), so the inventories glue.
-
-    variable [DecidableEq D] (hash : Hash D)
+In a world built by events, copies agree when owners are honest (the
+model's `Events.copiesAgree`), so the inventories glue.
 
     /-- **The inventory sheaf of a world built by events.** -/
     theorem inventory_glues {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
+        (hs : Events E (fun _ => (none : Option (Archive D))) w) {H : Histories D}
+        (hh : Honest E H w) :
         ∃ G, Glues (invSections w) G ∧ ∀ G', Glues (invSections w) G' → G' = G :=
-      sheaf (inv_compatible (Events.copiesAgree hash hs))
+      sheaf (inv_compatible (SoundWorld.wfObjects E (Events.sound E hs))
+        (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree E hs hh))
 
 ## The digest morphism
 
@@ -144,18 +179,18 @@ recorded to name the step.
 
     omit [DecidableEq D] in
     /-- The digest morphism: a section of inventories gives a section of digests. -/
-    def digests {U : VSite → Prop} (s : Sec U (Inventory D)) : Sec U D := fun x hx => hash (s x hx)
+    def digests {U : VSite → Prop} (s : Sec U (Inventory D)) : Sec U D := fun x hx => E.hash (s x hx)
 
     omit [DecidableEq D] in
     /-- It commutes with restriction: it is a morphism of presheaves. -/
     theorem digests_restrict {U U' : VSite → Prop} (s : Sec U (Inventory D)) (h : Sub U' U) :
-        digests hash (s.restrict h) = (digests hash s).restrict h := rfl
+        digests E (s.restrict h) = (digests E s).restrict h := rfl
 
     omit [DecidableEq D] in
     /-- **Without collisions, it is injective.** -/
     theorem digests_injective {U : VSite → Prop} {s s' : Sec U (Inventory D)}
-        (hcol : ∀ x hx, NoCollision hash (s x hx) (s' x hx))
-        (h : digests hash s = digests hash s') : s = s' := by
+        (hcol : ∀ x hx, NoCollision E (s x hx) (s' x hx))
+        (h : digests E s = digests E s') : s = s' := by
       funext x hx
       exact hcol x hx (congrFun (congrFun h x) hx)
 
@@ -172,11 +207,11 @@ this, applied to the copy's inventory.
     def verdictOf (i : Inventory D) (p : Pin D) : Resolution D :=
       match i.versions[p.version - 1]? with
       | none => .unavailable
-      | some v => if hash i = p.digest then .ok v else .mismatch
+      | some v => if E.hash i = p.digest then .ok v else .mismatch
 
     /-- Resolving a pin through a copy is reading the verdict off its inventory. -/
     theorem resolveEntry_verdict (c : Obj D) (p : Pin D) :
-        resolveEntry hash (some (.live c)) p = verdictOf hash (c.inventory p.version) p := by
+        resolveEntry E.hash (some (.live c)) p = verdictOf E (c.inventory p.version) p := by
       unfold resolveEntry verdictOf Obj.versionAt Obj.inventory
       by_cases h0 : p.version = 0
       · simp [h0]
@@ -190,23 +225,25 @@ verdict, because their inventories there are the same: the verdict is a
 function of the glued section, not of the copy it is read from.
 
     /-- The site a pin names. -/
-    def pinSite (p : Pin D) : VSite := ⟨p.archive, p.object, p.version⟩
+    def pinSite (p : Pin D) : VSite := ⟨.line p.line, p.version⟩
 
     /-- **Every copy gives the same verdict.** In a world built by events, two
     copies that hold the object version a pin names resolve it alike. -/
     theorem copies_same_verdict {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) (i j : Copy w) {p : Pin D}
+        (hs : Events E (fun _ => (none : Option (Archive D))) w) {H : Histories D}
+        (hh : Honest E H w) (i j : Copy w) {p : Pin D}
         (hi : SiteHeld i.obj (pinSite p)) (hj : SiteHeld j.obj (pinSite p)) :
-        resolveEntry hash (some (.live i.obj)) p = resolveEntry hash (some (.live j.obj)) p := by
+        resolveEntry E.hash (some (.live i.obj)) p = resolveEntry E.hash (some (.live j.obj)) p := by
       rw [resolveEntry_verdict, resolveEntry_verdict]
-      have := inv_compatible (Events.copiesAgree hash hs) i j (pinSite p) hi hj
+      have := inv_compatible (SoundWorld.wfObjects E (Events.sound E hs))
+        (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree E hs hh) i j (pinSite p) hi hj
       simp only [invSections, invSec, pinSite] at this
       rw [this]
 
     /-- **The verdict is the glued section's.** -/
     theorem verdict_glue {w : World D} {G : Sec (SitesIn w) (Inventory D)}
         (hG : Glues (invSections w) G) (i : Copy w) {p : Pin D} (hi : SiteHeld i.obj (pinSite p)) :
-        resolveEntry hash (some (.live i.obj)) p = verdictOf hash (G (pinSite p) ⟨i, hi⟩) p := by
+        resolveEntry E.hash (some (.live i.obj)) p = verdictOf E (G (pinSite p) ⟨i, hi⟩) p := by
       rw [resolveEntry_verdict]
       have : G (pinSite p) ⟨i, hi⟩ = i.obj.inventory p.version :=
         congrFun (congrFun (hG i) (pinSite p)) hi
@@ -225,13 +262,13 @@ pin's digest, found anywhere, is the glued one.
     to the inventory sheaf. -/
     theorem lifts_iff {w : World D} {G : Sec (SitesIn w) (Inventory D)}
         (hG : Glues (invSections w) G) (i : Copy w) {p : Pin D} (hi : SiteHeld i.obj (pinSite p)) :
-        (∃ u, verdictOf hash (G (pinSite p) ⟨i, hi⟩) p = .ok u) ↔
-          digests hash G (pinSite p) ⟨i, hi⟩ = p.digest := by
+        (∃ u, verdictOf E (G (pinSite p) ⟨i, hi⟩) p = .ok u) ↔
+          digests E G (pinSite p) ⟨i, hi⟩ = p.digest := by
       have hG' : G (pinSite p) ⟨i, hi⟩ = i.obj.inventory p.version :=
         congrFun (congrFun (hG i) (pinSite p)) hi
       simp only [digests]
       rw [hG']
-      obtain ⟨_, _, h1, h2⟩ := hi
+      obtain ⟨_, h1, h2⟩ := hi
       have h1' : 1 ≤ p.version := h1
       have h2' : p.version ≤ i.obj.versions.length := h2
       have hv : ∃ v, (i.obj.inventory p.version).versions[p.version - 1]? = some v := by
@@ -244,7 +281,7 @@ pin's digest, found anywhere, is the glued one.
       rw [hv]
       constructor
       · rintro ⟨u, hu⟩
-        by_cases hd : hash (i.obj.inventory p.version) = p.digest
+        by_cases hd : E.hash (i.obj.inventory p.version) = p.digest
         · exact hd
         · simp [hd] at hu
       · intro hd
@@ -255,8 +292,8 @@ pin's digest, found anywhere, is the glued one.
     is the glued one, unless the two collide. -/
     theorem lift_unique {w : World D} {G : Sec (SitesIn w) (Inventory D)} {p : Pin D}
         (hx : SitesIn w (pinSite p)) {inv : Inventory D}
-        (hcol : NoCollision hash inv (G (pinSite p) hx)) (h : hash inv = p.digest)
-        (hG : digests hash G (pinSite p) hx = p.digest) : inv = G (pinSite p) hx :=
+        (hcol : NoCollision E inv (G (pinSite p) hx)) (h : E.hash inv = p.digest)
+        (hG : digests E G (pinSite p) hx = p.digest) : inv = G (pinSite p) hx :=
       hcol (h.trans hG.symm)
 
     end OpenSheaf.Sheaf

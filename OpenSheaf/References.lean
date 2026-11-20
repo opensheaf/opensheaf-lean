@@ -5,68 +5,71 @@ namespace OpenSheaf
 
 open OpenSheaf.Patterns
 
-variable {D : Type} [DecidableEq D] (hash : Hash D)
+variable {D : Type} [DecidableEq D] (E : Env D)
 
 omit [DecidableEq D] in
 theorem Version.ref_pin {v : Version D} {r : Ref D} (hr : r ∈ v.refs) : r.pin ∈ v.pins :=
-  List.mem_append_right _ (List.mem_map.mpr ⟨r, hr, rfl⟩)
+  List.mem_append_left _ (List.mem_append_right _ (List.mem_map.mpr ⟨r, hr, rfl⟩))
 
 /-- **References never dangle**, in a world built by valid steps. -/
 theorem ValidSteps.refs_resolve {w : World D}
-    (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w)
+    (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w)
     {a : ArchiveId} {oid : ObjectId} {o : Obj D} (hl : lookup w a oid = some (.live o))
     {v : Version D} (hv : v ∈ o.versions) {r : Ref D} (hr : r ∈ v.refs) :
-    ∃ t, resolve hash w r.pin = .ok t :=
-  hs.pins_ok hash a oid o hl v hv r.pin (Version.ref_pin hr)
+    Found E.hash w r.pin :=
+  hs.pins_ok E a oid o hl v hv r.pin (Version.ref_pin hr)
 
-/-- With takedowns, references resolve or report `removed`. -/
+/-- With takedowns, references are found or report `removed`. -/
 theorem Events.refs_held {w : World D}
-    (hs : Events hash (fun _ => (none : Option (Archive D))) w)
+    (hs : Events E (fun _ => (none : Option (Archive D))) w)
     {a : ArchiveId} {oid : ObjectId} {o : Obj D} (hl : lookup w a oid = some (.live o))
     {v : Version D} (hv : v ∈ o.versions) {r : Ref D} (hr : r ∈ v.refs) :
-    (∃ t, resolve hash w r.pin = .ok t) ∨ resolve hash w r.pin = .removed :=
-  (Events.sound hash hs).2 a oid o hl v hv r.pin (Version.ref_pin hr)
-
-/-- **No two versions refer to each other**, in a world built by events. -/
-theorem no_mutual_refs {w : World D}
-    (hs : Events hash (fun _ => (none : Option (Archive D))) w) {s t : Site}
-    (h1 : PinsTo hash w s t) : ¬ PinsTo hash w t s :=
-  fun h2 => no_cycles_events hash hs s (.cons h1 (.single h2))
+    Held E w r.pin :=
+  (Events.sound E hs).2 a oid o hl v hv r.pin (Version.ref_pin hr)
 
 /-- What a verifier aware of references reports for a version. -/
 def verifyRefs (w : World D) (v : Version D) : List (Ref D × Resolution D) :=
-  v.refs.map fun r => (r, resolve hash w r.pin)
+  v.refs.map fun r => (r, resolve E.hash w r.pin)
 
 /-- **A pin fixes what the version refers to.** -/
-theorem pin_fixes_refs {w w' : World D} (hs : Steps w w') {p : Pin D} {a : Version D}
-    (hp : resolve hash w p = .ok a) (hok : ∀ r ∈ a.refs, ∃ d, resolve hash w r.pin = .ok d) :
-    resolve hash w' p = .ok a ∧ verifyRefs hash w' a = verifyRefs hash w a := by
-  refine ⟨Steps.resolve_ok hash hs hp, ?_⟩
+theorem pin_fixes_refs {w w' : World D}
+    (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w') {p : Pin D}
+    {a : Version D} (hp : resolve E.hash w p = .ok a) (hhp : Honest E w' [p])
+    (hhr : Honest E w' (a.refs.map (·.pin)))
+    (hok : ∀ r ∈ a.refs, ∃ d, resolve E.hash w r.pin = .ok d) :
+    resolve E.hash w' p = .ok a ∧ verifyRefs E w' a = verifyRefs E w a := by
+  have h1 := hhp p (List.mem_singleton_self _)
+  refine ⟨Steps.resolve_ok E hw' hs h1.1 h1.2 hp, ?_⟩
   unfold verifyRefs
   apply List.map_congr_left
   intro r hr
   obtain ⟨d, hd⟩ := hok r hr
-  rw [Steps.resolve_ok hash hs hd, hd]
+  have h2 := hhr r.pin (List.mem_map.mpr ⟨r, hr, rfl⟩)
+  rw [Steps.resolve_ok E hw' hs h2.1 h2.2 hd, hd]
 
 /-- **References travel with every copy.** -/
 theorem copy_keeps_refs {o c : Obj D} {p : Pin D} {a u : Version D}
-    (hcol : NoCollision hash (c.inventory p.version) (o.inventory p.version))
-    (ho : resolveEntry hash (some (.live o)) p = .ok a)
-    (hc : resolveEntry hash (some (.live c)) p = .ok u) : u.refs = a.refs := by
-  rw [copy_authentic hash hcol ho hc]
+    (hcol : NoCollision E (c.inventory p.version) (o.inventory p.version))
+    (ho : resolveEntry E.hash (some (.live o)) p = .ok a)
+    (hc : resolveEntry E.hash (some (.live c)) p = .ok u) : u.refs = a.refs := by
+  rw [copy_authentic E hcol ho hc]
 
 /-- **A core verifier does not see a takedown behind a reference.** -/
 theorem takedown_behind_ref {w : World D} {b : ArchiveId} {x : ObjectId} {o : Obj D}
     (hl : lookup w b x = some (.live o)) {s : Members D}
-    (hs : ∀ p ∈ s.pins, ¬ (p.archive = b ∧ p.object = x)) {r : Ref D}
-    (hr : r.pin.archive = b ∧ r.pin.object = x) :
-    verify hash (takedown hash w b x o) s = verify hash w s ∧
-      resolve hash (takedown hash w b x o) r.pin = .removed := by
-  refine ⟨?_, takedown_removed hash hl hr⟩
+    (hs : ∀ p ∈ s.pins, ∀ c ∈ p.hints, ¬ (c = b ∧ ObjectId.line p.line = x)) {r : Ref D}
+    (hr : ObjectId.line r.pin.line = x) :
+    verify E (takedown E.hash w b x o) s = verify E w s ∧
+      resolveAt E.hash (takedown E.hash w b x o) b r.pin = .removed := by
+  refine ⟨?_, takedown_removed E.hash hl hr⟩
   unfold verify
   apply List.map_congr_left
   intro p hp
-  rw [takedown_other hash hl (hs p hp)]
+  unfold resolve
+  congr 2
+  apply List.map_congr_left
+  intro c hc
+  rw [takedown_other E.hash hl (hs p hp c hc)]
 
 end OpenSheaf
 
@@ -74,12 +77,8 @@ namespace OpenSheaf.Companions
 
 open OpenSheaf OpenSheaf.Patterns OpenSheaf.Story
 
-def y0 : World Nat := fun _ => none
-def y1 : World Nat := fun b => if b = "author" then some (emptyArchive ["author"]) else y0 b
-def y2 : World Nat := fun b => if b = "journal" then some (emptyArchive ["editor"]) else y1 b
-
-theorem b1 : StepBy toy "author" y0 y1 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
-theorem b2 : StepBy toy "editor" y1 y2 := .newArchive _ _ _ rfl (fun _ => rfl) (by decide)
+def genDt : Genesis Nat := { kind := .document, nonce := "details", originator := "author" }
+def detailsLine : LineId := ⟨"details", "author"⟩
 
 def d1 : Version Nat :=
   { documentVersion := 1, files := [("details.tm", 61)], description := "The detailed argument",
@@ -89,111 +88,177 @@ def d2 : Version Nat :=
   Version.revise [d1] [("details.tm", 62), ("details.lean", 63)] none "The detailed argument"
     "author" "a gap closed; with a formal proof"
 
-def details2 : Obj Nat :=
-  { archive := "author", id := "kpz-details", kind := .document, versions := [d1, d2] }
+def details0 : Obj Nat :=
+  { id := .line detailsLine, kind := .document, genesis := some genDt, versions := [d1, d2] }
 
-def y3 : World Nat := setEntry y2 "author" "kpz-details" (.live details2)
+def sigD2 : Sig Nat := ⟨detailsLine, 2, toy (details0.inventory 2), "a1", logPin "author" logA1 1⟩
 
-theorem b3 : StepBy toy "author" y2 y3 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (by simp [details2, d1, d2, Version.revise, Version.pins, Version.memberPins]) (Or.inl rfl) (by decide)
-    (by decide) (by decide) (sourceOk_all_none toy (by decide))
+def details2 : Obj Nat := { details0 with sigs := [sigD2] }
 
-def pinD2 : Pin Nat := ⟨"author", "kpz-details", 2, toy (details2.inventory 2)⟩
+def pinD2 : Pin Nat := ⟨detailsLine, 2, toy (details2.inventory 2), ["author"]⟩
+
+def genAc : Genesis Nat := { kind := .document, nonce := "account", originator := "author" }
+def accountLine : LineId := ⟨"account", "author"⟩
 
 def a1 : Version Nat :=
   { documentVersion := 1, files := [("account.tm", 71)], description := "A short account",
     refs := [⟨"IsSupplementedBy", pinD2⟩], depositor := "author", message := "first version" }
 
-def account : Obj Nat :=
-  { archive := "author", id := "kpz-account", kind := .document, versions := [a1] }
+def account0 : Obj Nat :=
+  { id := .line accountLine, kind := .document, genesis := some genAc, versions := [a1] }
 
-def y4 : World Nat := setEntry y3 "author" "kpz-account" (.live account)
+def sigA1 : Sig Nat := ⟨accountLine, 1, toy (account0.inventory 1), "a1", logPin "author" logA1 1⟩
 
-theorem b4 : StepBy toy "author" y3 y4 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide :
-      ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y3 p).isOk = true) v hv p hp))
-    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+def account : Obj Nat := { account0 with sigs := [sigA1] }
 
-def pinA1 : Pin Nat := ⟨"author", "kpz-account", 1, toy (account.inventory 1)⟩
+def pinA1 : Pin Nat := ⟨accountLine, 1, toy (account.inventory 1), ["author", "journal"]⟩
 
 def d3 : Version Nat :=
   { Version.describe [d1, d2] d2 "The detailed argument" "author" "link back to the account"
     with refs := [⟨"IsSupplementTo", pinA1⟩] }
 
-def details3 : Obj Nat := details2.append d3
+def sigD3 : Sig Nat :=
+  ⟨detailsLine, 3, toy ((details2.append d3).inventory 3), "a1", logPin "author" logA1 1⟩
 
-def y5 : World Nat := setEntry y4 "author" "kpz-details" (.live details3)
-
-theorem b5 : StepBy toy "author" y4 y5 :=
-  .append _ _ _ _ _ _ rfl rfl (by decide) (by decide) (by decide) (by decide)
-    (fun p hp => pinOk_of_isOk ((by decide :
-      ∀ p ∈ d3.pins, (resolve toy y4 p).isOk = true) p hp)) (Or.inl rfl) (by decide)
-    (by decide) (by decide) (sourceOk_none toy rfl)
+def details3 : Obj Nat := details2.append d3 [sigD3]
 
 example : d3.documentVersion = d2.documentVersion := by decide
 
 def issue7 : Members Nat :=
   { type := .selection,
-    members := [{ archive := "author", object := "kpz-account", pins := [pinA1] }] }
+    members := [{ line := accountLine, hints := ["author", "journal"], pins := [pinA1] }] }
+
+def genI7 : Genesis Nat := { kind := .collection, nonce := "issue7", originator := "journal" }
+def issueLine : LineId := ⟨"issue7", "journal"⟩
 
 def i1 : Version Nat :=
   { documentVersion := 1, files := [], members := some issue7, description := "Issue 7",
-    depositor := "editor", message := "accepted: the account, version 1" }
+    depositor := "journal", message := "accepted: the account, version 1" }
 
-def issueObj : Obj Nat :=
-  { archive := "journal", id := "issue-7", kind := .collection, versions := [i1] }
+def issue0 : Obj Nat :=
+  { id := .line issueLine, kind := .collection, genesis := some genI7, versions := [i1] }
 
-def y6 : World Nat := setEntry y5 "journal" "issue-7" (.live issueObj)
-def y7 : World Nat := setEntry y6 "journal" "kpz-account" (.live account)
+def sigI1 : Sig Nat := ⟨issueLine, 1, toy (issue0.inventory 1), "j1", logPin "journal" logJ 1⟩
 
-theorem b6 : StepBy toy "editor" y5 y6 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide :
-      ∀ v ∈ issueObj.versions, ∀ p ∈ v.pins, (resolve toy y5 p).isOk = true) v hv p hp))
-    (Or.inl rfl) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+def issueObj : Obj Nat := { issue0 with sigs := [sigI1] }
 
-theorem b7 : StepBy toy "editor" y6 y7 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide :
-      ∀ v ∈ account.versions, ∀ p ∈ v.pins, (resolve toy y6 p).isOk = true) v hv p hp))
-    (Or.inr ⟨account, rfl, rfl, [], (List.append_nil _).symm⟩) (by decide) (by decide) (by decide) (sourceOk_all_none toy (by decide))
+def madeC : List (Sig Nat) := [sigD2, sigA1, sigD3, sigI1]
 
-theorem steps : Star ByAgent y0 y7 :=
-  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _)
-    ⟨_, b1⟩) ⟨_, b2⟩) ⟨_, b3⟩) ⟨_, b4⟩) ⟨_, b5⟩) ⟨_, b6⟩) ⟨_, b7⟩
+def EC : Env Nat :=
+  { hash := toy, keyDigest := keyDigest, nameOf := nameOf, verifies := fun s => decide (s ∈ madeC) }
 
-theorem valid : ValidSteps toy y0 y7 := steps.mono fun ⟨_, h⟩ => h.toValidStep toy
+def y0 : World Nat := fun _ => none
+def y1 : World Nat := fun b => if b = "author" then some (arch ["author"]) else y0 b
+def y2 : World Nat := fun b => if b = "journal" then some (arch ["journal"]) else y1 b
+def y3 : World Nat := setEntry y2 "author" (logLine "author") (.live logA1)
+def y4 : World Nat := setEntry y3 "journal" (logLine "journal") (.live logJ)
+def y5 : World Nat := setEntry y4 "journal" (logLine "author") (.live logA1)
+def y6 : World Nat := setEntry y5 "author" (.line detailsLine) (.live details2)
+def y7 : World Nat := setEntry y6 "author" (.line accountLine) (.live account)
+def y8 : World Nat := setEntry y7 "author" (.line detailsLine) (.live details3)
+def y9 : World Nat := setEntry y8 "journal" (.line issueLine) (.live issueObj)
+def y10 : World Nat := setEntry y9 "journal" (.line accountLine) (.live account)
 
-example : verify toy y7 issue7 = [(pinA1, .ok a1)] := by decide
+theorem b1 : ValidStep EC y0 y1 := .newArchive _ _ _ rfl (fun _ => rfl)
+theorem b2 : ValidStep EC y1 y2 := .newArchive _ _ _ rfl (fun _ => rfl)
 
-example : verifyRefs toy y7 a1 = [(⟨"IsSupplementedBy", pinD2⟩, .ok d2)] := by decide
+theorem b3 : ValidStep EC y2 y3 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+    (by decide)
 
-example : verifyRefs toy y7 d3 = [(⟨"IsSupplementTo", pinA1⟩, .ok a1)] := by decide
+theorem b4 : ValidStep EC y3 y4 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+    (by decide)
 
-example : ∃ t, resolve toy y7 pinD2 = .ok t :=
-  ValidSteps.refs_resolve toy valid (a := "author") (oid := "kpz-account") (o := account) rfl
-    (v := a1) (by simp [account]) (r := ⟨"IsSupplementedBy", pinD2⟩) (by simp [a1])
+theorem b5 : ValidStep EC y4 y5 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
+    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
+    (by decide)
 
-example (s : Site) : ¬ Chain (PinsTo toy y7) s s := no_cycles toy valid s
+theorem b6 : ValidStep EC y5 y6 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+    (by decide)
 
-example : (resolve toy y4 ⟨"author", "kpz-account", 2, 0⟩).isOk = false := by decide
+theorem b7 : ValidStep EC y6 y7 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+    by decide, rfl⟩
+    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ account.versions, ∀ p ∈ v.pins,
+      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y6 p).isOk = true) v hv p hp))
+    (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+    (by decide)
 
-def yGone : World Nat := fun b => if b = "author" then none else y7 b
+theorem b8 : ValidStep EC y7 y8 :=
+  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
+    (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ d3.pins,
+      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y7 p).isOk = true) p hp))
+    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
+    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+    (by decide)
 
-example : resolveVia toy yGone pinA1 ["journal"] = .ok a1 := by decide
+theorem b9 : ValidStep EC y8 y9 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+    by decide, rfl⟩
+    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ issueObj.versions, ∀ p ∈ v.pins,
+      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y8 p).isOk = true) v hv p hp))
+    (fun _ => branch_none (by decide)) (fun _ => by decide)
+    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
+    (by decide)
 
-example : resolveVia toy yGone pinD2 ["journal"] = .unavailable := by decide
+theorem copy_y9 : CopyOf y9 "journal" account := ⟨"author", account, by decide, rfl, rfl, [], by simp⟩
 
-def yDown : World Nat := takedown toy y7 "author" "kpz-details" details3
+theorem b10 : ValidStep EC y9 y10 :=
+  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
+    by decide, rfl⟩
+    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ account.versions, ∀ p ∈ v.pins,
+      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y9 p).isOk = true) v hv p hp))
+    (fun h => absurd copy_y9 h) (fun h => absurd copy_y9 h)
+    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
+      fun _ => ⟨logA1, rfl, by decide, by decide, by decide, Or.inr copy_y9⟩⟩
+    (by decide)
 
-example : verify toy yDown issue7 = [(pinA1, .ok a1)] := by decide
+theorem valid : ValidSteps EC y0 y10 :=
+  .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _) b1) b2) b3) b4)
+    b5) b6) b7) b8) b9) b10
 
-example : verifyRefs toy yDown a1 = [(⟨"IsSupplementedBy", pinD2⟩, .removed)] := by decide
+example : verify EC y10 issue7 = [(pinA1, .ok a1)] := by decide
 
-example : verify toy yDown issue7 = verify toy y7 issue7 ∧ resolve toy yDown pinD2 = .removed :=
-  takedown_behind_ref toy (o := details3) rfl (by decide) (r := ⟨"IsSupplementedBy", pinD2⟩)
-    ⟨rfl, rfl⟩
+example : verifyRefs EC y10 a1 = [(⟨"IsSupplementedBy", pinD2⟩, .ok d2)] := by decide
+
+example : verifyRefs EC y10 d3 = [(⟨"IsSupplementTo", pinA1⟩, .ok a1)] := by decide
+
+example : Found toy y10 pinD2 :=
+  ValidSteps.refs_resolve EC valid (a := "author") (oid := .line accountLine) (o := account) rfl
+    (v := a1) (by simp [account, account0]) (r := ⟨"IsSupplementedBy", pinD2⟩) (by simp [a1])
+
+example : (resolve toy y7 ⟨accountLine, 2, 0, ["author"]⟩).isOk = false := by decide
+
+def yGone : World Nat := fun b => if b = "author" then none else y10 b
+
+example : resolve toy yGone pinA1 = .ok a1 := by decide
+
+example : resolve toy yGone { pinD2 with hints := ["author", "journal"] } = .unavailable := by
+  decide
+
+def yDown : World Nat := takedown toy y10 "author" (.line detailsLine) details3
+
+example : verify EC yDown issue7 = [(pinA1, .ok a1)] := by decide
+
+example : verifyRefs EC yDown a1 = [(⟨"IsSupplementedBy", pinD2⟩, .removed)] := by decide
+
+example : verify EC yDown issue7 = verify EC y10 issue7 ∧
+    resolveAt toy yDown "author" pinD2 = .removed :=
+  takedown_behind_ref EC (o := details3) rfl (by decide) (r := ⟨"IsSupplementedBy", pinD2⟩) rfl
 
 end OpenSheaf.Companions

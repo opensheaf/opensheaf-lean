@@ -3,37 +3,60 @@ import OpenSheaf.Basic
 
 namespace OpenSheaf
 
-/-- An OCFL object of an OpenSheaf archive (section 7). -/
+/-- `genesis.json` (section 5.1): the kind, the nonce, and for a work its
+originator, for an owner its first keys. -/
+structure Genesis (D : Type) where
+  kind : Kind
+  nonce : String
+  originator : OwnerName := ""
+  keys : Option (Keys D) := none
+  deriving DecidableEq, Repr
+
+/-- An OCFL object (section 4): its identifier, kind, genesis record (none for
+a draft), versions, and the signature files of its witness folder
+(section 7.2). -/
 structure Obj (D : Type) where
-  archive : ArchiveId
   id : ObjectId
   kind : Kind
+  genesis : Option (Genesis D)
   versions : List (Version D)
+  sigs : List (Sig D) := []
 
-/-- What an inventory describes: the object, and its versions up to one. -/
+/-- What an inventory describes: the object, its genesis record, and its
+versions up to one. -/
 structure Inventory (D : Type) where
-  archive : ArchiveId
   id : ObjectId
+  genesis : Option (Genesis D)
   versions : List (Version D)
 
 /-- A digest function for inventories. -/
 abbrev Hash (D : Type) := Inventory D → D
 
+/-- The environment: digests of inventories and keys, the names of genesis
+records, and which signature files verify. -/
+structure Env (D : Type) where
+  hash : Hash D
+  keyDigest : Key → D
+  nameOf : Genesis D → Nat → Name
+  verifies : Sig D → Bool
+
 namespace Obj
 
 variable {D : Type}
 
-/-- Add an object version at the end of the history. -/
-def append (o : Obj D) (v : Version D) : Obj D :=
-  { o with versions := o.versions ++ [v] }
+/-- Add an object version at the end of the history, and signature files to
+the witness folder. -/
+def append (o : Obj D) (v : Version D) (ss : List (Sig D) := []) : Obj D :=
+  { o with versions := o.versions ++ [v], sigs := o.sigs ++ ss }
 
 /-- Object version `n` (`v1` is `1`), if any. -/
 def versionAt (o : Obj D) (n : Nat) : Option (Version D) :=
   if n = 0 then none else o.versions[n - 1]?
 
-/-- The inventory of object version `n`: the object, and versions `1` to `n`. -/
+/-- The inventory of object version `n`: the object, its genesis record, and
+versions `1` to `n`. -/
 def inventory (o : Obj D) (n : Nat) : Inventory D :=
-  ⟨o.archive, o.id, o.versions.take n⟩
+  ⟨o.id, o.genesis, o.versions.take n⟩
 
 theorem versionAt_bounds {o : Obj D} {n : Nat} {v : Version D}
     (h : o.versionAt n = some v) : 1 ≤ n ∧ n ≤ o.versions.length := by
@@ -72,7 +95,7 @@ theorem versionAt_congr_take {o o' : Obj D} {n : Nat}
     rw [key, h, ← key]
 
 theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
-    (hid : o'.archive = o.archive ∧ o'.id = o.id)
+    (hid : o'.id = o.id ∧ o'.genesis = o.genesis)
     (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
     (hn : n ≤ pre.length) : o'.inventory n = o.inventory n := by
   unfold Obj.inventory
@@ -96,8 +119,8 @@ theorem versionAt_mem_take {o : Obj D} {n : Nat} {v : Version D}
       rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
     exact List.mem_of_getElem? h'
 
-theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
-    (h : (o.append x).versionAt n = some v) :
+theorem versionAt_append {o : Obj D} {x v : Version D} {ss : List (Sig D)} {n : Nat}
+    (h : (o.append x ss).versionAt n = some v) :
     o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
   unfold Obj.versionAt Obj.append at *
   split at h
@@ -115,6 +138,15 @@ theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
       rw [this] at h
       simp at h
       exact ⟨by omega, h.symm⟩
+
+theorem append_getElem_last {o : Obj D} {x : Version D} {ss : List (Sig D)} :
+    ((o.append x ss).versions[o.versions.length]'(by simp [Obj.append])) = x := by
+  simp [Obj.append]
+
+theorem append_getElem_old {o : Obj D} {x : Version D} {ss : List (Sig D)} {i : Nat}
+    (hi : i < o.versions.length) :
+    ((o.append x ss).versions[i]'(by simp [Obj.append]; omega)) = o.versions[i] := by
+  simp [Obj.append, List.getElem_append_left hi]
 
 end Prefix
 
@@ -146,7 +178,7 @@ def docCount : List (Version D) → Nat
   | [] => 0
   | v :: l => max v.documentVersion (docCount l)
 
-/-- `x` may extend the history `l` (section 7.3, with the choice above). -/
+/-- `x` may extend the history `l` (section 4.2). -/
 def Extends (l : List (Version D)) (x : Version D) : Prop :=
   (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
     ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
@@ -263,14 +295,14 @@ theorem StatusOk.single (x : Version D) : StatusOk [x] := by
   simp [NoReinstatement, headStatus]
 
 omit [DecidableEq D] in
-/-- A description-only version (section 7.3) of the history `l`: a new
+/-- A description-only version (section 4.2) of the history `l`: a new
 description of the content of `v`, with the status of the object. -/
 def Version.describe (l : List (Version D)) (v : Version D)
     (description depositor message : String) : Version D :=
   { v with status := headStatus l, description, depositor, message }
 
 omit [DecidableEq D] in
-/-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
+/-- A withdrawal (section 13.1): the same content, with status `withdrawn`. -/
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }
 

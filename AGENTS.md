@@ -55,9 +55,10 @@ Plain files, edited directly: `README.md`, `AGENTS.md`, `literate.json`,
 - `lake build --wfail` must succeed: no errors, no warnings, no `sorry`.
 - Each definition says which section of the specification it models; each
   chapter says what it proves, and why, in prose.
-- Model the specification as written. Proposals under discussion (such as
-  #29) go in chapters and namespaces of their own, which say so and link the
-  issue.
+- Model the specification as written. Proposals under discussion go in
+  chapters and namespaces of their own, which say so and link the issue;
+  where a proposal needs a field of the core types (the references of #21
+  and #28, in `Version`), the definition says so and links the issue.
 - Assume nothing about the digest function unless a statement needs it, and
   then as an explicit hypothesis.
 - When the model shows that the specification is ambiguous or wrong, open an

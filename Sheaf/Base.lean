@@ -4,20 +4,19 @@ import Sheaf.Order
 
 namespace OpenSheaf.Sheaf
 
-/-- A named document version: an object, named by its archive and identifier,
-and a document version number. -/
+/-- A named document version: an object, named by its identifier, and a
+document version number. -/
 structure Name where
-  archive : ArchiveId
   object : ObjectId
   doc : Nat
   deriving DecidableEq, Repr
 
 /-- The order of deposit: earlier document versions of the same object. -/
 def deposit : Order Name where
-  le x y := x.archive = y.archive ∧ x.object = y.object ∧ x.doc ≤ y.doc ∧ (x.doc = 0 → y.doc = 0)
-  refl _ := ⟨rfl, rfl, Nat.le_refl _, id⟩
-  trans := fun ⟨h1, h2, h3, h4⟩ ⟨h1', h2', h3', h4'⟩ =>
-    ⟨h1.trans h1', h2.trans h2', Nat.le_trans h3 h3', fun h => h4' (h4 h)⟩
+  le x y := x.object = y.object ∧ x.doc ≤ y.doc ∧ (x.doc = 0 → y.doc = 0)
+  refl _ := ⟨rfl, Nat.le_refl _, id⟩
+  trans := fun ⟨h2, h3, h4⟩ ⟨h2', h3', h4'⟩ =>
+    ⟨h2.trans h2', Nat.le_trans h3 h3', fun h => h4' (h4 h)⟩
 
 variable {D : Type}
 
@@ -33,7 +32,7 @@ def _root_.OpenSheaf.Version.content (v : Version D) : Content D :=
 
 /-- The named document version held by an object version of `o`. -/
 def _root_.OpenSheaf.Obj.name (o : Obj D) (v : Version D) : Name :=
-  ⟨o.archive, o.id, v.documentVersion⟩
+  ⟨o.id, v.documentVersion⟩
 
 variable [DecidableEq D]
 

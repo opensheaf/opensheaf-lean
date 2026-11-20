@@ -25,28 +25,30 @@
 <main>
 <h1>OpenSheaf in Lean</h1>
 <p>Two literate programs about the
-<a href="https://opensheaf.org/">OpenSheaf specification</a> (version 0.1, a
+<a href="https://opensheaf.org/">OpenSheaf specification</a> (version 0.2, a
 draft), checked by Lean 4. Both are non-normative: where they and the
 specification differ, the specification holds.</p>
 <div class="documents">
 <a class="card" href="model/index.html">
 <h2>A formal model</h2>
-<p>Objects, object versions and document versions, archives, pins,
-catalogues and selections, mirrors and accepted copies, and the steps that
-change archives; then the properties the specification states in prose,
-proved for every world: pins stay valid, takedowns are reported, selections
-move only by their curator, and the use cases hold.</p>
+<p>Lines and their versions, owners and their key logs with pre-rotation,
+signatures, archives and copies, pins, catalogues and selections, branches
+and drafts, and the steps that change archives; then the properties the
+specification states in prose, proved for every world: pins stay valid,
+only an owner's keys add to its lines, current keys cannot change a key
+log, copies agree while owners sign one history, takedowns are reported,
+selections move only by their curator, and the use cases hold.</p>
 </a>
 <a class="card" href="sheaf/index.html">
 <h2>OpenSheaf as a sheaf</h2>
-<p>An application of the model. Named document versions, ordered by
-deposit, are the base; each object version, wherever it is kept, is a
+<p>An application of the model. Named document versions of lines, ordered
+by deposit, are the base; each object version, wherever it is kept, is a
 section. In every world built from nothing by valid steps and takedowns,
-the sections of all copies glue into one: one content for each document
-version, whichever copy it is read from. Names keep their content for ever;
-in the order extended by the pins of collections, what a collection version
-pins is fixed while it is held; every copy that holds a pinned version gives the same verdict on it;
-and verification needs only what lies below.</p>
+the sections of all copies glue into one when owners sign one history: one
+content for each document version, whichever copy it is read from; and a
+fork of a line, which only keys of its owner's key log can sign, is exactly
+what stops them gluing. Every copy that holds a pinned version gives the same verdict
+on it, and verification needs only what lies below.</p>
 </a>
 </div>
 <p>The source of both, and the issues found by the model, are in

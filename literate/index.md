@@ -1,78 +1,97 @@
 # OpenSheaf in Lean
 
 This is a formal model of the
-[OpenSheaf specification](https://opensheaf.org/) (version 0.1, a draft) in
+[OpenSheaf specification](https://opensheaf.org/) (version 0.2, a draft) in
 [Lean 4](https://lean-lang.org/), written as a literate program. It defines
-objects, object versions and document versions, archives, pins, catalogues
-and selections, and the ways archives change. It then proves the properties
-that the specification states in prose: that pins, once valid, stay valid;
-that a takedown is detected; that a selection does not move unless its
-curator moves it; and, for a proposal still under discussion, that drafts
-can be rewritten without breaking any pin of a sealed version.
+lines and their object versions and document versions, owners and their key
+logs, signatures, archives and copies, pins, catalogues and selections,
+branches and drafts, and the ways archives change. It then proves the
+properties that the specification states in prose: that pins, once valid,
+stay valid; that a takedown is detected; that only an owner's keys add to
+its lines, wherever they are kept; that whoever holds only current keys
+cannot change a key log, and that a key log never forks at its first
+version; that copies of a line agree as long as its owner signs one
+history; that a selection does not move unless its curator moves it; and
+that drafts can be rewritten without breaking any pin.
 
 The model is **non-normative**. Where it and the specification differ, the
 specification holds, and the difference is a bug of one or the other, to be
 reported. Its purpose is to make the semantics precise, to find the
 ambiguities and corner cases of the text, and to check design proposals
-before they are written into the specification.
+before they are written into the specification. An earlier version modelled
+version 0.1 of the specification, in which archives owned their objects;
+version 0.2 names works by their genesis records, makes owners keyed
+identities with key logs, and lines signed versions wherever they are
+stored, and the model follows.
 
 ## How to read it
 
 The chapters build the model from the bottom up:
 
-1. [Basic notions](10-basic.md): identifiers, pins, member lists and object
+1. [Basic notions](10-basic.md): names, owners and lines, pins with their
+   hints, member lists, keys and signature files, branch points and object
    versions;
-2. [Objects and their history](20-object.md): the history of an object,
-   its inventories, and the counting of document versions (section 7.3);
-3. [Archives and pins](30-archive.md): resolution of pins, the steps that
+2. [Objects and their history](20-object.md): genesis records, objects,
+   inventories (exact, with the inventory chain of section 4.3), the
+   environment (digests, names, which signatures verify), and the counting
+   of document versions (section 4.2);
+3. [Archives and pins](30-archive.md): archives and the owners they host,
+   resolution at an archive and through the hints of a pin, the steps that
    change archives, immutability, and takedown;
-4. [Catalogues and selections](40-collection.md): what updating a
-   collection does to each kind;
-5. [Well-formed worlds](45-worlds.md): the valid steps, the model's reading
-   of what the specification allows,
-   and what they guarantee: well-formed objects and member lists,
-   identifiers never reused, objects that only grow, every member pinned;
-   then takedowns among the events, after which every pin held resolves or
-   reports removed;
-6. [Mirrors and accepted copies](48-copies.md): mirrors stay prefixes of
-   their originals, and resolve the original's pins and nothing else; any
-   two copies of an object are prefixes of one another, even after the
-   original is taken down; any copy is authenticated by the pin, unless the digests collide;
-   resolution through mirrors (section 6.4); accepted copies survive the
-   original and are never taken for it;
-7. [Who may act](49-acts.md): every change is an act of a writer of the
-   archive it changes; outsiders change nothing, every version was
-   deposited by a writer of its object's own archive (mirrors included),
-   and a selection changes only by its curator;
-8. [Draft, private and public](50-states.md): the proposal of issue #29,
-   and what it guarantees;
-9. [Use cases as theorems](60-patterns.md): the promises of the use cases
+4. [Owners and key logs](35-owners.md): pre-rotation (section 6.1): the
+   rules on `keys.json`, the computed first version, rotation keys, ending
+   versions and fork records; a key log never forks at its first version,
+   and current keys cannot change it;
+5. [Lines and signatures](38-lines.md): signed versions, vouching, exposed
+   keys, fork points and contested versions (section 7.3);
+6. [Catalogues and selections](40-collection.md): what updating a
+   collection does to each type;
+7. [Well-formed worlds](45-worlds.md): the valid steps, the model's reading
+   of what the specification allows (identity, signatures against the
+   archive's copy of the key log, mirrors that only copy, branch points),
+   and what they guarantee; then takedowns among the events (of lines, not
+   of key logs), after which every pin held is found or reports removed;
+8. [Owners sign, places host](47-acts.md): the head of every copy of every
+   line is signed by its owner, every key log is valid; forgery needs an
+   owner's key; mirrors only copy, a fork freezes an owner, an ended owner
+   deposits nothing, and exposed keys add nothing (section 7.5); every
+   copy keeps the identity of its line, so copies hold one genesis record
+   unless the names of the two records collide;
+9. [Copies, mirrors and branches](48-copies.md): copies of a line agree
+   when its owner signs one history, and a fork of a line was signed with
+   the owner's keys; a pin authenticates any copy, unless digests collide;
+   resolution through hints; branches hold their parents' files, and
+   accepted copies survive the parent and are never taken for it;
+10. [Drafts and sealing](50-drafts.md): drafts may be rewritten or deleted,
+   and nothing about any line changes;
+11. [Use cases as theorems](60-patterns.md): the promises of the use cases
    (a journal issue does not change, a co-author's catalogue follows a
-   paper, a withdrawal keeps what was vetted, a takedown is reported, the
-   owner decides, a mirror is a receipt, a record deleted at the end of its
-   retention), proved for every world;
-10. [What cannot happen](65-impossible.md): breaks of the protocol, shown
+   paper, a withdrawal keeps what was vetted, only the owner adds to a
+   member, a takedown is reported, a mirror is a receipt, a record deleted
+   at the end of its retention), proved for every world;
+12. [What cannot happen](65-impossible.md): breaks of the protocol, shown
    impossible or detected: a pin changing its meaning, history rewritten,
    identifiers reused, document versions ambiguous or with gaps, cycles of
-   pins;
-11. [A story, checked by computation](70-story.md): one world built by valid
-   steps from nothing (an author, a journal, a co-author with a catalogue
-   and a mirror, an accepted copy), then an archive lost and a takedown,
-   with the verifier's reports checked by `decide`, as tests, and attempts
-   to break the protocol that fail, among them a pin made afresh into an
-   object taken down;
-12. [A learning record, checked by computation](75-record.md): a second
-    story, a student's thesis and the department's record of it, with a
-    receipt of each submission, comments tied by a reference to the version
-    commented on, a rewrite caught by the receipt, and the record deleted at
-    the end of its retention;
-13. [References between documents](80-references.md): pinned references
+   pins, a pin naming a key log, a withdrawal undone;
+13. [A story, checked by computation](70-story.md): three owners with key
+   logs, a paper sealed and revised after a key rotation, a journal issue
+   and accepted copy, a co-author's catalogue and mirror, a takedown and a
+   draft, with the verifier's reports checked by `decide`; and attempts
+   that fail: a signature that is not the owner's, a rewrite in place, a
+   fresh pin into a line taken down, a reinstatement, a branch posing as
+   its parent, bad member lists, a mirror that does not copy, a version
+   signed with an exposed key, a key log changed with current keys, a fork
+   that freezes the owner;
+14. [A learning record, checked by computation](75-record.md): a student's
+    thesis and the department's receipt of it, comments tied by a reference
+    to the version commented on, a rewrite caught by the receipt, and the
+    record deleted at the end of its retention;
+15. [References between documents](80-references.md): pinned references
    from one document to an exact version of another (the proposals of
-   issues #21 and #28): they never dangle and form no cycles, a pin fixes
-   what its version refers to, copies carry references but not what they
-   name, and a takedown behind a reference is invisible to a verifier that
-   knows only the core; the use case of a short account and its detailed
-   argument, computed.
+   issues #21 and #28): they are found and travel with copies, a pin fixes
+   what its version refers to, a takedown behind a reference is invisible
+   to a verifier that knows only the core; the use case of a short account
+   and its detailed argument, computed.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -84,11 +103,13 @@ every module:
     import OpenSheaf.Basic
     import OpenSheaf.Object
     import OpenSheaf.Archive
+    import OpenSheaf.Owners
+    import OpenSheaf.Lines
     import OpenSheaf.Collection
     import OpenSheaf.Worlds
-    import OpenSheaf.Copies
     import OpenSheaf.Acts
-    import OpenSheaf.States
+    import OpenSheaf.Copies
+    import OpenSheaf.Drafts
     import OpenSheaf.Patterns
     import OpenSheaf.Impossible
     import OpenSheaf.Story
@@ -97,42 +118,65 @@ every module:
 
 ## Modelling choices
 
-The specification describes files on disk, JSON documents and web servers.
-The model keeps only what the properties depend on.
+The specification describes files on disk, JSON documents, signatures and
+web servers. The model keeps only what the properties depend on.
 
 - **Digests.** A digest is a value of an arbitrary type `D`, and the digest
   of an inventory is a function `hash` applied to what the inventory
-  describes: the archive and identifier of the object, and its versions up
-  to one. Almost nothing assumes a property of `hash`: those theorems hold
-  for any function, even a constant one. This is worth knowing.
-  Immutability, for instance, does not rest on the strength of SHA-512: it
-  rests on the fact that archives only ever add versions. Five theorems,
-  about copies that come from anywhere and about tampering, assume that the
-  two inventories they compare do not collide (`NoCollision`, in
-  [chapter 6](48-copies.md)). They do not assume that `hash` is injective,
-  which no real digest is.
+  describes: the identifier and genesis record of the object, and its
+  versions up to one. Most theorems hold for any function, even a constant
+  one: immutability, for instance, does not rest on the strength of
+  SHA-512, but on the fact that archives only ever add versions. The
+  theorems about copies that come from anywhere, about tampering and about
+  branches assume that the inventories they compare do not collide
+  (`NoCollision`, [chapter 9](48-copies.md)); those about agreement of
+  copies assume that the owner signs one history, every signature of its
+  keys signing a prefix of it, and that no copy the world holds collides
+  with that history (`OneHistory`). None assumes that `hash` is injective,
+  which no real digest is: each assumes only that given pairs of
+  inventories do not collide.
+- **Signatures.** Which signature files verify is a fact of the
+  environment (`Env.verifies`): a signature that verifies was made by
+  someone holding its key. The model never assumes that only the owner
+  holds its keys; theorems about thieves state which keys made the
+  signatures that verify. Ed25519, `did:key` and the signed message are
+  left out; so are timestamps, and with them the evidence that may date a
+  signature before an exposure or a fork (section 7.3).
+- **Names.** The names of a genesis record are given by a function of the
+  environment, algorithm by algorithm (`Env.nameOf`); the model does not
+  check which algorithm a branch takes after a clash (section 5.3), nor
+  the rule on reused genesis records (section 5.4).
 - **Choices on open questions.** Where the specification leaves a question
-  open, the model makes a choice and says so: the numbering of document
-  versions that remove or rename files or revert content (issue #23),
-  withdrawals that cannot be undone (issue #25), pins that must resolve
-  when they are made (or report `removed`, if carried over from a version
-  already held), mirrors that may start as a
-  partial copy (issue #13), the states of issue #29, and pinned references
-  between documents (issues #21 and #28), which accepted copies keep,
-  resolution through mirrors that passes over a mismatch (issue #37), and
-  three choices in the check of a copy's source. Each is marked in its
-  chapter.
+  open, the model makes a choice and says so: withdrawals that cannot be
+  undone (issue #25); pins that must be found when they are made (or report
+  `removed`, if carried over from a version already held); copies that may
+  stop at any version (issue #39); branches that number their document
+  versions from 1, the parent's number kept in `parent.documentVersion`
+  (issue #57, departing also from the first sentence of section 9.4, which
+  is not provisional); pinned references between documents (issues #21 and #28),
+  which branches keep; the order in which a resolver tries the hints of a
+  pin (section 12.3). Each is marked in its chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
-  are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP and
-  the discovery document are left out. The pins of the model are those of
-  member lists and of references between documents. Revisions of a
-  selection have no `documentVersion`, and the verifier does not go through
-  mirrors (section 14). Writers belong to an archive and are fixed, so a
-  curator is any writer of the selection's archive.
+  are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP,
+  the discovery document, indexes, keepers, profiles and extensions are
+  left out, and so is the evidence of a branch point (section 9.2): the
+  model carries the parent's signature files without checking them, and
+  checks a branch point by resolving the parent. Section 8.5's seven
+  statuses of a member come down to four results, signatures being checked
+  by the valid steps ([chapter 3](30-archive.md)). A valid step adds one
+  version at a time, which must be signed directly (section 7.5 also lets
+  a version vouched for by the next one come with it).
+  The pins of the model are those of member lists, of references and of
+  branch points; a pin carries its hints (`at`, `parent.url`). Revisions of
+  a selection have no `documentVersion`. Returns of a line taken down
+  (section 13.2) are left out, and so are takedowns of key logs (section
+  13.2 allows them, of key logs other objects need only by law or at the
+  keeper's request): a key log, once held, stays, and the owner's keys in a
+  world are those of the key logs it holds.
 - **Archives** are maps from object identifiers to objects or tombstones,
-  and the world is a map from archive identifiers to archives. Changes are
-  the cases of one inductive relation, `Step`, so that a theorem about every
-  change is a case analysis.
+  with the owners they host, and the world is a map from locations to
+  archives. Changes are the cases of one inductive relation, `Step`, so
+  that a theorem about every change is a case analysis.
 
 ## An application: OpenSheaf as a sheaf
 
@@ -140,8 +184,10 @@ A second literate program in the same repository,
 [OpenSheaf as a sheaf](https://opensheaf.org/opensheaf-lean/sheaf/), reads
 the worlds of this model as sheaves: named document versions, ordered by
 deposit, are the base, and each object version, wherever it is kept, is a
-section. It proves that in every world built by the events of this model
-the sections of all copies glue into exactly one.
+section. It proves that, in every world built by the events of this model,
+the sections of all copies of a line glue into exactly one when its owner
+signs one history, and that a fork of a line, which only the owner's keys
+can make, is a failure of gluing.
 
 ## Building
 

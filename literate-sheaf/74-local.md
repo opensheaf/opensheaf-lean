@@ -13,9 +13,9 @@ makes the claim precise in two ways.
   every collection version below it in the order with pins, are the same
   in the *support* of the collection as in the whole world
   (`verify_local`). The support is the copies that hold something below
-  the collection, and the tombstones that its member lists pin, which stand
-  for the objects taken down. Nothing else in the world, however large, can change what a
-  verifier of the collection finds.
+  the collection, and the entries, copies or tombstones, that its member
+  lists pin at their hints. Nothing else in the world, however large, can
+  change what a verifier of the collection finds.
 
     -- in Sheaf/Local.lean:
     import Sheaf.Lifting
@@ -57,7 +57,7 @@ world holds.
     /-- A source of the part is a source of the world. -/
     def Source.lift {S : ArchiveId → ObjectId → Prop} [∀ a i, Decidable (S a i)] {w : World D}
         (i : Source (restrictW S w)) : Source w :=
-      ⟨i.archive, i.id, i.obj, restrict_live i.live, i.version⟩
+      ⟨i.archive, i.line, i.obj, restrict_live i.live, i.kind, i.version⟩
 
     theorem heldIn_restrict (S : ArchiveId → ObjectId → Prop) [∀ a i, Decidable (S a i)]
         (w : World D) : Sub (HeldIn (restrictW S w)) (HeldIn w) :=
@@ -79,45 +79,48 @@ part: the presheaf restriction, realised by dropping entries.
 
 The support of a named document version `x` is the places a verifier needs
 to check `x` and everything below it: the copies that hold a named document
-version below `x`, and the tombstones its member lists pin.
+version below `x`, and, for every pin of a member list held below `x`, the
+entry of the pinned line at each of the pin's hints (section 12.3: a
+resolver tries the locations it has). In version 0.1 a pin named one
+archive, and the support needed only the pins' own archives, and the
+tombstones of what was taken down; a pin of version 0.2 is looked up at all
+its hints, so all of them are in the support. The theorem then needs no
+hypothesis on the world: the support holds, by definition, every entry the
+verifier reads.
 
-    variable [DecidableEq D] (hash : Hash D)
+    variable [DecidableEq D] (E : Env D)
 
     /-- The places of a world that a verifier of `x` and everything below it
     needs: the copies that hold a named document version below `x`, and the
-    tombstones that a member list below `x` pins. -/
+    entries that a member list below `x` pins, at the pin's hints. -/
     def Support (w : World D) (x : Name) (a : ArchiveId) (i : ObjectId) : Prop :=
-      (∃ c, lookup w a i = some (.live c) ∧ ∃ v ∈ c.versions, (byPins hash w).le (c.name v) x) ∨
-        ((∃ n d, lookup w a i = some (.tomb n d)) ∧
-          ∃ b j c v p, lookup w b j = some (.live c) ∧ v ∈ c.versions ∧
-            (byPins hash w).le (c.name v) x ∧ p ∈ v.memberPins ∧ p.archive = a ∧ p.object = i)
+      (∃ l c, i = .line l ∧ lookup w a i = some (.live c) ∧ c.kind ≠ .owner ∧
+        ∃ v ∈ c.versions, (byPins E w).le (c.name v) x) ∨
+        (∃ b l c v p, lookup w b (.line l) = some (.live c) ∧ c.kind ≠ .owner ∧ v ∈ c.versions ∧
+          (byPins E w).le (c.name v) x ∧ p ∈ v.memberPins ∧ a ∈ p.hints ∧ i = .line p.line)
 
-In a world built by events, every pin of a member list held below `x`
-resolves to a version below `x`, or reports `removed`
-([Collections and what they pin](55-collections.md)). In both cases the
-place it names is in the support, which therefore resolves it as the whole
-world does.
+A pin of a member list held below `x` is resolved at its hints, each of
+which the support keeps, so it resolves in the support as in the whole
+world.
 
-    /-- **Verification is local.** In a world built by events, every member list
-    held below `x` verifies in the support of `x` exactly as in the whole world. -/
-    theorem verify_local {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) {x : Name}
-        [∀ a i, Decidable (Support hash w x a i)] {b : ArchiveId} {i : ObjectId} {c : Obj D}
-        {v : Version D} {ms : Members D} (hl : lookup w b i = some (.live c))
-        (hv : v ∈ c.versions) (hm : v.members = some ms) (hle : (byPins hash w).le (c.name v) x) :
-        verify hash (restrictW (Support hash w x) w) ms = verify hash w ms := by
+    /-- **Verification is local.** Every member list held below `x` verifies in the
+    support of `x` exactly as in the whole world. -/
+    theorem verify_local {w : World D} {x : Name}
+        [∀ a i, Decidable (Support E w x a i)] {b : ArchiveId} {l : LineId} {c : Obj D}
+        {v : Version D} {ms : Members D} (hl : lookup w b (.line l) = some (.live c))
+        (hk : c.kind ≠ .owner) (hv : v ∈ c.versions) (hm : v.members = some ms)
+        (hle : (byPins E w).le (c.name v) x) :
+        verify E (restrictW (Support E w x) w) ms = verify E w ms := by
       unfold verify
       apply List.map_congr_left
       intro p hp
       have hpm : p ∈ v.memberPins := by unfold Version.memberPins; rw [hm]; exact hp
-      have hS : Support hash w x p.archive p.object := by
-        rcases members_below hash hs hl hv hpm with ⟨o, u, ho, hr, hle'⟩ | hr
-        · have hre : resolveEntry hash (some (.live o)) p = .ok u :=
-            (resolve_live hash ho).symm.trans hr
-          exact Or.inl ⟨o, ho, u, versionAt_mem (resolveEntry_live_ok hash hre).1,
-            (byPins hash w).trans hle' hle⟩
-        · exact Or.inr ⟨(resolve_removed_iff hash).mp hr, b, i, c, v, p, hl, hv, hle, hpm, rfl, rfl⟩
       unfold resolve
+      congr 2
+      apply List.map_congr_left
+      intro a ha
+      have hS : Support E w x a (.line p.line) := Or.inr ⟨b, l, c, v, p, hl, hk, hv, hle, hpm, ha, rfl⟩
+      unfold resolveAt
       rw [lookup_restrict, if_yes hS]
 
     end OpenSheaf.Sheaf

@@ -1,75 +1,139 @@
 # Objects and their history
 
-An object is the list of its object versions, oldest first (section 7). This
-chapter defines objects, their versions and inventories, proves that a
-history which keeps a prefix keeps the versions and inventories within it,
-and gives the rule by which document versions are counted.
+An object is the list of its object versions, oldest first (section 4).
+This chapter defines objects, their genesis records, versions and
+inventories, and the environment that the rest of the model takes as given
+(digests, names and signatures); it proves that a history which keeps a
+prefix keeps the versions and inventories within it, and gives the rule by
+which document versions are counted.
 
     -- in OpenSheaf/Object.lean:
     import OpenSheaf.Basic
 
     namespace OpenSheaf
 
+## Genesis records
+
+A work or an owner is named by its **genesis record**, `genesis.json`
+(section 5.1): its kind, the date it was written, a random nonce and, for a
+work, its `originator`, the owner of the first line; for an owner, instead,
+its first current keys and the digests of its first rotation keys, from
+which the first version of its key log is computed (section 6.1). The model
+keeps the nonce (which stands for the date too), the originator, and the
+keys of an owner, as a `Keys` with neither `ended` nor `exposed`. A keeper
+and the data of extensions, which an owner's genesis record may also hold,
+are left out.
+
+    /-- `genesis.json` (section 5.1): the kind, the nonce, and for a work its
+    originator, for an owner its first keys. -/
+    structure Genesis (D : Type) where
+      kind : Kind
+      nonce : String
+      originator : OwnerName := ""
+      keys : Option (Keys D) := none
+      deriving DecidableEq, Repr
+
 ## Objects
 
-An object has the archive it belongs to, an identifier, a kind, and its
-history. The archive is the one named by `archiveId` in its `object.json`
-(section 9): for a mirror, kept by another archive, it is still the
-original's (section 10.4).
+An object has an identifier, a kind, a genesis record (none for a draft,
+section 10.1), its history, and its witness folder, where the signature
+files of its versions are kept (section 7.2). Nothing in an object names
+the archive that holds it (section 4.3): the same object, a copy of a line,
+may be kept by several archives.
 
-    /-- An OCFL object of an OpenSheaf archive (section 7). -/
+    /-- An OCFL object (section 4): its identifier, kind, genesis record (none for
+    a draft), versions, and the signature files of its witness folder
+    (section 7.2). -/
     structure Obj (D : Type) where
-      archive : ArchiveId
       id : ObjectId
       kind : Kind
+      genesis : Option (Genesis D)
       versions : List (Version D)
+      sigs : List (Sig D) := []
 
 OCFL writes, with each object version `n`, an inventory describing versions
 `1` to `n`, and the pin of version `n` carries the digest of that inventory.
-An inventory also names its object (OCFL's `id`), and the `object.json` of
-each version names the archive and the object (section 9). The model's
-inventory is therefore the identity of the object together with the prefix
+An inventory names its object (OCFL's `id`), and every version holds the
+genesis record (section 4.1). The model's inventory is therefore the
+identifier and the genesis record of the object together with the prefix
 of length `n` of its history, and its digest is a function `hash` of that.
-Since the inventory of version `n` describes all the versions before it, a
-pin of version `n` fixes them too, in the model. **This is an
-abstraction**: in OCFL each version directory keeps its own copy of the
-inventory of that version, and the pin of version `n` fixes only the bytes
-of the inventory of `n`, which lists the files of the earlier versions but
-not the bytes of their inventories. The model computes every earlier
-inventory from the history, so it cannot tell a copy whose old inventory
-files were altered; this is
-[issue #46](https://github.com/opensheaf/opensheaf.github.io/issues/46)
-of the specification, still open. Since it names the object, two objects
-with the same versions, such as an accepted copy deposited with the
-original's description, still have different inventories.
+Since the inventory of version `n` describes every version before it, a
+pin of version `n` fixes them too, in the model.
 
-    /-- What an inventory describes: the object, and its versions up to one. -/
+In OCFL each version directory keeps its own copy of the inventory of that
+version, and an inventory lists the files of earlier versions, not the
+bytes of their inventories. Version 0.1 of the specification left those
+bytes unfixed, and an earlier version of the model could not tell a copy
+whose old inventory files were altered. Version 0.2 closes the gap with the
+**inventory chain** (section 4.3, #46): the `object.json` of every sealed
+version after the first records `previous`, the digest of the inventory
+file before it, so that a pin of version `n` fixes every earlier inventory
+byte for byte. The model's inventory, which computes every earlier
+inventory from the history, is now exact in this respect.
+
+The signature files are not part of the inventory: they are kept outside
+every version, and are not covered by its digests (section 7.2). Since the
+inventory names the object, two objects with the same versions, such as a
+branch and its parent, have different inventories; and since it names no
+archive, every copy of a line has the same inventories as every other copy
+holding the same versions.
+
+    /-- What an inventory describes: the object, its genesis record, and its
+    versions up to one. -/
     structure Inventory (D : Type) where
-      archive : ArchiveId
       id : ObjectId
+      genesis : Option (Genesis D)
       versions : List (Version D)
 
     /-- A digest function for inventories. -/
     abbrev Hash (D : Type) := Inventory D → D
 
-Three operations on an object: adding a version at the end, finding version
-`n` (there is no version 0), and the inventory of version `n`.
+## The environment
+
+Four things the model takes as given, gathered as its **environment**:
+
+- `hash`, the digest of an inventory (SHA-512, section 4.1);
+- `keyDigest`, the digest of a key, which `next` commits to (SHA-256,
+  section 6.1);
+- `nameOf`, the names of a genesis record: algorithm `k`, for `k` from 0 to
+  15, gives one name (section 5.2);
+- `verifies`, which signature files verify: those whose signature is a
+  valid Ed25519 signature of their message by their key (section 7.2).
+
+`verifies` is the model's abstraction of signing. A signature that verifies
+was made by someone holding its key: the model does not say who, and never
+assumes that only the owner holds its keys. Theorems about thieves state
+which keys made the signatures that verify, as hypotheses on `verifies`.
+
+    /-- The environment: digests of inventories and keys, the names of genesis
+    records, and which signature files verify. -/
+    structure Env (D : Type) where
+      hash : Hash D
+      keyDigest : Key → D
+      nameOf : Genesis D → Nat → Name
+      verifies : Sig D → Bool
+
+Three operations on an object: adding a version at the end, with the
+signature files that come with it, finding version `n` (there is no version
+0), and the inventory of version `n`.
 
     namespace Obj
 
     variable {D : Type}
 
-    /-- Add an object version at the end of the history. -/
-    def append (o : Obj D) (v : Version D) : Obj D :=
-      { o with versions := o.versions ++ [v] }
+    /-- Add an object version at the end of the history, and signature files to
+    the witness folder. -/
+    def append (o : Obj D) (v : Version D) (ss : List (Sig D) := []) : Obj D :=
+      { o with versions := o.versions ++ [v], sigs := o.sigs ++ ss }
 
     /-- Object version `n` (`v1` is `1`), if any. -/
     def versionAt (o : Obj D) (n : Nat) : Option (Version D) :=
       if n = 0 then none else o.versions[n - 1]?
 
-    /-- The inventory of object version `n`: the object, and versions `1` to `n`. -/
+    /-- The inventory of object version `n`: the object, its genesis record, and
+    versions `1` to `n`. -/
     def inventory (o : Obj D) (n : Nat) : Inventory D :=
-      ⟨o.archive, o.id, o.versions.take n⟩
+      ⟨o.id, o.genesis, o.versions.take n⟩
 
 If version `n` exists, then `n` is between 1 and the length of the history.
 
@@ -85,10 +149,9 @@ If version `n` exists, then `n` is between 1 and the length of the history.
 
 ## Histories that share a prefix
 
-Two changes of an object keep a prefix of its history: appending a version
-keeps the whole history, and rewriting drafts ([chapter 8](50-states.md))
-keeps the versions before the drafts. Neither changes the identity of the
-object. The first two lemmas below say that, within the prefix, versions and
+Every change of a sealed object keeps a prefix of its history: appending a
+version keeps the whole history, and a copy holds a prefix of the history
+it copies. None changes the identity of the object. The first two lemmas below say that, within the prefix, versions and
 inventories are unchanged. They hold whatever the digest function, since
 they are about the versions themselves; this is the heart of every
 immutability result of the model.
@@ -123,7 +186,7 @@ histories agree that far have the same version `n`.
         rw [key, h, ← key]
 
     theorem inventory_prefix {o o' : Obj D} {pre t t' : List (Version D)} {n : Nat}
-        (hid : o'.archive = o.archive ∧ o'.id = o.id)
+        (hid : o'.id = o.id ∧ o'.genesis = o.genesis)
         (ho : o.versions = pre ++ t) (ho' : o'.versions = pre ++ t')
         (hn : n ≤ pre.length) : o'.inventory n = o.inventory n := by
       unfold Obj.inventory
@@ -151,8 +214,8 @@ append, a version is an old one or the one appended, at the next number.
           rw [List.getElem?_take]; simp [show n - 1 < n by omega, h]
         exact List.mem_of_getElem? h'
 
-    theorem versionAt_append {o : Obj D} {x v : Version D} {n : Nat}
-        (h : (o.append x).versionAt n = some v) :
+    theorem versionAt_append {o : Obj D} {x v : Version D} {ss : List (Sig D)} {n : Nat}
+        (h : (o.append x ss).versionAt n = some v) :
         o.versionAt n = some v ∨ (n = o.versions.length + 1 ∧ v = x) := by
       unfold Obj.versionAt Obj.append at *
       split at h
@@ -171,43 +234,54 @@ append, a version is an old one or the one appended, at the next number.
           simp at h
           exact ⟨by omega, h.symm⟩
 
+After an append, the old versions are where they were, and the new one
+comes last.
+
+    theorem append_getElem_last {o : Obj D} {x : Version D} {ss : List (Sig D)} :
+        ((o.append x ss).versions[o.versions.length]'(by simp [Obj.append])) = x := by
+      simp [Obj.append]
+
+    theorem append_getElem_old {o : Obj D} {x : Version D} {ss : List (Sig D)} {i : Nat}
+        (hi : i < o.versions.length) :
+        ((o.append x ss).versions[i]'(by simp [Obj.append]; omega)) = o.versions[i] := by
+      simp [Obj.append, List.getElem_append_left hi]
+
     end Prefix
 
 ## Document versions
 
 The specification distinguishes object versions, which OCFL counts, from
-document versions, which count the changes of the content (section 7.3). Its
-rule: "a new document version number is assigned exactly when files ... that
-were not deposited before are added", and "an object version holding the
-same sources, renditions and change note as an earlier document version
-keeps its number". This covers a description-only version, which "MAY hold
-any document version, not only the current one", and a withdrawal.
+document versions, which count the changes of the document's own files
+(section 4.2): "A new document version is made exactly when the document's
+own files change (a file added, changed or removed, the change note
+included) ...; an object version holding the same own files as an earlier
+document version keeps its number." A collection "makes a new document
+version exactly when its member list changes" (section 4.2). This covers a
+description-only version, which "MAY hold any document version", and a
+withdrawal.
 
-The rule does not say what happens to a version that only removes files, or
-that combines files of different earlier versions: it adds no new file, yet
-holds no earlier version's content. This is [issue
-#23](https://github.com/opensheaf/opensheaf.github.io/issues/23) of the
-specification, still open. **The model makes a choice**, to be revised when
-the issue is settled: a version keeps the number of an earlier version whose
-content it holds, and any other version gets a new number. Content is
-compared as a set of files, since the order in which files are listed means
-nothing, together with the member list, whose order is authoritative
-(section 10.2). Every file counts, including a file that holds a note, such
-as a notice or the reason of a withdrawal (section 9): adding one makes new
-content, so a new document version, where sections 7.3 and 11.1 add notices
-and withdrawals by description-only versions. The model does not yet tell
-the document's own files (sources, renditions, change note) from note files;
-see ["Next"](https://github.com/opensheaf/opensheaf-lean#next) in the
-README. The choice decides three more cases of #23: a file renamed is new
-content (files are compared by path and digest); a version whose content
-returns to an earlier version's takes the earlier number, where #23 and the
-discussion of issue #2 propose a new one; and the change note, which the
-model does not have, plays no part.
+The model follows the rule: a version keeps the number of an earlier
+version whose content it holds, and any other version gets a new number.
+Content is compared as a set of files, since the order in which files are
+listed means nothing, together with the member list, whose order is
+authoritative (section 8.2). Version 0.1 of the specification left open the
+versions that only remove files or combine files of different earlier
+versions ([issue #23](https://github.com/opensheaf/opensheaf.github.io/issues/23)),
+and the model chose then what version 0.2 now says: such a version is new.
+A file renamed is new content (files are compared by path and digest), and
+a version whose content returns to an earlier version's takes the earlier
+number. Whether a verifier can decide all this from the files is still
+open (#23, section 14.6).
 
-Two parts of section 7.3 are not modelled: the completion of a version
-deposited without its sources, which keeps its number while adding files,
-and `history`, which orders document versions deposited out of order. The
-model has no `sourcesMissing` and no `history` yet.
+The model does not tell the document's own files (sources, renditions,
+change note) from the files of notes, which section 4.2 counts as files of
+the document version but not as its own files; see
+["Next"](https://github.com/opensheaf/opensheaf-lean#next) in the README.
+Every file of the model counts. Two parts of section 4.2 are not modelled:
+the completion of a version deposited without its sources, which keeps its
+number while adding files, and `history`, which orders document versions
+deposited out of order. The model has no `sourcesMissing` and no `history`
+yet.
 
     section DocumentVersions
 
@@ -241,7 +315,7 @@ A new object version `x` may extend a history `l` in two ways: it holds the
 content of an earlier version, and has its document version; or its content
 is new, and its document version is the next number.
 
-    /-- `x` may extend the history `l` (section 7.3, with the choice above). -/
+    /-- `x` may extend the history `l` (section 4.2). -/
     def Extends (l : List (Version D)) (x : Version D) : Prop :=
       (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
         ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
@@ -334,10 +408,13 @@ count bounds every document version of the history.
 
 ## Status
 
-The status belongs to the object, "whatever document version its head
-holds" (section 11.1): a description of an earlier document version of a
-withdrawn object does not make it active again. Whether a withdrawal can be
-undone at all is
+The status belongs to the line, read "from its latest signed version
+(section 7.3), whatever document version that holds" (section 13.1): a
+description of an earlier document version of a withdrawn line does not
+make it active again. The model reads it from the last version of a
+history; [chapter 5](38-lines.md) says when that version is signed. Whether
+a withdrawal can be undone at all, and whether a withdrawn line takes new
+document versions, are
 [issue #25](https://github.com/opensheaf/opensheaf.github.io/issues/25) of
 the specification, still open. **The model makes a choice**: it cannot. A
 new version has the status of the head, or `withdrawn`.
@@ -390,26 +467,26 @@ whole, and appending a version that keeps the rule keeps it.
 
 ## The three kinds of new version
 
-An author's archive makes new object versions in three ways: a
-**description-only version** (section 7.3) changes the description of a
-document version, any of them; a **withdrawal** (section 11.1) changes the
+An owner makes new object versions of a document in three ways: a
+**description-only version** (section 4.2) changes the description of a
+document version, any of them; a **withdrawal** (section 13.1) changes the
 status; a **revision** adds new content, and a new document version. Each
 is built for the history `l` it extends, and takes the status of its head.
 
     omit [DecidableEq D] in
-    /-- A description-only version (section 7.3) of the history `l`: a new
+    /-- A description-only version (section 4.2) of the history `l`: a new
     description of the content of `v`, with the status of the object. -/
     def Version.describe (l : List (Version D)) (v : Version D)
         (description depositor message : String) : Version D :=
       { v with status := headStatus l, description, depositor, message }
 
-`Version.withdraw` builds a withdrawal as section 11.1 defines it, a
+`Version.withdraw` builds a withdrawal as section 13.1 defines it, a
 description-only version. The rules do not require it: a version with new
-content may also come with status `withdrawn`, which section 11.1 does not
+content may also come with status `withdrawn`, which section 13.1 does not
 foresee. The model leaves this open, with issue #25.
 
     omit [DecidableEq D] in
-    /-- A withdrawal (section 11.1): the same content, with status `withdrawn`. -/
+    /-- A withdrawal (section 13.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }
 
@@ -456,7 +533,7 @@ as a revision would break the count, and is excluded by the hypothesis
         (ms : Option (Members D)) (d a m : String) :
         NoReinstatement l (Version.revise l fs ms d a m) := fun h => h
 
-Finally, the statement of section 7.3 itself: a description-only version
+Finally, the statement of section 4.2 itself: a description-only version
 keeps the document version and the content of the version it describes.
 
     omit [DecidableEq D] in

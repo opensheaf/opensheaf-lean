@@ -3,44 +3,62 @@
 The previous chapters prove what the protocol does. This one proves what it
 prevents: for each way of breaking it, an attempt is modelled and shown to
 be impossible, or, where it can be made outside the protocol, to be
-detected. These are the negative tests of the model.
+detected. These are the negative tests of the model; the chapters on key
+logs and on owners ([chapters 4](35-owners.md) and [8](47-acts.md)) have
+those about keys.
 
 | The break | Why it cannot happen |
 |---|---|
-| A pin changes its meaning | immutability: once a pin resolves to a version, no step changes that version |
-| An archive rewrites the history of an object | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving (unless the inventories collide) |
+| A pin changes its meaning | immutability: once a pin resolves to a version at an archive, no step changes that version; and through its hints, as long as the owner signs one history |
+| An archive rewrites the history of a copy | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving there (unless the inventories collide) |
 | An identifier taken down names another object | tombstones stay |
-| One document version number for two contents, two numbers for one content, or a gap in the numbering | the counting rule of section 7.3 |
-| Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already |
-| A withdrawn object becomes active again | valid steps forbid it (the model's choice on issue #25) |
+| One document version number for two contents, two numbers for one content, or a gap in the numbering | the counting rule of section 4.2 |
+| Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already, and copies of a line agree |
+| A pin names a key log | valid steps check it, and it stays so |
+| A withdrawn line becomes active again | valid steps forbid it (the model's choice on issue #25) |
 
-The fifth is stated in section 10.2 ("Pins cannot form cycles"), where
-it is justified by the hashes. The model proves it from the protocol alone,
-with no assumption on the digest function.
+The fifth is stated in section 8.5 ("collections are hash trees, and pins
+cannot form cycles"), where it is justified by the hashes. The model proves
+it from the protocol, with one hypothesis: that each owner signs one
+history, which no copy the world holds collides with (`OneHistory`). It
+assumes nothing of the digest beyond those pairs of inventories.
 
     -- in OpenSheaf/Impossible.lean:
-    import OpenSheaf.Copies
+    import OpenSheaf.Patterns
 
     namespace OpenSheaf
 
-    variable {D : Type} [DecidableEq D] (hash : Hash D)
+    variable {D : Type} [DecidableEq D] (E : Env D)
 
 ## A pin cannot change its meaning
 
-Immutability, stated as an impossibility: once a pin resolves to a version,
-no sequence of steps makes it resolve to another.
+Immutability, stated as an impossibility: once a pin resolves to a version
+at an archive, no sequence of steps makes it resolve there to another; and
+through its hints, the same holds when the owner signs one history.
 
-    /-- **A pin cannot change its meaning.** -/
-    theorem pin_meaning_fixed {w w' : World D} (hs : Steps w w') {p : Pin D} {v u : Version D}
-        (hp : resolve hash w p = .ok v) (hne : u ≠ v) : resolve hash w' p ≠ .ok u := by
-      rw [Steps.resolve_ok hash hs hp]
+    /-- **A pin cannot change its meaning** at an archive. -/
+    theorem pin_meaning_fixed {w w' : World D} (hs : Steps w w') {b : ArchiveId} {p : Pin D}
+        {v u : Version D} (hp : resolveAt E.hash w b p = .ok v) (hne : u ≠ v) :
+        resolveAt E.hash w' b p ≠ .ok u := by
+      rw [Steps.resolveAt_ok E.hash hs hp]
+      intro h
+      cases h
+      exact hne rfl
+
+    /-- **A pin cannot change its meaning** through its hints, when its owner signs
+    one history. -/
+    theorem pin_meaning_fixed_hints {w w' : World D}
+        (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w') {p : Pin D}
+        (h1 : OneHistory E w' p.line) (hnk : p.line ≠ keyLogLine p.line.owner) {v u : Version D}
+        (hp : resolve E.hash w p = .ok v) (hne : u ≠ v) : resolve E.hash w' p ≠ .ok u := by
+      rw [Steps.resolve_ok E hw' hs h1 hnk hp]
       intro h
       cases h
       exact hne rfl
 
 ## History cannot be rewritten
 
-Within the protocol, an object only grows ([chapter 5](45-worlds.md)): its
+Within the protocol, an object only grows ([chapter 7](45-worlds.md)): its
 history in a later world extends its history in an earlier one. A world in
 which an archive has replaced, removed or reordered versions of an object
 is therefore not reachable by any sequence of steps.
@@ -51,7 +69,8 @@ is therefore not reachable by any sequence of steps.
         {oid : ObjectId} {o o' : Obj D} (hl : lookup w a oid = some (.live o))
         (hl' : lookup w' a oid = some (.live o'))
         (hrew : o'.versions.take o.versions.length ≠ o.versions) : False := by
-      obtain ⟨o2, h2, _, _, _, t, ht⟩ := Steps.live_grows hs hl
+      obtain ⟨o2, h2, hg⟩ := Steps.live_grows hs hl
+      obtain ⟨t, ht⟩ := hg.versions
       rw [hl'] at h2
       cases h2
       apply hrew
@@ -59,34 +78,38 @@ is therefore not reachable by any sequence of steps.
 
 An archive can still rewrite its files outside the protocol: nothing stops
 the owner of a disk. Then every pin of a rewritten version, made before,
-stops resolving: the digest in the pin is that of the original inventory,
-and the rewritten inventory has another, unless the two collide
-([chapter 6](48-copies.md)). Tampering is not prevented, it is detected, by
-anyone holding a pin.
+stops resolving there: the digest in the pin is that of the original
+inventory, and the rewritten inventory has another, unless the two collide
+([chapter 9](48-copies.md)). Tampering is not prevented, it is detected, by
+anyone holding a pin; and the rewritten version is signed by nobody, so
+section 7.3 would report it as not a version.
 
-    /-- **Tampering is detected.** If an archive replaces an object by one whose
-    history differs up to version `p.version`, a pin of that version made
-    before resolves to no version at all. -/
+    /-- **Tampering is detected.** If an archive replaces a copy by one whose
+    history differs up to version `p.version`, a pin of that version made before
+    resolves there to no version at all. -/
     theorem tamper_detected {w : World D}
-        {a : ArchiveId} {oid : ObjectId} {o o' : Obj D} (hl : lookup w a oid = some (.live o))
-        {p : Pin D} {v : Version D} (hpa : p.archive = a ∧ p.object = oid)
-        (hp : resolve hash w p = .ok v) (hdiff : o'.inventory p.version ≠ o.inventory p.version)
-        (hcol : NoCollision hash (o'.inventory p.version) (o.inventory p.version))
-        (u : Version D) : resolve hash (setEntry w a oid (.live o')) p ≠ .ok u := by
+        {a : ArchiveId} {o o' : Obj D} {p : Pin D} (hl : lookup w a (.line p.line) = some (.live o))
+        {v : Version D} (hp : resolveAt E.hash w a p = .ok v)
+        (hdiff : o'.inventory p.version ≠ o.inventory p.version)
+        (hcol : NoCollision E (o'.inventory p.version) (o.inventory p.version))
+        (u : Version D) : resolveAt E.hash (setEntry w a (.line p.line) (.live o')) a p ≠ .ok u := by
       obtain ⟨ar, ha⟩ := lookup_some_archive hl
       intro h
-      unfold resolve at h hp
+      unfold resolveAt at h hp
       rw [lookup_setEntry ha] at h
-      simp only [hpa, and_self, ite_true] at h
-      rw [hpa.1, hpa.2, hl] at hp
-      obtain ⟨_, hd⟩ := resolveEntry_live_ok hash hp
-      obtain ⟨_, hd'⟩ := resolveEntry_live_ok hash h
+      simp only [and_self, ite_true] at h
+      rw [hl] at hp
+      obtain ⟨_, hd⟩ := resolveEntry_live_ok E.hash hp
+      obtain ⟨_, hd'⟩ := resolveEntry_live_ok E.hash h
       exact hdiff (hcol (hd'.trans hd.symm))
 
 ## A tombstoned identifier cannot be reused
 
-Section 11.3: "Identifiers of tombstoned objects MUST NOT be reused". In the
-model it is not a rule that archives must remember: no step can do it.
+Section 4: the identifier "of a sealed object MUST NOT be reused there,
+also after a takedown". In the model it is not a rule that archives must
+remember: no step can do it. (A line taken down may return, as the same
+line, from a copy holding the version its tombstone pins, section 13.2,
+which the model leaves out.)
 
     omit [DecidableEq D] in
     /-- **A tombstoned identifier is never reused.** -/
@@ -100,7 +123,7 @@ model it is not a rule that archives must remember: no step can do it.
 ## Document versions are unambiguous
 
 Citations name document versions, so a number must mean one content, and
-section 7.3 asks for numbers "from 1, without gaps". The counting rule of
+section 4.2 asks for numbers "from 1, without gaps". The counting rule of
 [chapter 2](20-object.md) guarantees both. The proofs go along the history
 from the end, with `snoc_induction` and `WellFormed.init` of chapter 2.
 
@@ -202,99 +225,91 @@ none is below 1.
 
 ## Pins cannot form cycles
 
-A version is named by a **site**: an archive, an object, and an object
-version number. A site *pins* another when the version there holds a pin
-that resolves, and names the other.
+In version 0.1 of the specification a pin named an archive, and a version
+was a place: the model numbered the versions of each archive in the order
+in which they were made, and a pin, which named a version that existed
+already, always went down. Version 0.2 pins lines, not places, and a line
+may be copied anywhere, so the version a pin names may also be found in a
+copy made after the pin. The model therefore names a version by its
+**site**, a line and a version number, wherever it is kept, and the
+argument becomes: a valid step pins only sites that exist already, and a
+site, once it exists, holds the same version in every copy, as long as
+the owner signs one history (`Events.copiesAgree`, [chapter
+9](48-copies.md)). Drafts never lie on a cycle, since nothing pins them,
+nor key logs, since no pin names them ([chapter 7](45-worlds.md)).
 
-    /-- Version `n` of object `oid` of archive `a`. -/
-    abbrev Site := ArchiveId × ObjectId × Nat
+    /-- A version of the line `l` at number `n` exists, in some archive. -/
+    def Live (w : World D) (s : LineId × Nat) : Prop :=
+      ∃ b o v, lookup w b (.line s.1) = some (.live o) ∧ o.versionAt s.2 = some v
 
-    /-- A version exists at the site. -/
-    def Live (w : World D) (s : Site) : Prop :=
-      ∃ o v, lookup w s.1 s.2.1 = some (.live o) ∧ o.versionAt s.2.2 = some v
-
-    /-- The version at `s` holds a pin that resolves, to the version at `t`. -/
-    def PinsTo (w : World D) (s t : Site) : Prop :=
-      ∃ o v p, lookup w s.1 s.2.1 = some (.live o) ∧ o.versionAt s.2.2 = some v ∧
-        p ∈ v.pins ∧ (∃ u, resolve hash w p = .ok u) ∧ t = (p.archive, p.object, p.version)
+    /-- A version at the site `s`, kept somewhere, holds a pin of the site `t`; the
+    line of `s` is not a key log. -/
+    def PinsTo (w : World D) (s t : LineId × Nat) : Prop :=
+      s.1 ≠ keyLogLine s.1.owner ∧ ∃ b o v p, lookup w b (.line s.1) = some (.live o) ∧
+        o.versionAt s.2 = some v ∧ p ∈ v.pins ∧ t = (p.line, p.version)
 
     /-- A chain of one or more steps of a relation. -/
     inductive Chain {α : Type} (r : α → α → Prop) : α → α → Prop
       | single {a b : α} : r a b → Chain r a b
       | cons {a b c : α} : r a b → Chain r b c → Chain r a c
 
-A pin that resolves names a site where a version exists.
+A pin found names a site where a version exists.
 
-    theorem live_of_resolve {w : World D} {p : Pin D} {u : Version D}
-        (h : resolve hash w p = .ok u) : Live w (p.archive, p.object, p.version) := by
-      unfold resolve at h
-      obtain ⟨c, hc⟩ := resolveEntry_ok_live hash h
-      rw [hc] at h
-      exact ⟨c, u, hc, (resolveEntry_live_ok hash h).1⟩
+    theorem live_of_found {w : World D} {p : Pin D} (h : Found E.hash w p) :
+        Live w (p.line, p.version) := by
+      obtain ⟨b, _, u, hu⟩ := h
+      unfold resolveAt at hu
+      obtain ⟨c, hc⟩ := resolveEntry_ok_live E.hash hu
+      rw [hc] at hu
+      exact ⟨b, c, u, hc, (resolveEntry_live_ok E.hash hu).1⟩
 
-The idea of the proof: number the versions in the order in which they were
-made. Every valid step pins only versions that exist before it, so a pin
-always goes from a later version to an earlier one, and a chain of pins
-cannot come back to where it started. `Ranked` says that such a numbering
-exists: every existing version has a rank below `N`, and pins go down.
+`Ranked` says that the sites can be numbered so that every existing site
+has a number below `N`, and pins go down.
 
-    /-- A numbering of the versions in which pins go down. -/
+    /-- A numbering of the sites in which pins go down. -/
     def Ranked (w : World D) : Prop :=
-      ∃ (rank : Site → Nat) (N : Nat), (∀ s, Live w s → rank s < N) ∧
-        ∀ s t, PinsTo hash w s t → rank t < rank s
+      ∃ (rank : LineId × Nat → Nat) (N : Nat), (∀ s, Live w s → rank s < N) ∧
+        ∀ s t, PinsTo w s t → rank t < rank s
 
 In a ranked world there is no cycle: along a chain of pins the rank goes
 down, so it cannot come back.
 
-    theorem Ranked.chain_lt {w : World D} {rank : Site → Nat}
-        (hr : ∀ s t, PinsTo hash w s t → rank t < rank s) {s t : Site}
-        (h : Chain (PinsTo hash w) s t) : rank t < rank s := by
+    omit [DecidableEq D] in
+    theorem Ranked.chain_lt {w : World D} {rank : LineId × Nat → Nat}
+        (hr : ∀ s t, PinsTo w s t → rank t < rank s) {s t : LineId × Nat}
+        (h : Chain (PinsTo w) s t) : rank t < rank s := by
       induction h with
       | single h => exact hr _ _ h
       | cons h _ ih => exact Nat.lt_trans ih (hr _ _ h)
 
-    theorem Ranked.no_cycle {w : World D} (hr : Ranked hash w) (s : Site) :
-        ¬ Chain (PinsTo hash w) s s := by
+    omit [DecidableEq D] in
+    theorem Ranked.no_cycle {w : World D} (hr : Ranked w) (s : LineId × Nat) :
+        ¬ Chain (PinsTo w) s s := by
       obtain ⟨rank, _, _, hdown⟩ := hr
       intro h
-      exact Nat.lt_irrefl _ (Ranked.chain_lt hash hdown h)
+      exact Nat.lt_irrefl _ (Ranked.chain_lt hdown h)
 
-In a sound world ([chapter 5](45-worlds.md)), a version that exists holds
-only pins that resolve or report `removed`; `removed` stays `removed`
-through a step. So a pin that resolves after a step, held by a version that
-existed before it, already resolved before it.
+After a valid step, a version is one the world had, in the same copy at the
+same number, or one the step made, whose pins it checked. This is the only
+place where the proof looks at the kind of step.
 
-    theorem pinsTo_old {w w' : World D} (hw : SoundWorld hash w) (hstep : Step w w')
-        {s t : Site} {o : Obj D} {v : Version D} {p : Pin D}
-        (hl : lookup w s.1 s.2.1 = some (.live o)) (hv : o.versionAt s.2.2 = some v)
-        (hp : p ∈ v.pins) (ht : t = (p.archive, p.object, p.version)) {u : Version D}
-        (hu : resolve hash w' p = .ok u) : PinsTo hash w s t := by
-      rcases hw.2 _ _ _ hl v (versionAt_mem hv) p hp with ⟨u', hu'⟩ | hr
-      · exact ⟨o, v, p, hl, hv, hp, ⟨u', hu'⟩, ht⟩
-      · rw [Step.resolve_removed hash hstep hr] at hu; cases hu
-
-A version that did not exist before a valid step was made by it, so its
-pins were checked by the step: they resolved before it, or reported
-`removed`. This is the only place where the proof looks at the kind of
-step.
-
-    /-- After a valid step, a version is one the world had, at the same number,
-    or its pins were checked by the step. -/
-    theorem ValidStep.old_or_checked {w w' : World D} (hs : ValidStep hash w w')
+    /-- After a valid step, a version is one the copy had, at the same number, or
+    its pins were checked by the step. -/
+    theorem ValidStep.old_or_checked {w w' : World D} (hs : ValidStep E w w')
         {b : ArchiveId} {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
         (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v) :
         (∃ o, lookup w b x = some (.live o) ∧ o.versionAt n = some v) ∨
-          ∀ p ∈ v.pins, Held hash w p := by
+          ∀ p ∈ v.pins, PinOk E w p := by
       cases hs with
       | newArchive a ar ha hempty =>
         rw [lookup_newArchive ha hempty] at hl'
         exact Or.inl ⟨o', hl', hv⟩
-      | create a ar oid o ha ho _ hpins _ =>
+      | create a ar oid o ha ho _ hpins =>
         rw [lookup_setEntry ha] at hl'
         split at hl'
-        · cases hl'; exact Or.inr fun p hp => (hpins v (versionAt_mem hv) p hp).held
+        · cases hl'; exact Or.inr fun p hp => hpins v (versionAt_mem hv) p hp
         · exact Or.inl ⟨o', hl', hv⟩
-      | append a ar oid o y ha ho _ _ _ _ hpins _ =>
+      | append a ar oid o y ss ha ho _ _ _ _ hpins =>
         rw [lookup_setEntry ha] at hl'
         split at hl'
         · rename_i hc
@@ -302,132 +317,181 @@ step.
           cases hl'
           rcases versionAt_append hv with hv | ⟨_, rfl⟩
           · exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
-          · exact Or.inr fun p hp => (hpins p hp).held
+          · exact Or.inr hpins
+        · exact Or.inl ⟨o', hl', hv⟩
+      | witness a ar oid o ss ha ho =>
+        rw [lookup_setEntry ha] at hl'
+        split at hl'
+        · rename_i hc
+          obtain ⟨rfl, rfl⟩ := hc
+          cases hl'
+          exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
         · exact Or.inl ⟨o', hl', hv⟩
 
-    theorem ValidStep.new_pins {w w' : World D} (hs : ValidStep hash w w') {b : ArchiveId}
-        {x : ObjectId} {n : Nat} {o' : Obj D} {v : Version D}
-        (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v)
-        (hnew : ¬ Live w (b, x, n)) {p : Pin D} (hp : p ∈ v.pins) :
-        Held hash w p := by
-      rcases hs.old_or_checked hash hl' hv with ⟨o, ho, hvo⟩ | h
-      · exact absurd ⟨o, v, ho, hvo⟩ hnew
-      · exact h p hp
+In a world built by valid steps alone there is no tombstone, so every pin
+held is found, and names a site that exists.
 
-The main lemma: a valid step keeps a numbering in which pins go down. The
-versions that existed before the step keep their numbers, and the new ones
-get the number `N`, above all the others. A pin held by a new version that
-resolves after the step resolved before it (if it reported `removed`, it
-still does), so it names a version that existed, numbered below `N`. An old version is unchanged by the step (objects only grow), and
-its pins that resolve after the step already resolved before it
-(`pinsTo_old`), so the old numbering already sent them down.
+    theorem WFWorld.pinOk_found {w : World D} (hw : WFWorld E w) {p : Pin D}
+        (h : PinOk E w p) : Found E.hash w p := by
+      rcases h.2 with hf | ⟨⟨b, _, hr⟩, _⟩
+      · exact hf
+      · obtain ⟨n, d, hl⟩ := (resolveAt_removed_iff E.hash).mp hr
+        exact absurd hl (hw.2.2 _ _ _ _)
 
-    theorem ValidStep.ranked {w w' : World D} (hs : ValidStep hash w w') (hw : SoundWorld hash w)
-        (hr : Ranked hash w) : Ranked hash w' := by
+The main lemma: a valid step keeps a numbering in which pins go down. Sites
+that existed before the step keep their numbers, and new sites get the
+number `N`, above all the others. A version at a new site was made by the
+step, so its pins are found before it, at sites that existed. A version at
+an old site is either old, in its copy, and its pins went down already; or
+new in its copy, and then, the copies of its line agreeing, it is the
+version that the site already held elsewhere, with the same pins.
+
+    theorem ValidStep.ranked {w w' : World D} (hs : ValidStep E w w') (hw : WFWorld E w)
+        (hw' : Events E (fun _ => (none : Option (Archive D))) w')
+        (hh : ∀ l, OneHistory E w' l) (hr : Ranked w) : Ranked w' := by
       classical
       obtain ⟨rank, N, hlive, hdown⟩ := hr
-      have hstep := hs.toStep hash
+      have hstep := hs.toStep E
       refine ⟨fun s => if Live w s then rank s else N, N + 1, fun s _ => ?_, ?_⟩
       · dsimp only; split
         · exact Nat.lt_succ_of_lt (hlive s ‹_›)
         · exact Nat.lt_succ_self N
-      · rintro ⟨b, x, n⟩ t ⟨o', v, p, hl', hv, hp, ⟨u, hu⟩, ht⟩
+      · rintro ⟨l, n⟩ t ⟨hnk, b, o', v, p, hl', hv, hp, ht⟩
         dsimp only
-        by_cases hold : Live w (b, x, n)
-        · obtain ⟨o, v0, hl, hv0⟩ := hold
-          obtain ⟨o2, h2, _, _, _, t2, ht2⟩ := hstep.live_grows hl
-          rw [hl'] at h2; cases h2
-          have := versionAt_prefix (t := []) (by simp) ht2 (Obj.versionAt_bounds hv0).2 hv0
-          rw [hv] at this; cases this
-          have hpt := pinsTo_old hash hw hstep hl hv0 hp ht hu
-          have htl : Live w t := by
-            obtain ⟨_, _, q, _, _, _, ⟨u', hu'⟩, hq⟩ := hpt
-            rw [hq]; exact live_of_resolve hash hu'
-          rw [if_yes htl, if_yes (show Live w (b, x, n) from ⟨o, v, hl, hv0⟩)]
+        have htl : ∀ q ∈ v.pins, PinOk E w q → Live w (q.line, q.version) :=
+          fun q _ hq => live_of_found E (hw.pinOk_found E hq)
+        rcases hs.old_or_checked E hl' hv with ⟨o, hl, hvo⟩ | hchk
+        · -- an old version, in its copy: its pin went down already
+          have hpt : PinsTo w (l, n) t := ⟨hnk, b, o, v, p, hl, hvo, hp, ht⟩
+          have hold : Live w (l, n) := ⟨b, o, v, hl, hvo⟩
+          have htl' : Live w t := by
+            rw [ht]
+            exact live_of_found E (hw.2.1 _ _ _ hl v (versionAt_mem hvo) p hp)
+          rw [if_yes htl', if_yes hold]
           exact hdown _ _ hpt
-        · rcases hs.new_pins hash hl' hv hold hp with ⟨u0, hu0⟩ | hr0
-          · have htl : Live w t := ht ▸ live_of_resolve hash hu0
-            rw [if_yes htl, if_no hold]
-            exact hlive t htl
-          · rw [Step.resolve_removed hash hstep hr0] at hu; cases hu
-
-A takedown keeps the numbering: it removes versions, and the pins that still
-resolve after it resolved before it, to the same versions.
-
-    theorem takedown_ranked {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
-        (hl : lookup w a oid = some (.live o)) (hr : Ranked hash w) :
-        Ranked hash (takedown hash w a oid o) := by
-      obtain ⟨rank, N, hlive, hdown⟩ := hr
-      refine ⟨rank, N, fun s ⟨o', v, h, hv⟩ =>
-        hlive s ⟨o', v, (lookup_takedown hash hl h).2, hv⟩, ?_⟩
-      rintro s t ⟨o', v, p, h, hv, hp, ⟨u, hu⟩, ht⟩
-      have hpa : ¬ (p.archive = a ∧ p.object = oid) := by
-        intro hpa; rw [takedown_removed hash hl hpa] at hu; cases hu
-      rw [takedown_other hash hl hpa] at hu
-      exact hdown s t ⟨o', v, p, (lookup_takedown hash hl h).2, hv, hp, ⟨u, hu⟩, ht⟩
+        · have htl' : Live w t := by rw [ht]; exact htl p hp (hchk p hp)
+          by_cases hold : Live w (l, n)
+          · -- a new version at an old site: the site's version elsewhere
+            obtain ⟨b0, o0, v0, hl0, hv0⟩ := hold
+            obtain ⟨o0', hl0', hg0⟩ := hstep.live_grows hl0
+            obtain ⟨t0, ht0⟩ := hg0.versions
+            have hv0' : o0'.versionAt n = some v0 :=
+              versionAt_prefix (t := []) (by simp) ht0 (Obj.versionAt_bounds hv0).2 hv0
+            have hk1 : o'.kind ≠ .owner := fun hk => hnk (Events.keyLog_line E hw' hl' hk)
+            have hk0 : o0'.kind ≠ .owner := fun hk => hnk (Events.keyLog_line E hw' hl0' hk)
+            have heq : v0 = v := (Events.copiesAgree E hw' (hh l) b0 b o0' o' hl0' hl' hk0 hk1).versionAt
+              hv0' hv
+            subst heq
+            have hpt : PinsTo w (l, n) t := ⟨hnk, b0, o0, v0, p, hl0, hv0, hp, ht⟩
+            rw [if_yes htl', if_yes ⟨b0, o0, v0, hl0, hv0⟩]
+            exact hdown _ _ hpt
+          · rw [if_yes htl', if_no hold]
+            exact hlive t htl'
 
 The empty world is ranked, trivially, and so, by induction, is every world
-built from it by events: valid steps and takedowns.
+built from it by valid steps, when every owner signs one history.
 
-    theorem Events.ranked {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) :
-        SoundWorld hash w ∧ Ranked hash w := by
-      refine hs.invariant (fun w => SoundWorld hash w ∧ Ranked hash w) ?_
-        ⟨SoundWorld.empty hash, fun _ => 0, 0, ?_, ?_⟩
-      · intro _ _ he ih
-        cases he with
-        | step hs => exact ⟨hs.sound hash ih.1, hs.ranked hash ih.1 ih.2⟩
-        | takedown a oid o hl => exact ⟨takedown_sound hash hl ih.1, takedown_ranked hash hl ih.2⟩
-      · rintro s ⟨o, v, hl, _⟩; simp [lookup] at hl
-      · rintro s t ⟨o, v, p, hl, _⟩; simp [lookup] at hl
+    theorem ValidSteps.ranked {w : World D}
+        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w) (hh : ∀ l, OneHistory E w l) :
+        WFWorld E w ∧ Ranked w := by
+      induction hs with
+      | refl => exact ⟨WFWorld.empty E, fun _ => 0, 0, by
+          rintro s ⟨b, o, v, hl, _⟩; simp [lookup] at hl, by
+          rintro s t ⟨_, b, o, v, p, hl, _⟩; simp [lookup] at hl⟩
+      | tail hprev hstep ih =>
+        have ih' := ih fun l => (hh l).back E (.tail (.refl _) (hstep.toStep E))
+        exact ⟨hstep.wf E ih'.1, hstep.ranked E ih'.1
+          ((Star.tail hprev hstep).mono .step) hh ih'.2⟩
 
-    /-- **Pins cannot form cycles** (section 10.2), in any world built by events
-    (valid steps and takedowns), whatever the digest function. -/
-    theorem no_cycles_events {w : World D}
-        (hs : Events hash (fun _ => (none : Option (Archive D))) w) (s : Site) :
-        ¬ Chain (PinsTo hash w) s s :=
-      (hs.ranked hash).2.no_cycle hash s
-
-Valid steps are events, so the same holds of worlds built by valid steps
-alone.
-
-    theorem ValidSteps.toEvents {w w' : World D} (hs : ValidSteps hash w w') :
-        Events hash w w' :=
-      hs.mono .step
-
-    /-- **Pins cannot form cycles**, in any world built by valid steps. -/
+    /-- **Pins cannot form cycles** (section 8.5), in any world built by valid steps
+    in which every owner signs one history, which no copy held collides with. -/
     theorem no_cycles {w : World D}
-        (hs : ValidSteps hash (fun _ => (none : Option (Archive D))) w) (s : Site) :
-        ¬ Chain (PinsTo hash w) s s :=
-      no_cycles_events hash hs.toEvents s
+        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w) (hh : ∀ l, OneHistory E w l)
+        (s : LineId × Nat) : ¬ Chain (PinsTo w) s s :=
+      (hs.ranked E hh).2.no_cycle s
 
 In particular a version cannot pin itself, and two collections cannot pin
-each other: both would be cycles. Section 10.2 attributes this to the
+each other: both would be cycles. Section 8.5 attributes this to the
 hashes ("collections are hash trees"); the reason, in the model's reading,
 is that a pin names a digest, which cannot be known before the version
-exists. The model shows that the protocol is enough: a valid step pins
-only what already exists. The hashes make it hold also for copies that come
-from outside the protocol.
+exists. The model shows that the protocol is enough: a valid step pins only
+what already exists, and honest owners keep one version at each site.
+
+Two cases are left out. An owner whose keys sign two histories of a line
+could, in principle, deposit at a site that exists elsewhere a version with
+other pins; the cycle would then be made with its keys, and attributable to
+it (`Events.fork_signed`). And with takedowns among the events, a line
+whose every copy was taken down may come back, from a copy elsewhere or
+deposited again by its owner, and the numbering above, which forgets the
+sites that no longer exist, does not cover it: the proof would need the
+history of the world, not only its state. Version 0.1 of the model, where
+a pin named a place that never came back, proved the case with takedowns;
+for version 0.2 it is an open point of the model.
+
+## No pin names a key log
+
+Valid steps check of every pin they write that it names no key log
+(`PinOk`, [chapter 7](45-worlds.md)). With `ValidStep.old_or_checked`, the check holds
+of every pin held, in every world built by events: a version is one its
+copy had, or one whose pins the step checked; and a takedown only removes.
+
+    /-- No pin held by a version of a live object names a key log. -/
+    def PinsNoKeyLog (w : World D) : Prop :=
+      ∀ b i c, lookup w b i = some (.live c) → ∀ v ∈ c.versions, ∀ p ∈ v.pins,
+        p.line ≠ keyLogLine p.line.owner
+
+    theorem ValidStep.pinsNoKeyLog {w w' : World D} (hs : ValidStep E w w')
+        (hw : PinsNoKeyLog w) : PinsNoKeyLog w' := by
+      intro b i c hl v hv p hp
+      obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hv
+      have hva : c.versionAt (k + 1) = some c.versions[k] := by
+        simp [Obj.versionAt, List.getElem?_eq_getElem hk]
+      rcases hs.old_or_checked E hl hva with ⟨o, ho, hvo⟩ | h
+      · exact hw _ _ _ ho _ (versionAt_mem hvo) p hp
+      · exact (h p hp).1
+
+    /-- **No pin names a key log**, in every world built by events. -/
+    theorem Events.pinsNoKeyLog {w : World D}
+        (hs : Events E (fun _ => (none : Option (Archive D))) w) : PinsNoKeyLog w :=
+      hs.invariant _ (fun he hw => by
+          cases he with
+          | step h => exact h.pinsNoKeyLog E hw
+          | takedown a oid o _ hl =>
+            exact fun b i c h => hw b i c (lookup_takedown E.hash hl h).2)
+        (fun _ _ _ h => by simp [lookup] at h)
+
+So a pin held names a line whose copies are documents or collections: the
+copies of a key log sit at its line `(X, X)` (`Events.keyLog_line`,
+[chapter 9](48-copies.md)), which no pin held names.
+
+    /-- In a world built by events, no copy of the line of a pin held is a key log. -/
+    theorem Events.pinned_not_owner {w : World D}
+        (hs : Events E (fun _ => (none : Option (Archive D))) w) {b : ArchiveId} {i : ObjectId}
+        {c : Obj D} (hl : lookup w b i = some (.live c)) {v : Version D} (hv : v ∈ c.versions)
+        {p : Pin D} (hp : p ∈ v.pins) {b' : ArchiveId} {o : Obj D}
+        (ho : lookup w b' (.line p.line) = some (.live o)) : o.kind ≠ .owner :=
+      fun hk => Events.pinsNoKeyLog E hs b i c hl v hv p hp (Events.keyLog_line E hs ho hk)
 
 ## A withdrawal cannot be undone
 
-Section 11.1 makes the status a property of the object, and issue #25 asks
+Section 13.1 makes the status a property of the line, and issue #25 asks
 whether a withdrawal can be undone. The model's choice
 ([chapter 2](20-object.md)) is that it cannot, and valid steps enforce it:
-once the head of an object is withdrawn, it stays withdrawn.
+once the head of a copy is withdrawn, it stays withdrawn.
 
+    omit [DecidableEq D] in
     /-- The head of a live object is withdrawn. -/
     def HeadWithdrawn (w : World D) (a : ArchiveId) (oid : ObjectId) : Prop :=
       ∃ o, lookup w a oid = some (.live o) ∧ headStatus o.versions = .withdrawn
 
     /-- **A withdrawal cannot be undone** by valid steps. -/
-    theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep hash w w')
+    theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep E w w')
         {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
       obtain ⟨o, hl, hst⟩ := h
       cases hs with
       | newArchive b ar hb hempty =>
         exact ⟨o, by rw [lookup_newArchive hb hempty]; exact hl, hst⟩
-      | create b ar c o' hb hc _ _ =>
+      | create b ar c o' hb hc =>
         refine ⟨o, ?_, hst⟩
         rw [lookup_setEntry hb]
         split
@@ -435,19 +499,28 @@ once the head of an object is withdrawn, it stays withdrawn.
           obtain ⟨rfl, rfl⟩ := hbc
           simp [lookup, hb, hc] at hl
         · exact hl
-      | append b ar c o' y hb hc _ hst' _ _ =>
+      | append b ar c o' y ss hb hc _ hst' =>
         by_cases hbc : a = b ∧ oid = c
         · obtain ⟨rfl, rfl⟩ := hbc
           have hoo : some (Entry.live o') = some (Entry.live o) := by
             rw [← hl]; simp [lookup, hb, hc]
           have := Entry.live.inj (Option.some.inj hoo)
           subst this
-          refine ⟨o'.append y, by rw [lookup_setEntry hb]; simp, ?_⟩
+          refine ⟨o'.append y ss, by rw [lookup_setEntry hb]; simp, ?_⟩
           simp [headStatus, Obj.append, hst' hst]
         · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
+      | witness b ar c o' ss hb hc =>
+        by_cases hbc : a = b ∧ oid = c
+        · obtain ⟨rfl, rfl⟩ := hbc
+          have hoo : some (Entry.live o') = some (Entry.live o) := by
+            rw [← hl]; simp [lookup, hb, hc]
+          have := Entry.live.inj (Option.some.inj hoo)
+          subst this
+          exact ⟨{ o' with sigs := o'.sigs ++ ss }, by rw [lookup_setEntry hb]; simp, hst⟩
+        · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
 
-    theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps hash w w')
+    theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps E w w')
         {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid :=
-      hs.invariant _ (·.withdrawn_stays hash) h
+      hs.invariant _ (·.withdrawn_stays E) h
 
     end OpenSheaf

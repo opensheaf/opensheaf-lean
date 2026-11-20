@@ -13,8 +13,9 @@ Like the model, it is **non-normative**. Where it and the
 
 ## The claim
 
-- **The base** is the set of *named document versions*: an object, named
-  by its archive and identifier, and a document version number. Its open
+- **The base** is the set of *named document versions*: a line, named by
+  its name and owner (`sheaf:<name>:<owner>`, wherever it is kept), and a
+  document version number. Its open
   sets are the sets closed under earlier versions of the same object (the
   Alexandrov topology of the order of deposit).
 - **The value** at a named document version is its content: its files,
@@ -23,14 +24,16 @@ Like the model, it is **non-normative**. Where it and the
   versions its member list pins, so that below a selection version lies the
   selection together with what it vetted, and the earlier versions of
   those, which its pins fix too.
-- **The sections** come from object versions. Each object version, kept in
-  its own archive or in a mirror, says what every document version up to
-  it holds: a section over an open set.
+- **The sections** come from object versions. Each object version of a
+  copy of a line, wherever the copy is kept, says what every document
+  version up to it holds: a section over an open set.
 - **The theorem.** In every world built from nothing by the model's valid
-  steps and takedowns, the sections of all copies of all objects are
-  compatible, and glue into exactly one section: one content for each
-  named document version, whichever copy and whichever object version it is
-  read from.
+  steps and takedowns, the sections of all copies of all lines are
+  compatible, and glue into exactly one section, when every owner signs one
+  history: one content for each named document version, whichever copy and
+  whichever object version it is read from. When they do not glue, a fork
+  of a line is the reason, signed with keys of its owner's key log as the
+  world holds it.
 
 Precisely: the sections over a set, with values in the contents, form a
 sheaf for general reasons (chapter 1), whatever the protocol. What the
@@ -45,15 +48,30 @@ A name carries no digest, so this is not automatic. Two copies could hold
 different content under the same name, and then nothing glues. The proof
 shows which rules of the specification make the pieces agree:
 
-- within one object, the rule of section 7.3, which gives each document
-  version one content, and which the verifier checks (section 14): the
+- within one object, the rule of section 4.2, which gives each document
+  version one content, and which the verifier checks (section 14.4): the
   pieces of an object version glue because of it, and a history that
   breaks it has pieces that do not glue;
-- between copies kept in different archives, the rule that a mirror copies
-  its original byte for byte (section 10.4): any two copies of an object
-  have histories of which one is a prefix of the other;
+- between copies kept in different archives, or in different worlds, the
+  owner's signatures (section 7): the head of every copy is signed by the
+  owner, and an owner that signs one history ("one writer per line",
+  section 7.4) makes any two copies prefixes of one another;
 - between any copies, found anywhere, a pin: two objects that resolve the
-  same pin give the same section, unless digests collide (section 6.4).
+  same pin give the same section, unless digests collide (section 8.5).
+
+Version 0.1 of the specification had no owners: an object lived in its own
+archive and mirrors copied it, so every world built by events glued with no
+hypothesis. Version 0.2 lets an owner write a line in several archives, and
+its keys, or a thief's, sign what they sign. The hypothesis that owners are
+honest is therefore part of the theorems now, and the program shows where:
+a fork of a line is exactly what stops gluing. Honesty is stated of a world
+and of an account of the histories owners sign (`Honest E H w`): every
+signature of an owner's keys signs a prefix of its history, and no copy
+the world holds collides with that history. It assumes nothing of the
+digest beyond those pairs, so SHA-512 can satisfy it, and so can the toy
+digest of the story, whose world is shown honest (chapter [A story, as a
+sheaf](60-story.md)). Signatures count whoever made them: a thief's
+version signed with keys the key log lists belongs to the history too.
 
 ## How to read it
 
@@ -64,48 +82,52 @@ shows which rules of the specification make the pieces agree:
    the content of a document version, and the rule "one number, one
    content" in both directions;
 3. [An object version is a section](30-object.md): its set is open, and
-   is what its pieces hold (no gaps), it glues its pieces (section 7.3),
+   is what its pieces hold (no gaps), it glues its pieces (section 4.2),
    and a later object version restricts to an earlier one (versions are
    fixed);
-4. [The sections of a world glue](40-world.md): copies agree in every world built by
-   events, so the sections of a world glue, uniquely; a condition checked
-   one object version at a time holds of the whole;
+4. [The sections of a world glue](40-world.md): copies agree in every world
+   built by events when owners are honest, so the sections of a world glue,
+   uniquely; otherwise a fork signed by an owner is the reason; a condition
+   checked one object version at a time holds of the whole;
 5. [Pins and accepted copies](50-pins.md): a pin names a section, in any
-   world; an accepted copy holds the vetted content at another point, and
-   every copy in a world built by events holds, at its first version, the
-   files of its source, when the source resolves;
+   world; an accepted copy, a branch, holds the vetted content at another
+   point, and every branch in a world built by events holds, at its first
+   version, the files of its parent, unless inventories collide;
 6. [Collections and what they pin](55-collections.md): the pins of member
    lists added to the order; below a collection version lies each member
-   it pins, with the content its pin fixes, unless it was taken down;
-7. [The order with pins](57-acyclic.md): in every world built by events,
-   the order with pins is a partial order, and later steps keep its edges;
+   it pins, with the content its pin fixes, unless its line was taken down
+   at the pin's hints;
+7. [The order with pins](57-acyclic.md): later steps keep its edges, and in
+   every world built by valid steps with honest owners the order with pins
+   is a partial order (with takedowns, open);
 8. [A story, as a sheaf](60-story.md): the story of the model, read as a
-   sheaf and checked by computation (the journal's issue and the paper it
-   vetted among them), and two broken worlds that do not glue: a forged
-   copy, and a number reused;
-9. [Names are eternal](70-eternal.md): a named document version keeps its
-   content through every later event, and once held nowhere is never held
-   again; the glued sections of a world and of any later one agree;
+   sheaf and checked by computation (the accepted copy holding what the
+   journal vetted, descriptions that do not glue), and two broken worlds
+   that do not glue: a forged copy, written outside the protocol, and a
+   number reused;
+9. [Names are eternal](70-eternal.md): a named document version has the
+   same content in any two worlds built by events, when owners are honest,
+   and the glued sections of any two worlds agree; a name held nowhere may
+   be held again (version 0.1 said it could not);
 10. [What lies below is fixed](71-below.md): once a named document version
-   is held, no later event adds anything below it in the order with pins,
-   valid steps remove nothing, and the values below agree;
+   is held, no later valid step adds or removes anything below it in the
+   order with pins, and the values below agree;
 11. [Verification is lifting](72-lifting.md): pins are points of a sheaf of
    digests, verification lifts them to the sheaf of inventories, the lift is
    unique without collisions, and every copy that holds the pinned version
-   gives the same verdict;
+   gives the same verdict, when owners are honest;
 12. [Verification is local](74-local.md): restricting a world restricts its
    sheaf, and a collection verifies in its support as in the whole world;
-13. [Separate worlds](76-federation.md): worlds built by events refer only
-   to their own archives, so two of them on separate archives share
-   nothing, glue with no condition, and each keeps its section;
+13. [Separate worlds](76-federation.md): two worlds built by events glue
+   when owners are honest, though they may share lines, and on separate
+   archives each keeps its section;
 14. [Descriptions are the fibres](78-fibres.md): two maps from object
    versions to named document versions; the fibres of the first are the
    contents, but it is not monotone; the second, the top, is monotone, and
    its fibres are runs of description-only versions; descriptions do not
    glue;
 15. [The citable section](79-citable.md): the worlds of a run glue over time
-   into one section over everything ever held; each name is held during one
-   interval, after which it is reported removed.
+   into one section over everything ever held, when owners are honest.
 
 Each chapter writes one module of the library, `Sheaf/*.lean`, which
 imports the modules of the model it needs. The root of the library imports
@@ -119,7 +141,6 @@ every module:
     import Sheaf.Pins
     import Sheaf.Collections
     import Sheaf.Acyclic
-    import Sheaf.Story
     import Sheaf.Eternal
     import Sheaf.Below
     import Sheaf.Lifting
@@ -127,17 +148,19 @@ every module:
     import Sheaf.Federation
     import Sheaf.Fibres
     import Sheaf.Citable
+    import Sheaf.Story
 
 ## What does not glue
 
 **Descriptions.** Two object versions may describe the same document
 version differently: a description-only version adds a DOI, corrects a
-stage or a title, or adds a withdrawal or a notice (section 7.3). A notice
+stage or a title, or adds a withdrawal or a notice (section 4.2). A notice
 or the reason of a withdrawal kept as a file is new content in the model,
 so a new document version (chapter [Named document versions](20-base.md)).
 Their
 descriptions do not agree, and are not meant to. The specification settles
-them by authority, not by agreement: the head of the object describes it,
+them by authority, not by agreement: the latest signed version of the line
+describes it (section 7.3),
 and earlier object versions keep the description as it was known when they
 were made. So descriptions are values of object versions, ordered by time,
 not values of named document versions, and the sheaf leaves them out.
@@ -154,19 +177,26 @@ of deposit, fixed by the inventories.
 
 ## What is left out
 
-- **Worlds that refer to each other.** In the model, a pin or a mirror
-  needs its target in the same world: a world built by events refers only
-  to its own archives (chapter [Separate worlds](76-federation.md)). Two
-  worlds built independently, with pins from one into the other checked
-  only when they are combined, need a step relation across worlds, which
-  the model does not have.
+- **Worlds that refer to each other.** In the model, a pin or a copy is
+  checked against the world in which it is written. Two worlds built
+  independently, with pins from one found only through copies in the other,
+  checked when they are combined, need a step relation across worlds, which
+  the model does not have; chapter [Separate worlds](76-federation.md)
+  shows that such worlds agree on the lines they share, when owners are
+  honest.
+- **Takedowns in the order with pins.** That the order with pins is a
+  partial order, and that nothing new comes below a point, are proved for
+  worlds built by valid steps. With takedowns, a line may come back after
+  every copy of it was taken down, and the proof would need the history of
+  the world, not only its state (chapter [The order with pins](57-acyclic.md)).
 - **A base that does not depend on the world.** The order with pins
   (chapter 6) is defined from where pins resolve in a world: a takedown
   removes edges. A base fixed once and for all would take pins themselves
   as points, with their digests, which fix what they pin unless digests
   collide.
 - **Collisions.** Theorems that need digests not to collide assume it for
-  the inventories they compare, not for the digest function as a whole.
+  the inventories they compare, or for the copies a world holds and the
+  histories owners sign, never for the digest function as a whole.
 
 - **References of documents.** The pins of member lists are in the order
   (chapter 6): below a collection version lies what it pins. The pins of a
@@ -175,16 +205,18 @@ of deposit, fixed by the inventories.
   to object versions, not to document versions. They would join the order
   if references became part of the content (issue #28).
 - **Completion.** A document version deposited without its sources may be
-  completed later, keeping its number (section 7.3). Its content then
+  completed later, keeping its number (section 4.2). Its content then
   grows, and the values would be partial maps from paths to digests,
   compatible when they agree where both are defined. The model does not
   represent completion, and neither does this program.
-- **Branches.** The proposal of PR #30 of the specification (owners, lines,
-  deep and shallow branches) would make the base of each object a tree,
-  or a graph once a branch point moves: a fork of a line would be a family
-  that does not glue, a shallow branch a section of the coarser sheaf of
-  digests, and moving a branch point a gluing of two histories. The model
-  has no lines or branches yet, so neither does this program.
+- **Branches as one base.** Version 0.2 has lines and branches (section 9),
+  and a fork of a line is, as foreseen, a family that does not glue
+  (chapter [The sections of a world glue](40-world.md)). A branch is
+  another line, so another part of the base; reading a work with all its
+  branches as one tree, or a graph once a branch point moves, would glue a
+  branch's first version to its parent's (chapter
+  [Pins and accepted copies](50-pins.md) relates the two values), and is
+  left for later.
 
 ## The tools
 

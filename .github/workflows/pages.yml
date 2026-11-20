@@ -33,6 +33,14 @@ jobs:
             [ "$n" = index.html ] && continue
             printf '<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=model/%s"><link rel="canonical" href="model/%s"><a href="model/%s">moved</a>\n' "$n" "$n" "$n" > "site/$n"
           done
+          # chapters renamed when the model moved to version 0.2 of the specification
+          for p in "49-acts 47-acts" "50-states 50-drafts"; do
+            set -- $p
+            for d in site site/model; do
+              t=$( [ "$d" = site ] && echo "model/$2.html" || echo "$2.html" )
+              printf '<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=%s"><link rel="canonical" href="%s"><a href="%s">moved</a>\n' "$t" "$t" "$t" > "$d/$1.html"
+            done
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
