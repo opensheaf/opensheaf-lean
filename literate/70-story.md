@@ -305,6 +305,17 @@ shows to fail:
 - someone holding the author's current key `a33` signs a third version of
   the key log with it.
 
+Four more are made for the residual risks of section 15.1, in
+[chapter 15](72-risks.md):
+
+- the thief who kept `a222` signs yet another second version of the
+  author's key log, which exposes `a1`;
+- a thief who stole the author's rotation key `a5555`, before the author
+  used it, signs a third version of the key log, with a current key of its
+  own, `xx`, and then, with `xx`, the fourth version of the paper above;
+- the author, who still holds `a5555`, signs another third version of its
+  key log, which ends it.
+
     def v4 : Version Nat :=
       Version.revise paper3.versions [("paper.tm", 666)] none "On sheaves of documents" "author"
         "quietly changed"
@@ -352,10 +363,45 @@ shows to fail:
 
     def sigI2 : Sig Nat := ⟨issueLine, 2, toy ((issue.append i2).inventory 2), "j1", logPin "journal" logJ 1⟩
 
+The four for the residual risks:
+
+    def keysE : Keys Nat :=
+      { keys := ["x"], threshold := 1, next := [9], nextThreshold := 1, exposed := ["a1"] }
+
+    def k2e : Version Nat :=
+      { documentVersion := 0, files := [], description := "", keys := some keysE,
+        depositor := "a thief", message := "a1 exposed, by the thief" }
+
+    def sigK2e : Sig Nat :=
+      ⟨keyLogLine "author", 2, toy ((logA1.append k2e).inventory 2), "a222", logPin "author" logA1 1⟩
+
+    def keysX : Keys Nat := { keys := ["xx"], threshold := 1, next := [8], nextThreshold := 1 }
+
+    def k3x : Version Nat :=
+      { documentVersion := 0, files := [], description := "", keys := some keysX,
+        depositor := "thief", message := "taken over, without a fork" }
+
+    def sigK3x : Sig Nat :=
+      ⟨keyLogLine "author", 3, toy ((logA2.append k3x).inventory 3), "a5555", logPin "author" logA2 2⟩
+
+    def logTake : Obj Nat := logA2.append k3x [sigK3x]
+
+    def sigXP : Sig Nat :=
+      ⟨paperLine, 4, toy ((paper3.append v4).inventory 4), "xx", logPin "author" logTake 3⟩
+
+    def keysEnd : Keys Nat := { ended := true }
+
+    def k3end : Version Nat :=
+      { documentVersion := 0, files := [], description := "", keys := some keysEnd,
+        depositor := "author", message := "ended: a5555 was stolen" }
+
+    def sigK3o : Sig Nat :=
+      ⟨keyLogLine "author", 3, toy ((logA2.append k3end).inventory 3), "a5555", logPin "author" logA2 2⟩
+
     /-- Every signature someone made, with a key they held. -/
     def made : List (Sig Nat) :=
       [sigP1, sigI1, sigJ1, sigK2, sigP2, sigP3, sigJ2, sigAC, sigI2, sigThief, sigK3, sigAI, sigK2t,
-        sigBad]
+        sigBad, sigK2e, sigK3x, sigXP, sigK3o]
 
 The environment of the story: a signature verifies exactly when it was
 made.

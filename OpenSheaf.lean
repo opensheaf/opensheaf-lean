@@ -11,6 +11,9 @@ import OpenSheaf.Copies
 import OpenSheaf.Drafts
 import OpenSheaf.Patterns
 import OpenSheaf.Impossible
+import OpenSheaf.Security
 import OpenSheaf.Story
+import OpenSheaf.Risks
 import OpenSheaf.Record
 import OpenSheaf.References
+import OpenSheaf.Reader

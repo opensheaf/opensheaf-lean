@@ -9,10 +9,13 @@ branches and drafts, and the ways archives change. It then proves the
 properties that the specification states in prose: that pins, once valid,
 stay valid; that a takedown is detected; that only an owner's keys add to
 its lines, wherever they are kept; that whoever holds only current keys
-cannot change a key log, and that a key log never forks at its first
-version; that copies of a line agree as long as its owner signs one
-history; that a selection does not move unless its curator moves it; and
-that drafts can be rewritten without breaking any pin.
+cannot change a key log, nor block an exposure, and that a key log never
+forks at its first version; that a fork freezes its owner for ever; that
+copies of a line agree as long as its owner signs one history; that a
+selection does not move unless its curator moves it; that drafts can be
+rewritten without breaking any pin; and that a reader who checks a copy
+against a copy of the owner's key log, from any host, reads the history
+the owner's keys signed.
 
 The model is **non-normative**. Where it and the specification differ, the
 specification holds, and the difference is a bug of one or the other, to be
@@ -73,7 +76,15 @@ The chapters build the model from the bottom up:
    impossible or detected: a pin changing its meaning, history rewritten,
    identifiers reused, document versions ambiguous or with gaps, cycles of
    pins, a pin naming a key log, a withdrawal undone;
-13. [A story, checked by computation](70-story.md): three owners with key
+13. [What keys can do](66-security.md): the promises of sections 6.3 and
+    15.1 about keys: only rotation keys of the version before decide a new
+    version of a key log, so whoever holds current keys cannot block an
+    exposure; a fork freezes the owner for ever; keys of the other side of
+    a fork never count; signatures stay good and contested versions stay
+    contested against a longer copy of the key log; rotation keys of the
+    latest version take the owner over, and the owner's only answer is a
+    fork; a retired key never exposed still signs;
+14. [A story, checked by computation](70-story.md): three owners with key
    logs, a paper sealed and revised after a key rotation, a journal issue
    and accepted copy, a co-author's catalogue and mirror, a takedown and a
    draft, with the verifier's reports checked by `decide`; and attempts
@@ -83,16 +94,28 @@ The chapters build the model from the bottom up:
    signed with an exposed key, a key log changed with current keys, a fork
    that freezes the owner and makes contested, where it is known, the
    versions signed from the fork point on;
-14. [A learning record, checked by computation](75-record.md): a student's
+15. [Residual risks, checked by computation](72-risks.md): the residual
+    risks of section 15.1 in the story's worlds: an archive served a key
+    log without the exposure adds what the author's archive refuses; a
+    thief's fork that exposes the owner's key makes the owner's own
+    versions contested, and adds nothing; a retired key still signs; a
+    takeover without a fork, and the owner's answering fork;
+16. [A learning record, checked by computation](75-record.md): a student's
     thesis and the department's receipt of it, comments tied by a reference
     to the version commented on, a rewrite caught by the receipt, and the
     record deleted at the end of its retention;
-15. [References between documents](80-references.md): pinned references
+17. [References between documents](80-references.md): pinned references
    from one document to an exact version of another (the proposals of
    issues #21 and #28): they are found and travel with copies, a pin fixes
    what its version refers to, a takedown behind a reference is invisible
    to a verifier that knows only the core; the use case of a short account
-   and its detailed argument, computed.
+   and its detailed argument, computed;
+18. [A reader's check](85-reader.md): what a reader that checks one copy of
+    a line against one copy of its owner's key log knows, whatever host
+    served them: the head is signed by a current key, which comes from the
+    owner's genesis record through rotation keys, and the copy is the
+    history the owner's keys signed, unless inventories collide: no host
+    forges a version.
 
 Each chapter writes one module of the library, `OpenSheaf/*.lean`. The code
 is given in chunks, with the prose that explains it; the
@@ -113,9 +136,12 @@ every module:
     import OpenSheaf.Drafts
     import OpenSheaf.Patterns
     import OpenSheaf.Impossible
+    import OpenSheaf.Security
     import OpenSheaf.Story
+    import OpenSheaf.Risks
     import OpenSheaf.Record
     import OpenSheaf.References
+    import OpenSheaf.Reader
 
 ## Modelling choices
 

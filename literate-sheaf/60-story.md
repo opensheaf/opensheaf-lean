@@ -88,7 +88,8 @@ log, or a prefix of the history its owner signs.
       · have hm : s ∈ made := by simpa [E] using hv
         subst hl
         simp only [made, List.mem_cons, List.not_mem_nil, or_false] at hm
-        rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+          rfl | rfl | rfl | rfl
         all_goals first
           | decide
           | exact absurd (authorKeys _ ho) (by decide)

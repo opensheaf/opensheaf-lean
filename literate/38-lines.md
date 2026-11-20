@@ -18,7 +18,9 @@ against a copy of the owner's key log, and proves what they rest on:
   chapter);
 - more signature files, or a weaker test on them, keep a version signed
   (`SignedWith.mono`). What a longer copy of the key log, with more
-  exposures, does to a status is not proved here.
+  exposures, does to a status is proved in
+  [chapter 13](66-security.md): signed stays signed, contested stays
+  contested.
 
     -- in OpenSheaf/Lines.lean:
     import OpenSheaf.Owners
@@ -186,7 +188,7 @@ The valid steps of [chapter 7](45-worlds.md) ask only for `SignedClean` of
 the head, against a copy of the key log without a fork record: an archive
 that knows of a fork adds nothing to the owner's lines (section 7.5), so
 the half of `tainted` that looks at the fork point never matters to them.
-It matters to readers: in the story ([chapter 13](70-story.md)), the
+It matters to readers: in the story ([chapter 14](70-story.md)), the
 archive that holds the fork record of the author's key log reads the
 versions of the paper signed against a key-log version from the fork point
 on as contested, and the version signed before it as signed and not
