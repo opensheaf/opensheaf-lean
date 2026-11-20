@@ -184,104 +184,42 @@ story's, with them.
 
 The key logs, the student's twice, in its archive and beside the receipt:
 
-    theorem a3 : ValidStep ER r2 r3 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-        (by decide)
-
-    theorem a4 : ValidStep ER r3 r4 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-        (by decide)
-
-    theorem a5 : ValidStep ER r4 r5 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-        (by decide)
+    theorem a3 : ValidStep ER r2 r3 := create_keyLog rfl rfl (by decide)
+    theorem a4 : ValidStep ER r3 r4 := create_keyLog rfl rfl (by decide)
+    theorem a5 : ValidStep ER r4 r5 := create_keyLog rfl rfl (by decide)
 
 The thesis is sealed and signed by the student; the department's receipt is
 a copy, valid only as one, since the department's archive does not host
 the student.
 
-    theorem a6 : ValidStep ER r5 r6 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
+    theorem a6 : ValidStep ER r5 r6 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
 
     theorem copy_r6 : CopyOf r6 "dept" thesis1 := ⟨"student", thesis1, by decide, rfl, rfl, [], by simp⟩
 
-    theorem a7 : ValidStep ER r6 r7 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun h => absurd copy_r6 h) (fun h => absurd copy_r6 h)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r6⟩⟩
-        (by decide)
+    theorem a7 : ValidStep ER r6 r7 := create_copy rfl rfl rfl copy_r6 (no_pins (by decide)) (by decide)
 
 The comments are created only because the version they review exists: the
 step resolves the reference's pin.
 
-    theorem a8 : ValidStep ER r7 r8 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-        by decide, rfl⟩
-        (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ comments.versions, ∀ p ∈ v.pins,
-          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r7 p).isOk = true) v hv p hp))
-        (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
-
-    theorem a9 : ValidStep ER r8 r9 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-        by decide, rfl⟩
-        (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ record1.versions, ∀ p ∈ v.pins,
-          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r8 p).isOk = true) v hv p hp))
-        (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
+    theorem a8 : ValidStep ER r7 r8 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+    theorem a9 : ValidStep ER r8 r9 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 The second submission, its receipt, the report, and the record's second
 version, a new document version of the record since its member list
 changed.
 
     theorem a10 : ValidStep ER r9 r10 :=
-      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-        (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
+      append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
     theorem copy_r10 : CopyOf r10 "dept" thesis2 := ⟨"student", thesis2, by decide, rfl, rfl, [], by simp⟩
 
     theorem a11 : ValidStep ER r10 r11 :=
-      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-        (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-        (fun h => absurd copy_r10 h) (fun h => absurd copy_r10 h)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r10⟩⟩
-        (by decide)
+      append_copy rfl rfl rfl copy_r10 (pins_resolve (by decide)) (by decide)
 
-    theorem a12 : ValidStep ER r11 r12 :=
-      .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-        by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
+    theorem a12 : ValidStep ER r11 r12 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
 
     theorem a13 : ValidStep ER r12 r13 :=
-      .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-        (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ g2.pins,
-          p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r12 p).isOk = true) p hp))
-        (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-        ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-          fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-        (by decide)
+      append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 ## The record is valid
 
@@ -344,13 +282,14 @@ archive does later, by immutability at the department's archive.
       decide
 
 The student rewrites version 1 in place, outside the protocol, to make the
-first submission look better. The pin of the first submission no longer
-resolves on the student's archive; on the receipt it still does, to what
-was handed in. (The rewrite changes the description: the toy digest does
-not look at the content of files, so a rewrite of the files alone would
-collide with the original, the case that `NoCollision` excludes.)
+first submission look better: a new source file under the same name. The
+pin of the first submission no longer resolves on the student's archive;
+on the receipt it still does, to what was handed in. (The toy digest reads
+the digests of files, so the rewritten inventory has another digest; a
+rewrite that it does not read, of the message alone, would collide with
+the original, the case that `NoCollision` excludes.)
 
-    def t1' : Version Nat := { t1 with description := "A thesis, much improved" }
+    def t1' : Version Nat := { t1 with files := [("thesis.tm", 99), ("thesis.pdf", 12)] }
 
     def rTamper : World Nat :=
       setEntry r13 "student" (.line thesisLine) (.live { thesis2 with versions := [t1', t2] })

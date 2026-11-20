@@ -105,8 +105,9 @@ version of Lean deprecates:
         (if c then x else y) = y := by simp [h]
 
 After replacing the entry of `oid` in `a`, looking up `oid` in `a` gives the
-new entry, and looking up anything else gives what it gave before. The
-owners an archive hosts do not change.
+new entry, and looking up anything else gives what it gave before.
+`setEntry` changes only entries: the owners an archive hosts, fixed when it
+is created, are never changed by a step.
 
     theorem lookup_setEntry {w : World D} {a : ArchiveId} {ar : Archive D} {oid : ObjectId}
         {e : Entry D} (ha : w a = some ar) (b : ArchiveId) (x : ObjectId) :
@@ -123,17 +124,6 @@ owners an archive hosts do not change.
       split at h
       · contradiction
       · exact ⟨_, by assumption⟩
-
-    /-- The owners archive `a` hosts, if it exists. -/
-    def ownersOf (w : World D) (a : ArchiveId) : Option (List OwnerName) :=
-      (w a).map (·.owners)
-
-    theorem ownersOf_setEntry (w : World D) (a : ArchiveId) (oid : ObjectId) (e : Entry D)
-        (c : ArchiveId) : ownersOf (setEntry w a oid e) c = ownersOf w c := by
-      unfold ownersOf setEntry
-      by_cases hc : c = a
-      · subst hc; cases w c <;> simp
-      · simp [hc]
 
 Adding an empty archive under a free location changes no lookup.
 
@@ -412,19 +402,6 @@ the first kind is one of the second.
       induction h with
       | refl => exact .refl _
       | tail _ hr ih => exact .tail ih (hrs hr)
-
-Steps never change the owners an archive hosts.
-
-    theorem Step.owners_kept {w w' : World D} (hs : Step w w') {a : ArchiveId}
-        {os : List OwnerName} (h : ownersOf w a = some os) : ownersOf w' a = some os := by
-      cases hs with
-      | newArchive b ar hb =>
-        have : a ≠ b := by rintro rfl; simp [ownersOf, hb] at h
-        unfold ownersOf at h ⊢
-        simp only [this, ite_false]; exact h
-      | create => rw [ownersOf_setEntry]; exact h
-      | append => rw [ownersOf_setEntry]; exact h
-      | witness => rw [ownersOf_setEntry]; exact h
 
 ## Immutability
 

@@ -77,6 +77,36 @@ def SignedNotContested (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Prop :=
 def Contested (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Prop :=
   Signed E kl l o n ∧ ¬ SignedNotContested E kl l o n
 
+theorem signed_iff (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+    Signed E kl l o n ↔ 1 ≤ n ∧ ∃ m ∈ List.range (o.versions.length + 1),
+      n ≤ m ∧ SignedDirect E kl l o m := by
+  unfold Signed
+  constructor
+  · rintro ⟨h1, m, h2, h3, h4⟩
+    exact ⟨h1, m, List.mem_range.mpr (Nat.lt_succ_of_le h3), h2, h4⟩
+  · rintro ⟨h1, m, hm, h2, h4⟩
+    exact ⟨h1, m, h2, Nat.le_of_lt_succ (List.mem_range.mp hm), h4⟩
+
+theorem signedNotContested_iff (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+    SignedNotContested E kl l o n ↔ 1 ≤ n ∧ ∃ m ∈ List.range (o.versions.length + 1),
+      n ≤ m ∧ SignedClean E kl l o m := by
+  unfold SignedNotContested
+  constructor
+  · rintro ⟨h1, m, h2, h3, h4⟩
+    exact ⟨h1, m, List.mem_range.mpr (Nat.lt_succ_of_le h3), h2, h4⟩
+  · rintro ⟨h1, m, hm, h2, h4⟩
+    exact ⟨h1, m, h2, Nat.le_of_lt_succ (List.mem_range.mp hm), h4⟩
+
+instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Decidable (Signed E kl l o n) :=
+  decidable_of_iff _ (signed_iff E kl l o n).symm
+
+instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+    Decidable (SignedNotContested E kl l o n) :=
+  decidable_of_iff _ (signedNotContested_iff E kl l o n).symm
+
+instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Decidable (Contested E kl l o n) := by
+  unfold Contested; infer_instance
+
 /-- **More signatures, or a weaker test, keep a version signed.** -/
 theorem SignedWith.mono {kl : Obj D} {l : LineId} {n : Nat} {d : D}
     {sigs sigs' : List (Sig D)} {ok ok' : Sig D → Bool}
@@ -118,15 +148,6 @@ theorem not_tainted_not_exposed {kl : Obj D} {s : Sig D} (h : (!tainted kl s) = 
     decide_eq_false_iff_not] at h
   exact h.1
 
-/-- **A rotation key never signs a line**, against a version of a valid key
-log. -/
-theorem rotation_key_signs_no_line {X : OwnerName} {kl : Obj D} (hkl : KeyLogOk E X kl)
-    {i j : Nat} (hi : i < kl.versions.length) (hj : j < kl.versions.length)
-    {ki kj : Keys D} (hki : (kl.versions[i]'hi).keys = some ki)
-    (hkj : (kl.versions[j]'hj).keys = some kj) {key : Key} (hd : E.keyDigest key ∈ kj.next) :
-    key ∉ ki.keys :=
-  fun hk => hkl.disjoint E hi hj hki hkj hk hd
-
 /-- The copy `kl` of a key log has an ending version. -/
 def HasEnding (kl : Obj D) : Prop := ∃ v ∈ kl.versions, ∃ k, v.keys = some k ∧ k.ended = true
 
@@ -141,25 +162,19 @@ instance (kl : Obj D) : Decidable (Frozen kl) := by
 
 theorem KeyLogOk.carried_nil {X : OwnerName} {kl : Obj D} (h : KeyLogOk E X kl)
     (hf : ¬ Frozen kl) : carriedOf kl = [] := by
-  obtain ⟨g, _, _, _, _, _, _, _, _, _, hhead, hsteps⟩ := h.parts
+  obtain ⟨g, _, hp⟩ := h.parts
   unfold carriedOf
   rw [List.flatMap_eq_nil_iff]
   intro v hv
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hv
   cases i with
-  | zero =>
-    have h0 : kl.versions[0]'hi = firstKeyVersion g := by
-      rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hi] at hhead
-      exact Option.some.inj hhead
-    rw [h0]; rfl
+  | zero => rw [hp.getElem_zero E hi]; rfl
   | succ i =>
-    have hs := hsteps i (by omega)
-    unfold KeyStep at hs
-    split at hs
-    · exact hs.1
-    · rename_i hx
-      exact absurd ⟨_, List.getElem_mem hi, hx⟩ hf
-    · exact hs.elim
+    cases hx : (kl.versions[i + 1]'hi).keys with
+    | none => exact absurd ⟨_, List.getElem_mem hi, hx⟩ hf
+    | some k =>
+      obtain ⟨_, _, hc, _⟩ := (hp.steps i (by omega)).keyed E hx
+      exact hc
 
 theorem keyVersion_held {kl : Obj D} (hc : carriedOf kl = []) {p : Pin D} {kv : Keys D}
     (h : keyVersion E kl p = some kv) :

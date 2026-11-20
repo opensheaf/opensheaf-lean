@@ -132,11 +132,10 @@ list is not checked by section 9.3, and the model does not check it either.
         intro he; simp [Obj.versionAt, he] at h1
       have h0 : 0 < c.versions.length := List.length_pos_iff.mpr hne
       have hx0 : c.versions[0] = x := by
-        simp only [Obj.versionAt, show (1 : Nat) ≠ 0 by omega, ite_false, Nat.sub_self,
-          List.getElem?_eq_getElem h0] at h1
+        rw [Obj.versionAt_succ, List.getElem?_eq_getElem h0] at h1
         exact Option.some.inj h1
       obtain ⟨j, hj, _, _, _, hf⟩ := Events.branch_files E hs hl h0 (by rw [hx0]; exact hpa)
-        (by simp [prevParent])
+        (by simp [prevParent, Parent.Keeps])
       refine ⟨j, hj, fun b' c' u hc' hu hcol => ?_⟩
       have hf := hf b' c' u hc' hu hcol
       rw [objSec_piece ((Events.sound E hs).1 _ _ _ hl |>.history hk) (versionAt_mem_take h1) hx]

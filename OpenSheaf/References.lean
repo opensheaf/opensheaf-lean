@@ -34,8 +34,8 @@ def verifyRefs (w : World D) (v : Version D) : List (Ref D × Resolution D) :=
 /-- **A pin fixes what the version refers to.** -/
 theorem pin_fixes_refs {w w' : World D}
     (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w') {p : Pin D}
-    {a : Version D} (hp : resolve E.hash w p = .ok a) (hhp : Honest E w' [p])
-    (hhr : Honest E w' (a.refs.map (·.pin)))
+    {a : Version D} (hp : resolve E.hash w p = .ok a) (hhp : HonestPins E w' [p])
+    (hhr : HonestPins E w' (a.refs.map (·.pin)))
     (hok : ∀ r ∈ a.refs, ∃ d, resolve E.hash w r.pin = .ok d) :
     resolve E.hash w' p = .ok a ∧ verifyRefs E w' a = verifyRefs E w a := by
   have h1 := hhp p (List.mem_singleton_self _)
@@ -162,71 +162,19 @@ def y10 : World Nat := setEntry y9 "journal" (.line accountLine) (.live account)
 theorem b1 : ValidStep EC y0 y1 := .newArchive _ _ _ rfl (fun _ => rfl)
 theorem b2 : ValidStep EC y1 y2 := .newArchive _ _ _ rfl (fun _ => rfl)
 
-theorem b3 : ValidStep EC y2 y3 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem b3 : ValidStep EC y2 y3 := create_keyLog rfl rfl (by decide)
+theorem b4 : ValidStep EC y3 y4 := create_keyLog rfl rfl (by decide)
+theorem b5 : ValidStep EC y4 y5 := create_keyLog rfl rfl (by decide)
 
-theorem b4 : ValidStep EC y3 y4 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem b5 : ValidStep EC y4 y5 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem b6 : ValidStep EC y5 y6 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem b7 : ValidStep EC y6 y7 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ account.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y6 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem b8 : ValidStep EC y7 y8 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ d3.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y7 p).isOk = true) p hp))
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem b9 : ValidStep EC y8 y9 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ issueObj.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y8 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem b6 : ValidStep EC y5 y6 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
+theorem b7 : ValidStep EC y6 y7 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+theorem b8 : ValidStep EC y7 y8 := append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+theorem b9 : ValidStep EC y8 y9 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem copy_y9 : CopyOf y9 "journal" account := ⟨"author", account, by decide, rfl, rfl, [], by simp⟩
 
 theorem b10 : ValidStep EC y9 y10 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ account.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy y9 p).isOk = true) v hv p hp))
-    (fun h => absurd copy_y9 h) (fun h => absurd copy_y9 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logA1, rfl, by decide, by decide, by decide, Or.inr copy_y9⟩⟩
-    (by decide)
+  create_copy rfl rfl rfl copy_y9 (pins_resolve (by decide)) (by decide)
 
 theorem valid : ValidSteps EC y0 y10 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _) b1) b2) b3) b4)

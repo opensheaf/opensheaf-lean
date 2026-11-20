@@ -300,33 +300,14 @@ place where the proof looks at the kind of step.
         (hl' : lookup w' b x = some (.live o')) (hv : o'.versionAt n = some v) :
         (∃ o, lookup w b x = some (.live o) ∧ o.versionAt n = some v) ∨
           ∀ p ∈ v.pins, PinOk E w p := by
-      cases hs with
-      | newArchive a ar ha hempty =>
-        rw [lookup_newArchive ha hempty] at hl'
-        exact Or.inl ⟨o', hl', hv⟩
-      | create a ar oid o ha ho _ hpins =>
-        rw [lookup_setEntry ha] at hl'
-        split at hl'
-        · cases hl'; exact Or.inr fun p hp => hpins v (versionAt_mem hv) p hp
-        · exact Or.inl ⟨o', hl', hv⟩
-      | append a ar oid o y ss ha ho _ _ _ _ hpins =>
-        rw [lookup_setEntry ha] at hl'
-        split at hl'
-        · rename_i hc
-          obtain ⟨rfl, rfl⟩ := hc
-          cases hl'
-          rcases versionAt_append hv with hv | ⟨_, rfl⟩
-          · exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
-          · exact Or.inr hpins
-        · exact Or.inl ⟨o', hl', hv⟩
-      | witness a ar oid o ss ha ho =>
-        rw [lookup_setEntry ha] at hl'
-        split at hl'
-        · rename_i hc
-          obtain ⟨rfl, rfl⟩ := hc
-          cases hl'
-          exact Or.inl ⟨o, by simp [lookup, ha, ho], hv⟩
-        · exact Or.inl ⟨o', hl', hv⟩
+      rcases hs.live_cases E hl' with hl0 | ⟨_, _, _, ⟨_, hpins⟩ | ⟨o, y, ss, hlo, rfl, hpins⟩⟩ |
+          ⟨o, ss, hlo, rfl, _⟩
+      · exact Or.inl ⟨o', hl0, hv⟩
+      · exact Or.inr fun p hp => hpins v (versionAt_mem hv) p hp
+      · rcases versionAt_append hv with hv | ⟨_, rfl⟩
+        · exact Or.inl ⟨o, hlo, hv⟩
+        · exact Or.inr hpins
+      · exact Or.inl ⟨o, hlo, hv⟩
 
 In a world built by valid steps alone there is no tombstone, so every pin
 held is found, and names a site that exists.
@@ -348,7 +329,7 @@ version that the site already held elsewhere, with the same pins.
 
     theorem ValidStep.ranked {w w' : World D} (hs : ValidStep E w w') (hw : WFWorld E w)
         (hw' : Events E (fun _ => (none : Option (Archive D))) w')
-        (hh : ∀ l, OneHistory E w' l) (hr : Ranked w) : Ranked w' := by
+        (hh : ∀ l, l ≠ keyLogLine l.owner → OneHistory E w' l) (hr : Ranked w) : Ranked w' := by
       classical
       obtain ⟨rank, N, hlive, hdown⟩ := hr
       have hstep := hs.toStep E
@@ -379,7 +360,7 @@ version that the site already held elsewhere, with the same pins.
               versionAt_prefix (t := []) (by simp) ht0 (Obj.versionAt_bounds hv0).2 hv0
             have hk1 : o'.kind ≠ .owner := fun hk => hnk (Events.keyLog_line E hw' hl' hk)
             have hk0 : o0'.kind ≠ .owner := fun hk => hnk (Events.keyLog_line E hw' hl0' hk)
-            have heq : v0 = v := (Events.copiesAgree E hw' (hh l) b0 b o0' o' hl0' hl' hk0 hk1).versionAt
+            have heq : v0 = v := (Events.copiesAgree E hw' (hh l hnk) b0 b o0' o' hl0' hl' hk0 hk1).versionAt
               hv0' hv
             subst heq
             have hpt : PinsTo w (l, n) t := ⟨hnk, b0, o0, v0, p, hl0, hv0, hp, ht⟩
@@ -389,24 +370,29 @@ version that the site already held elsewhere, with the same pins.
             exact hlive t htl'
 
 The empty world is ranked, trivially, and so, by induction, is every world
-built from it by valid steps, when every owner signs one history.
+built from it by valid steps, when every owner signs one history. Only the
+lines that pins can name matter: the hypothesis is asked of every line that
+is not a key log, since a key log is never pinned.
 
     theorem ValidSteps.ranked {w : World D}
-        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w) (hh : ∀ l, OneHistory E w l) :
+        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w)
+        (hh : ∀ l, l ≠ keyLogLine l.owner → OneHistory E w l) :
         WFWorld E w ∧ Ranked w := by
       induction hs with
       | refl => exact ⟨WFWorld.empty E, fun _ => 0, 0, by
           rintro s ⟨b, o, v, hl, _⟩; simp [lookup] at hl, by
           rintro s t ⟨_, b, o, v, p, hl, _⟩; simp [lookup] at hl⟩
       | tail hprev hstep ih =>
-        have ih' := ih fun l => (hh l).back E (.tail (.refl _) (hstep.toStep E))
+        have ih' := ih fun l hl => (hh l hl).back E (.tail (.refl _) (hstep.toStep E))
         exact ⟨hstep.wf E ih'.1, hstep.ranked E ih'.1
           ((Star.tail hprev hstep).mono .step) hh ih'.2⟩
 
     /-- **Pins cannot form cycles** (section 8.5), in any world built by valid steps
-    in which every owner signs one history, which no copy held collides with. -/
+    in which every owner signs one history of each line that is not a key log,
+    which no copy held collides with. -/
     theorem no_cycles {w : World D}
-        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w) (hh : ∀ l, OneHistory E w l)
+        (hs : ValidSteps E (fun _ => (none : Option (Archive D))) w)
+        (hh : ∀ l, l ≠ keyLogLine l.owner → OneHistory E w l)
         (s : LineId × Nat) : ¬ Chain (PinsTo w) s s :=
       (hs.ranked E hh).2.no_cycle s
 
@@ -445,7 +431,7 @@ copy had, or one whose pins the step checked; and a takedown only removes.
       intro b i c hl v hv p hp
       obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hv
       have hva : c.versionAt (k + 1) = some c.versions[k] := by
-        simp [Obj.versionAt, List.getElem?_eq_getElem hk]
+        rw [Obj.versionAt_succ, List.getElem?_eq_getElem hk]
       rcases hs.old_or_checked E hl hva with ⟨o, ho, hvo⟩ | h
       · exact hw _ _ _ ho _ (versionAt_mem hvo) p hp
       · exact (h p hp).1
@@ -479,7 +465,6 @@ whether a withdrawal can be undone. The model's choice
 ([chapter 2](20-object.md)) is that it cannot, and valid steps enforce it:
 once the head of a copy is withdrawn, it stays withdrawn.
 
-    omit [DecidableEq D] in
     /-- The head of a live object is withdrawn. -/
     def HeadWithdrawn (w : World D) (a : ArchiveId) (oid : ObjectId) : Prop :=
       ∃ o, lookup w a oid = some (.live o) ∧ headStatus o.versions = .withdrawn

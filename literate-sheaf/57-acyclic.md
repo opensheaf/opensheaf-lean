@@ -199,7 +199,7 @@ was made by it, so the step checked its pins.
         (hnew : ¬ HeldIn w (c.name v)) {p : Pin D} (hp : p ∈ v.pins) : PinOk E w p := by
       obtain ⟨k, hk', rfl⟩ := List.mem_iff_getElem.mp hv
       have hva : c.versionAt (k + 1) = some c.versions[k] := by
-        simp [Obj.versionAt, List.getElem?_eq_getElem hk']
+        rw [Obj.versionAt_succ, List.getElem?_eq_getElem hk']
       rcases hs.old_or_checked E hl hva with ⟨o, ho, hvo⟩ | h
       · obtain ⟨c', hl', hg⟩ := (hs.toStep E).live_grows ho
         rw [hl] at hl'; cases hl'
@@ -221,6 +221,35 @@ from.
         (hn : c.name v = c'.name v') : v.members = v'.members :=
       ((sameContent_iff).mp
         (holds_agree E hw hca ⟨_, _, c, hl, hk, hv, rfl⟩ ⟨_, _, c', hl', hk', hv', hn.symm⟩)).2
+
+A pin found before a step, at one of its hints, is found after it at the
+same place, to the same version (immutability); where it is found after the
+step, through whichever copy of its line, it is that version again, since
+the copies agree; and the copy it was found in before names it alike.
+
+    /-- A pin found before a step names, after it, the version and the named
+    document version it named before, when copies agree after the step. -/
+    theorem Step.found_same {w w' : World D} (hstep : Step w w')
+        (hw0 : Events E (fun _ => (none : Option (Archive D))) w) (hw' : SoundWorld E w')
+        (hca' : ∀ l, CopiesAgree w' l) {p : Pin D} (hpk : p.line ≠ keyLogLine p.line.owner)
+        {b1 : ArchiveId} {u1 : Version D} (hu1 : resolveAt E.hash w b1 p = .ok u1) {b' : ArchiveId}
+        {o : Obj D} {u : Version D} (ho : lookup w' b' (.line p.line) = some (.live o))
+        (hko : o.kind ≠ .owner) (hres : resolveAt E.hash w' b' p = .ok u) :
+        ∃ o1, lookup w b1 (.line p.line) = some (.live o1) ∧ o1.kind ≠ .owner ∧ u1 = u ∧
+          o.name u = o1.name u := by
+      have hu1' := hu1
+      unfold resolveAt at hu1'
+      obtain ⟨o1, ho1⟩ := resolveEntry_ok_live E.hash hu1'
+      have hko1 : o1.kind ≠ .owner := Events.not_owner E hw0 hpk o1 ho1
+      obtain ⟨o1', ho1', hg1⟩ := hstep.live_grows ho1
+      have huu : u1 = u := agree_resolveAt E (hca' p.line) rfl
+        (fun c c' hc hc' => by
+          rw [ho1'] at hc; rw [ho] at hc'; cases hc; cases hc'
+          exact ⟨by rw [hg1.kind]; exact hko1, hko⟩)
+        (Step.resolveAt_ok E.hash hstep hu1) hres
+      have hid : o.id = o1.id := by
+        rw [(hw'.1 _ _ _ ho).id, ← hg1.id, (hw'.1 _ _ _ ho1').id]
+      exact ⟨o1, ho1, hko1, huu, by simp only [Obj.name, hid]⟩
 
 An edge into a named document version held before a valid step was an edge
 before it: the version holding it has the member list of a version held
@@ -246,20 +275,8 @@ copies of its line agree.
         unfold Version.memberPins at hpm ⊢; rw [← hmembers]; exact hpm
       have hpk := hnk _ _ _ hl0 v0 hv0' p (memberPins_sub hpm0)
       obtain ⟨b1, hb1, u1, hu1⟩ := hw.2.1 _ _ _ hl0 v0 hv0' p (memberPins_sub hpm0)
-      have hu1' := hu1
-      unfold resolveAt at hu1'
-      obtain ⟨o1, ho1⟩ := resolveEntry_ok_live E.hash hu1'
-      have hko1 : o1.kind ≠ .owner := Events.not_owner E hw0 hpk o1 ho1
-      obtain ⟨o1', ho1', hg1⟩ := hstep.live_grows ho1
-      have huu : u1 = u := agree_resolveAt E (hca' p.line) rfl
-        (fun c c' hc hc' => by
-          rw [ho1'] at hc; rw [ho] at hc'; cases hc; cases hc'
-          exact ⟨by rw [hg1.kind]; exact hko1, hko⟩)
-        (Step.resolveAt_ok E.hash hstep hu1) hres
+      obtain ⟨o1, ho1, hko1, huu, hname⟩ := Step.found_same E hstep hw0 hw' hca' hpk hu1 ho hko hres
       subst huu
-      have hid : o.id = o1.id := by
-        rw [(hw'.1 _ _ _ ho).id, ← hg1.id, (hw'.1 _ _ _ ho1').id]
-      have hname : o.name u1 = o1.name u1 := by simp only [Obj.name, hid]
       rw [hname, show c.name v = c0.name v0 from hn0]
       exact ⟨b0, l0, c0, v0, p, b1, o1, u1, hl0, hk0, hv0', rfl, hpm0, hb1, ho1, hko1, hu1, rfl⟩
 
@@ -302,23 +319,13 @@ an old point, ranked below `N`.
         · -- a new named document version: its pins were checked by the step
           have hok := ValidStep.new_held E hs hsw hl hk hv hxw (memberPins_sub hpm)
           obtain ⟨b1, _, u1, hu1⟩ := hw.pinOk_found E hok
-          have hu1' := hu1
-          unfold resolveAt at hu1'
-          obtain ⟨o1, ho1⟩ := resolveEntry_ok_live E.hash hu1'
-          have hko1 : o1.kind ≠ .owner := Events.not_owner E hw0 hok.1 o1 ho1
-          obtain ⟨o1', ho1', hg1⟩ := hstep.live_grows ho1
-          have huu : u1 = u := agree_resolveAt E (hca' p.line) rfl
-            (fun c c' hc hc' => by
-              rw [ho1'] at hc; rw [ho] at hc'; cases hc; cases hc'
-              exact ⟨by rw [hg1.kind]; exact hko1, hko⟩)
-            (Step.resolveAt_ok E.hash hstep hu1) hres
+          obtain ⟨o1, ho1, hko1, huu, hname⟩ :=
+            Step.found_same E hstep hw0 hw' hca' hok.1 hu1 ho hko hres
           subst huu
-          have hid : o.id = o1.id := by
-            rw [(hw'.1 _ _ _ ho).id, ← hg1.id, (hw'.1 _ _ _ ho1').id]
-          have hname : o.name u1 = o1.name u1 := by simp only [Obj.name, hid]
-          rw [ho1] at hu1'
-          have hyw : HeldIn w (o1.name u1) :=
-            heldIn_of_live E hsw ho1 hko1 (versionAt_mem (resolveEntry_live_ok E.hash hu1').1)
+          have hyw : HeldIn w (o1.name u1) := by
+            unfold resolveAt at hu1
+            rw [ho1] at hu1
+            exact heldIn_of_live E hsw ho1 hko1 (versionAt_mem (resolveEntry_live_ok E.hash hu1).1)
           dsimp only
           simp only [hname, hyw, hxw, ↓reduceIte]
           exact hN _ hyw

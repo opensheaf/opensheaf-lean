@@ -34,7 +34,6 @@ creates a line; drafts stay outside it.
 
 A draft deleted "leaves no tombstone" (section 10.1): its entry is gone.
 
-    omit [DecidableEq D] in
     /-- Remove the entry of an object of an existing archive. -/
     def clearEntry (w : World D) (a : ArchiveId) (oid : ObjectId) : World D :=
       fun b => if b = a then
@@ -152,7 +151,6 @@ object, under a new identifier, and its first version is document version
 afterwards changes nothing in the line (`DraftEvent.lines`). The first
 version of a sealed work, from a draft's version `v`:
 
-    omit [DecidableEq D] in
     /-- The first version of a line sealed from the draft version `v`
     (section 10.2): its content, as document version 1, without a parent. -/
     def sealVersion (v : Version D) (description depositor message : String) : Version D :=

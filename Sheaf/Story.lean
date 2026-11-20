@@ -48,7 +48,6 @@ def storyHistories : Histories Nat := fun l =>
   else if l = keyLogLine "author" then (some genA, logA2.versions ++ [k3c])
   else (none, [])
 
-set_option linter.unusedSimpArgs false in
 /-- **The owners of the story are honest.** -/
 theorem story_honest : Honest E storyHistories w19 := by
   refine ⟨fun l s hv hl ho => ?_, ?_⟩
@@ -84,7 +83,7 @@ theorem story_honest : Honest E storyHistories w19 := by
         all_goals (first
           | exact absurd rfl hk
           | decide
-          | (simp [storyHistories, paperLine, issueLine, jointLine, copyLine, keyLogLine]; done)
+          | (simp [storyHistories, paperLine, issueLine, jointLine, copyLine]; done)
           | (apply Exists.intro [v4]; simp [storyHistories, paperLine, issueLine, jointLine,
               copyLine, keyLogLine, paper3, paper2, paper1, paper0, Obj.append]; done)
           | (apply Exists.intro [i2]; simp [storyHistories, paperLine, issueLine, jointLine,

@@ -96,10 +96,6 @@ something about it.
         collect hash w c = c := by
       simp [collect, h]
 
-    /-- Updating a collection keeps its type. -/
-    theorem collect_type (w : World D) (c : Members D) : (collect hash w c).type = c.type := by
-      unfold collect; split <;> rfl
-
 For a catalogue, members with `follow` move to the head, and the others
 stay.
 
@@ -185,30 +181,13 @@ the member's line, and carry its hints.
     instance (c : Members D) : Decidable c.WF := by
       unfold Members.WF; infer_instance
 
-The pin of a head names the line it is the head of, and carries the hints
-it was looked up with.
-
-    theorem headIn_names {w : World D} {hs bs : List ArchiveId} {l : LineId} {p : Pin D}
-        (h : headIn hash w hs bs l = some p) : p.line = l ∧ p.hints = hs := by
-      induction bs with
-      | nil => simp [headIn] at h
-      | cons b bs ih =>
-        unfold headIn at h
-        split at h
-        · split at h
-          · exact ih h
-          · cases h; exact ⟨rfl, rfl⟩
-        · exact ih h
-
-    theorem headPin_names {w : World D} {hs : List ArchiveId} {l : LineId} {p : Pin D}
-        (h : headPin hash w hs l = some p) : p.line = l ∧ p.hints = hs :=
-      headIn_names hash h
-
 So updating a well-formed member list gives a well-formed one: the tools
-cannot break the rules by following members.
+cannot break the rules by following members. The pin of a head names the
+line it is the head of, and carries the hints it was looked up with
+(`headPin_resolves`, above).
 
     /-- **Updating keeps a member list well formed.** -/
-    theorem collect_wf (w : World D) {c : Members D} (h : c.WF) : (collect hash w c).WF := by
+    theorem collect_wf [DecidableEq D] (w : World D) {c : Members D} (h : c.WF) : (collect hash w c).WF := by
       unfold collect
       split
       · exact h
@@ -223,7 +202,7 @@ cannot break the rules by following members.
         split
         · split
           · rename_i p hp
-            obtain ⟨hl, hh⟩ := headPin_names hash hp
+            obtain ⟨hh, _, _, _, _, _, hl, _⟩ := headPin_resolves hash hp
             refine ⟨hmw.1, by simp, ?_, fun _ => rfl, fun h => nomatch h⟩
             intro q hq
             simp only [List.mem_singleton] at hq

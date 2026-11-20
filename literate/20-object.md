@@ -135,6 +135,12 @@ signature files that come with it, finding version `n` (there is no version
     def inventory (o : Obj D) (n : Nat) : Inventory D :=
       ⟨o.id, o.genesis, o.versions.take n⟩
 
+Version `n + 1` is the element at index `n` of the history, which lists
+the versions from `v1`:
+
+    theorem versionAt_succ (o : Obj D) (n : Nat) : o.versionAt (n + 1) = o.versions[n]? := by
+      simp [versionAt]
+
 If version `n` exists, then `n` is between 1 and the length of the history.
 
     theorem versionAt_bounds {o : Obj D} {n : Nat} {v : Version D}
@@ -233,6 +239,17 @@ append, a version is an old one or the one appended, at the next number.
           rw [this] at h
           simp at h
           exact ⟨by omega, h.symm⟩
+
+Version `n` is the last version of the inventory of version `n`: the
+inventory lists the versions up to it.
+
+    theorem getLast?_take {o : Obj D} {n : Nat} {v : Version D} (h : o.versionAt n = some v) :
+        (o.versions.take n).getLast? = some v := by
+      obtain ⟨h1, h2⟩ := Obj.versionAt_bounds h
+      obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+      rw [Obj.versionAt_succ] at h
+      rw [List.getLast?_eq_getElem?, List.length_take, Nat.min_eq_left h2, List.getElem?_take]
+      simpa using h
 
 After an append, the old versions are where they were, and the new one
 comes last.
@@ -419,12 +436,10 @@ document versions, are
 the specification, still open. **The model makes a choice**: it cannot. A
 new version has the status of the head, or `withdrawn`.
 
-    omit [DecidableEq D] in
     /-- The status of the object: that of the head, `active` before any version. -/
     def headStatus (l : List (Version D)) : Status :=
       (l.getLast?.map (·.status)).getD .active
 
-    omit [DecidableEq D] in
     /-- `x` does not make a withdrawn object active again. -/
     def NoReinstatement (l : List (Version D)) (x : Version D) : Prop :=
       headStatus l = .withdrawn → x.status = .withdrawn
@@ -436,12 +451,10 @@ A history keeps the rule when no version of it reinstates the versions
 before it. A history created at once (imported, or copied) is checked as a
 whole, and appending a version that keeps the rule keeps it.
 
-    omit [DecidableEq D] in
     /-- No version of the history makes a withdrawn object active again. -/
     def StatusOk (l : List (Version D)) : Prop :=
       ∀ i (h : i < l.length), NoReinstatement (l.take i) l[i]
 
-    omit [DecidableEq D] in
     instance (l : List (Version D)) : Decidable (StatusOk l) := by
       unfold StatusOk; infer_instance
 
@@ -473,29 +486,48 @@ document version, any of them; a **withdrawal** (section 13.1) changes the
 status; a **revision** adds new content, and a new document version. Each
 is built for the history `l` it extends, and takes the status of its head.
 
-    omit [DecidableEq D] in
+Each also takes from the head what belongs to the line rather than to a
+document version: its branch point and its references. A branch keeps its
+branch point until a version moves it (section 9.4), so a revision of a
+branch, or a description of one of its earlier document versions, records
+the branch point of the head, not that of the version described, which may
+be an older one. References are data of `object.json`, as the description
+is (the extension of #28); the model's choice is that a new version keeps
+those of the head, as a new description replaces the old one and the
+references stay until a version changes them. A version that changes them
+is written with the references it wants (as in [chapter
+15](80-references.md)).
+
+    /-- The branch point of the head of a history, if any. -/
+    def headParent (l : List (Version D)) : Option (Parent D) := l.getLast?.bind (·.parent)
+
+    /-- The references of the head of a history, none before any version. -/
+    def headRefs (l : List (Version D)) : List (Ref D) := (l.getLast?.map (·.refs)).getD []
+
     /-- A description-only version (section 4.2) of the history `l`: a new
-    description of the content of `v`, with the status of the object. -/
+    description of the content of `v`, with the status, the branch point and the
+    references of the head. -/
     def Version.describe (l : List (Version D)) (v : Version D)
         (description depositor message : String) : Version D :=
-      { v with status := headStatus l, description, depositor, message }
+      { v with status := headStatus l, parent := headParent l, refs := headRefs l,
+               description := description, depositor := depositor, message := message }
 
 `Version.withdraw` builds a withdrawal as section 13.1 defines it, a
 description-only version. The rules do not require it: a version with new
 content may also come with status `withdrawn`, which section 13.1 does not
 foresee. The model leaves this open, with issue #25.
 
-    omit [DecidableEq D] in
     /-- A withdrawal (section 13.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }
 
-    /-- A new document version of the history `l`: new content. -/
+    /-- A new document version of the history `l`: new content, with the status,
+    the branch point and the references of the head. -/
     def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
         (members : Option (Members D)) (description depositor message : String) :
         Version D :=
-      { documentVersion := docCount l + 1, files, members, description,
-        status := headStatus l, depositor, message }
+      { documentVersion := docCount l + 1, files, members, description, refs := headRefs l,
+        parent := headParent l, status := headStatus l, depositor, message }
 
 Each extends the history it is added to: a description or a withdrawal of
 any version of the history, since it holds that version's content; a

@@ -79,38 +79,14 @@ theorem ValidStep.ownersSign {w w' : World D} (hs : ValidStep E w w') (hw : Owne
     fun ⟨h1, h2⟩ => ⟨fun hk => by
       obtain ⟨s, hs', hver, hsg, hown⟩ := h1 hk
       exact ⟨s, hs', hver, hsg, hown.step E hst⟩, h2⟩
-  cases hs with
-  | newArchive a ar ha hempty =>
-    rw [lookup_newArchive ha hempty] at hl; exact up (hw b l o' hl)
-  | create a ar oid o ha ho _ _ _ _ hauth =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      exact up (authorised_ownersSign E hauth)
-    · exact up (hw b l o' hl)
-  | append a ar oid o x ss ha ho _ _ _ _ _ _ _ hauth =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      exact up (authorised_ownersSign E hauth)
-    · exact up (hw b l o' hl)
-  | witness a ar oid o ss ha ho =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      have hlo : lookup w b (.line l) = some (.live o) := by simp [lookup, ha, ho]
-      obtain ⟨h1, h2⟩ := hw b l o hlo
-      refine up ⟨fun hk => ?_, fun hk => ?_⟩
-      · obtain ⟨s, hs, hrest⟩ := h1 hk
-        exact ⟨s, List.mem_append_left _ hs, hrest⟩
-      · exact (h2 hk).witness E ss
-    · exact up (hw b l o' hl)
+  rcases hs.live_cases E hl with hl0 | ⟨_, _, hauth, _⟩ | ⟨o, ss, hlo, rfl, _⟩
+  · exact up (hw b l o' hl0)
+  · exact up (authorised_ownersSign E hauth)
+  · obtain ⟨h1, h2⟩ := hw b l o hlo
+    refine up ⟨fun hk => ?_, fun hk => ?_⟩
+    · obtain ⟨s, hs, hrest⟩ := h1 hk
+      exact ⟨s, List.mem_append_left _ hs, hrest⟩
+    · exact (h2 hk).witness E ss
 
 theorem takedown_ownersSign {w : World D} {a : ArchiveId} {l : LineId} {o : Obj D}
     (hk : l ≠ keyLogLine l.owner) (hl : lookup w a (.line l) = some (.live o))
@@ -171,33 +147,10 @@ theorem IdentityOk.witness {l : LineId} {o : Obj D} (h : IdentityOk E l o)
 theorem ValidStep.identitiesOk {w w' : World D} (hs : ValidStep E w w')
     (hw : IdentitiesOk E w) : IdentitiesOk E w' := by
   intro b l o' hl
-  cases hs with
-  | newArchive a ar ha hempty =>
-    rw [lookup_newArchive ha hempty] at hl; exact hw b l o' hl
-  | create a ar oid o ha ho _ _ _ _ hauth =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      exact hauth.1
-    · exact hw b l o' hl
-  | append a ar oid o x ss ha ho _ _ _ _ _ _ _ hauth =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      exact hauth.1
-    · exact hw b l o' hl
-  | witness a ar oid o ss ha ho =>
-    rw [lookup_setEntry ha] at hl
-    split at hl
-    · rename_i hc
-      obtain ⟨rfl, rfl⟩ := hc
-      cases hl
-      exact (hw b l o (by simp [lookup, ha, ho])).witness E ss
-    · exact hw b l o' hl
+  rcases hs.live_cases E hl with hl0 | ⟨_, _, hauth, _⟩ | ⟨o, ss, hlo, rfl, _⟩
+  · exact hw b l o' hl0
+  · exact hauth.1
+  · exact (hw b l o hlo).witness E ss
 
 theorem Event.identitiesOk {w w' : World D} (he : Event E w w') (hw : IdentitiesOk E w) :
     IdentitiesOk E w' := by
@@ -220,17 +173,18 @@ theorem IdentityOk.name {l : LineId} {o : Obj D} (h : IdentityOk E l o) :
     obtain ⟨_, h2⟩ := h
     split at h2
     · obtain ⟨hl, hkl⟩ := h2
-      obtain ⟨g', _, hg', _, _, _, hname, _⟩ := hkl.parts
+      obtain ⟨g', _, hp⟩ := hkl.parts
+      have hg' := hp.genesis
       rw [hg] at hg'; cases hg'
       refine ⟨0, by omega, ?_⟩
-      rw [hname]; rw [hl]; rfl
+      rw [hp.name]; rw [hl]; rfl
     · rcases h2 with ⟨_, hn, _⟩ | ⟨_, ⟨k, hk, hn⟩, _⟩
       · exact ⟨0, by omega, hn⟩
       · exact ⟨k, hk, hn⟩
 
 /-- **Copies of a line hold one genesis record**, in every world built by
 events, unless the names of the two records they hold collide. -/
-theorem Events.genesis_agree {w : World D}
+theorem Events.genesis_agree_of_names {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w)
     {b b' : ArchiveId} {l : LineId} {o o' : Obj D} (hl : lookup w b (.line l) = some (.live o))
     (hl' : lookup w b' (.line l) = some (.live o'))
@@ -261,20 +215,17 @@ theorem Events.ownerKey_origin {w : World D}
     by_cases hn : s.keyLog.version = 1
     · exact Or.inl hn
     · right
-      have hi : s.keyLog.version - 2 + 1 < kl.versions.length := by omega
-      have hvi : (kl.versions[s.keyLog.version - 2 + 1]'hi) = v := by
-        simp only [Obj.versionAt, show s.keyLog.version ≠ 0 by omega, ite_false] at hv
-        rw [List.getElem?_eq_getElem (by omega)] at hv
-        have := Option.some.inj hv
-        rw [← this]; congr 1; omega
+      obtain ⟨m, hm⟩ : ∃ m, s.keyLog.version = m + 2 := ⟨s.keyLog.version - 2, by omega⟩
+      have hi : m + 1 < kl.versions.length := by omega
+      have hvi : (kl.versions[m + 1]'hi) = v := by
+        rw [hm, Obj.versionAt_succ, List.getElem?_eq_getElem hi] at hv
+        exact Option.some.inj hv
       obtain ⟨pk, hpk, s', hs', hver, hl, hvs, hds, hkd⟩ :=
         hlog.held_rotation E hi (k := kv) (by rw [hvi]; exact hkv)
-      refine ⟨pk, ?_, s', hs', hver, hl, by rw [hvs]; omega, ?_, hkd⟩
-      · simp only [keysAt, Obj.versionAt, show s.keyLog.version - 1 ≠ 0 by omega, ite_false]
-        rw [List.getElem?_eq_getElem (by omega)]
-        have : s.keyLog.version - 1 - 1 = s.keyLog.version - 2 := by omega
-        simp only [this]; exact hpk
-      · rw [hds]; congr 2; omega
+      refine ⟨pk, ?_, s', hs', hver, hl, by rw [hvs, hm], by rw [hds, hm], hkd⟩
+      rw [hm, show m + 2 - 1 = m + 1 by omega, keysAt, Obj.versionAt_succ,
+        List.getElem?_eq_getElem (by omega)]
+      exact hpk
   · right
     obtain ⟨g, hg, k, hk16, hname⟩ := (Events.identitiesOk E hs b _ kl hkl).name E
     exact ⟨hk, g, k, hg, hk16, hname⟩

@@ -5,7 +5,6 @@ namespace OpenSheaf
 
 variable {D : Type} [DecidableEq D] (E : Env D)
 
-omit [DecidableEq D] in
 /-- Remove the entry of an object of an existing archive. -/
 def clearEntry (w : World D) (a : ArchiveId) (oid : ObjectId) : World D :=
   fun b => if b = a then
@@ -84,7 +83,6 @@ theorem DraftEvent.sound {w w' : World D} (he : DraftEvent E w w') (hw : SoundWo
       · cases h
       · exact hhe.held E (hw.2 _ _ _ h v hv p hp)
 
-omit [DecidableEq D] in
 /-- The first version of a line sealed from the draft version `v`
 (section 10.2): its content, as document version 1, without a parent. -/
 def sealVersion (v : Version D) (description depositor message : String) : Version D :=

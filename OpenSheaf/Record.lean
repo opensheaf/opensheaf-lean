@@ -128,93 +128,31 @@ def r13 : World Nat := setEntry r12 "dept" (.line recordLine) (.live record2)
 theorem a1 : ValidStep ER r0 r1 := .newArchive _ _ _ rfl (fun _ => rfl)
 theorem a2 : ValidStep ER r1 r2 := .newArchive _ _ _ rfl (fun _ => rfl)
 
-theorem a3 : ValidStep ER r2 r3 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem a3 : ValidStep ER r2 r3 := create_keyLog rfl rfl (by decide)
+theorem a4 : ValidStep ER r3 r4 := create_keyLog rfl rfl (by decide)
+theorem a5 : ValidStep ER r4 r5 := create_keyLog rfl rfl (by decide)
 
-theorem a4 : ValidStep ER r3 r4 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem a5 : ValidStep ER r4 r5 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem a6 : ValidStep ER r5 r6 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem a6 : ValidStep ER r5 r6 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
 
 theorem copy_r6 : CopyOf r6 "dept" thesis1 := ⟨"student", thesis1, by decide, rfl, rfl, [], by simp⟩
 
-theorem a7 : ValidStep ER r6 r7 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun h => absurd copy_r6 h) (fun h => absurd copy_r6 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r6⟩⟩
-    (by decide)
+theorem a7 : ValidStep ER r6 r7 := create_copy rfl rfl rfl copy_r6 (no_pins (by decide)) (by decide)
 
-theorem a8 : ValidStep ER r7 r8 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ comments.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r7 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem a9 : ValidStep ER r8 r9 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ record1.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r8 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem a8 : ValidStep ER r7 r8 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+theorem a9 : ValidStep ER r8 r9 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem a10 : ValidStep ER r9 r10 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+  append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem copy_r10 : CopyOf r10 "dept" thesis2 := ⟨"student", thesis2, by decide, rfl, rfl, [], by simp⟩
 
 theorem a11 : ValidStep ER r10 r11 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [t2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-    (fun h => absurd copy_r10 h) (fun h => absurd copy_r10 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logS, rfl, by decide, by decide, by decide, Or.inr copy_r10⟩⟩
-    (by decide)
+  append_copy rfl rfl rfl copy_r10 (pins_resolve (by decide)) (by decide)
 
-theorem a12 : ValidStep ER r11 r12 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem a12 : ValidStep ER r11 r12 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
 
 theorem a13 : ValidStep ER r12 r13 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ g2.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy r12 p).isOk = true) p hp))
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+  append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem valid : ValidSteps ER r0 r13 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail
@@ -246,7 +184,7 @@ example : HeadSigned ER r13 thesisLine thesis2 :=
 example : resolveAt toy r13 "dept" pinT1 = .ok t1 ∧ resolveAt toy r13 "dept" pinT2 = .ok t2 := by
   decide
 
-def t1' : Version Nat := { t1 with description := "A thesis, much improved" }
+def t1' : Version Nat := { t1 with files := [("thesis.tm", 99), ("thesis.pdf", 12)] }
 
 def rTamper : World Nat :=
   setEntry r13 "student" (.line thesisLine) (.live { thesis2 with versions := [t1', t2] })

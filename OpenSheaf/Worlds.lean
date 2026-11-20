@@ -6,14 +6,12 @@ namespace OpenSheaf
 
 variable {D : Type} [DecidableEq D] (E : Env D)
 
-omit [DecidableEq D] in
 /-- The member list of a version, if any, is well formed. -/
 def Version.membersOk (v : Version D) : Prop :=
   match v.members with
   | none => True
   | some c => c.WF
 
-omit [DecidableEq D] in
 instance (v : Version D) : Decidable v.membersOk := by
   unfold Version.membersOk; split <;> infer_instance
 
@@ -22,7 +20,6 @@ def ObjectId.isLine : ObjectId → Bool
   | .line _ => true
   | .draft _ => false
 
-omit [DecidableEq D] in
 /-- A well-formed object stored under `oid` (sections 4, 4.2, 8.2 and 10.1). -/
 structure Obj.WF (o : Obj D) (oid : ObjectId) : Prop where
   id : o.id = oid
@@ -46,7 +43,6 @@ def PinsOk (w : World D) : Prop :=
   ∀ a oid o, lookup w a oid = some (.live o) →
     ∀ v ∈ o.versions, ∀ p ∈ v.pins, Found E.hash w p
 
-omit [DecidableEq D] in
 /-- No object has been taken down. -/
 def NoTombs (w : World D) : Prop := ∀ a oid n d, lookup w a oid ≠ some (.tomb n d)
 
@@ -58,7 +54,6 @@ theorem WFWorld.empty : WFWorld E (fun _ => (none : Option (Archive D))) :=
   ⟨fun _ _ _ h => by simp [lookup] at h, fun _ _ _ h => by simp [lookup] at h,
     fun _ _ _ _ h => by simp [lookup] at h⟩
 
-omit [DecidableEq D] in
 /-- `o` is a copy of a prefix of a live copy of the same line, kept by another
 archive (section 11.1). -/
 def CopyOf (w : World D) (a : ArchiveId) (o : Obj D) : Prop :=
@@ -85,7 +80,6 @@ def IdentityOk (l : LineId) (o : Obj D) : Prop :=
         ∀ v ∈ o.versions, ∃ pa, v.parent = some pa ∧ pa.pin.line.owner ≠ l.owner ∧
           ∃ k, k < 16 ∧ pa.pin.line.name = E.nameOf g k)
 
-omit [DecidableEq D] in
 /-- A draft has no signature files, is not an owner, and has no parent
 (section 10.1). -/
 def DraftOk (o : Obj D) : Prop :=
@@ -104,24 +98,38 @@ def BranchPointOk (w : World D) (prev : Option (Parent D)) (x : Version D) : Pro
   match x.parent with
   | none => prev = none
   | some pa =>
-    prev = some pa ∨
+    Parent.Keeps prev pa ∨
     ((∀ pp, prev = some pp → pp.pin.line = pa.pin.line ∧ pp.pin.version < pa.pin.version ∧
         pp.documentVersion < pa.documentVersion) ∧
       ∃ b ∈ pa.pin.hints, ∃ u, resolveAt E.hash w b pa.pin = .ok u ∧
         x.files = u.files ∧ u.documentVersion = pa.documentVersion ∧
         ∀ pp, prev = some pp → ∃ u0, resolveAt E.hash w b pp.pin = .ok u0)
 
-omit [DecidableEq D] in
 /-- The branch point of the version before version `i` of a history. -/
 def prevParent (l : List (Version D)) (i : Nat) : Option (Parent D) :=
   match i with
   | 0 => none
   | j + 1 => (l[j]?).bind (·.parent)
 
-omit [DecidableEq D] in
-/-- Some version of a live object of the world holds the pin. -/
+theorem revise_branchPoint (w : World D) (l : List (Version D)) (fs : List (LogicalPath × D))
+    (ms : Option (Members D)) (d a m : String) :
+    BranchPointOk E w (headParent l) (Version.revise l fs ms d a m) := by
+  unfold BranchPointOk
+  cases h : headParent l with
+  | none => simp [Version.revise, h]
+  | some pa => simp only [Version.revise, h]; exact Or.inl (Parent.same_refl pa)
+
+theorem describe_branchPoint (w : World D) (l : List (Version D)) (v : Version D)
+    (d a m : String) : BranchPointOk E w (headParent l) (Version.describe l v d a m) := by
+  unfold BranchPointOk
+  cases h : headParent l with
+  | none => simp [Version.describe, h]
+  | some pa => simp only [Version.describe, h]; exact Or.inl (Parent.same_refl pa)
+
+/-- Some version of a live object of the world holds a pin naming the same
+object version. -/
 def HeldBy (w : World D) (p : Pin D) : Prop :=
-  ∃ b i c v, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ p ∈ v.pins
+  ∃ b i c v q, lookup w b i = some (.live c) ∧ v ∈ c.versions ∧ q ∈ v.pins ∧ q.names p
 
 /-- A pin a new version may hold: it names no key log, and it is found, or it
 reports `removed` and is carried over from a version the world already holds. -/
@@ -134,20 +142,20 @@ theorem PinOk.held {w : World D} {p : Pin D} (h : PinOk E w p) : Held E w p :=
 omit [DecidableEq D] in
 theorem heldBy_setEntry {w : World D} {a : ArchiveId} {oid : ObjectId} {e : Entry D}
     {p : Pin D} (h : HeldBy (setEntry w a oid e) p)
-    (he : ∀ c, e = .live c → ∀ v ∈ c.versions, p ∉ v.pins) : HeldBy w p := by
-  obtain ⟨b, i, c, v, hl, hv, hp⟩ := h
+    (he : ∀ c, e = .live c → ∀ v ∈ c.versions, ∀ q ∈ v.pins, ¬ q.names p) : HeldBy w p := by
+  obtain ⟨b, i, c, v, q, hl, hv, hq, hn⟩ := h
   cases ha : w a with
   | none =>
     have : setEntry w a oid e = w := by
       funext b'; unfold setEntry; by_cases hb : b' = a <;> simp [hb, ha]
-    rw [this] at hl; exact ⟨b, i, c, v, hl, hv, hp⟩
+    rw [this] at hl; exact ⟨b, i, c, v, q, hl, hv, hq, hn⟩
   | some ar =>
     rw [lookup_setEntry ha] at hl
     by_cases hbi : b = a ∧ i = oid
     · simp only [hbi, and_self, ite_true, Option.some.injEq] at hl
-      exact absurd hp (he c hl v hv)
+      exact absurd hn (he c hl v hv q hq)
     · simp only [hbi, ite_false] at hl
-      exact ⟨b, i, c, v, hl, hv, hp⟩
+      exact ⟨b, i, c, v, q, hl, hv, hq, hn⟩
 
 omit [DecidableEq D] in
 theorem heldBy_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w a = none)
@@ -158,7 +166,7 @@ theorem heldBy_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w 
   exact hb
 
 /-- The result is a version. -/
-def Resolution.isOk {D : Type} : Resolution D → Bool
+def Resolution.isOk : Resolution D → Bool
   | .ok _ => true
   | _ => false
 
@@ -202,33 +210,38 @@ def HeadFollows (w : World D) (l : List (Version D)) : Prop :=
 instance (w : World D) (l : List (Version D)) : Decidable (HeadFollows E w l) := by
   unfold HeadFollows; split <;> infer_instance
 
+/-- The key of `s` is a rotation key of the version of the key log `o` before the
+one it signs (section 6.1). -/
+def RotationKeyOk (o : Obj D) (s : Sig D) : Prop :=
+  match keysAt o (s.version - 1) with
+  | some pk => E.keyDigest s.key ∈ pk.next
+  | none => False
+
+instance (o : Obj D) (s : Sig D) : Decidable (RotationKeyOk E o s) := by
+  unfold RotationKeyOk; split <;> infer_instance
+
+/-- The key of `s` is a current key of the key-log version it names, in the copy
+of its owner's key log that archive `a` keeps (sections 7.2 and 7.3). -/
+def CurrentKeyOk (w : World D) (a : ArchiveId) (s : Sig D) : Prop :=
+  match lookup w a (.line (keyLogLine s.line.owner)) with
+  | some (.live kl) => ∃ kv ∈ (keyVersion E kl s.keyLog).toList, s.key ∈ kv.keys
+  | _ => False
+
+instance (w : World D) (a : ArchiveId) (s : Sig D) : Decidable (CurrentKeyOk E w a s) := by
+  unfold CurrentKeyOk; split <;> infer_instance
+
 /-- The key-log version named by `s`, a signature file of the object `o` kept by
 archive `a`, allows its key (sections 6.1, 7.2 and 7.3). -/
 def WitnessKeyOk (w : World D) (a : ArchiveId) (o : Obj D) (s : Sig D) : Prop :=
   if o.kind = .owner then
     2 ≤ s.version ∧ s.keyLog.line = s.line ∧ s.keyLog.version = s.version - 1 ∧
-      s.keyLog.digest = E.hash (o.inventory (s.version - 1)) ∧
-      match keysAt o (s.version - 1) with
-      | some pk => E.keyDigest s.key ∈ pk.next
-      | none => False
+      s.keyLog.digest = E.hash (o.inventory (s.version - 1)) ∧ RotationKeyOk E o s
   else
-    s.keyLog.line = keyLogLine s.line.owner ∧
-      match lookup w a (.line (keyLogLine s.line.owner)) with
-      | some (.live kl) => ∃ kv ∈ (keyVersion E kl s.keyLog).toList, s.key ∈ kv.keys
-      | _ => False
+    s.keyLog.line = keyLogLine s.line.owner ∧ CurrentKeyOk E w a s
 
 instance (w : World D) (a : ArchiveId) (o : Obj D) (s : Sig D) :
     Decidable (WitnessKeyOk E w a o s) := by
-  unfold WitnessKeyOk
-  split
-  · have : Decidable (match keysAt o (s.version - 1) with
-        | some pk => E.keyDigest s.key ∈ pk.next
-        | none => False) := by split <;> infer_instance
-    infer_instance
-  · have : Decidable (match lookup w a (.line (keyLogLine s.line.owner)) with
-        | some (.live kl) => ∃ kv ∈ (keyVersion E kl s.keyLog).toList, s.key ∈ kv.keys
-        | _ => False) := by split <;> infer_instance
-    infer_instance
+  unfold WitnessKeyOk; infer_instance
 
 /-- The signature file `s` of the object `o`, added by archive `a`, is valid. -/
 def SigOk (w : World D) (a : ArchiveId) (o : Obj D) (s : Sig D) : Prop :=
@@ -281,7 +294,6 @@ theorem ValidStep.toStep {w w' : World D} (h : ValidStep E w w') : Step w w' := 
 theorem ValidSteps.toSteps {w w' : World D} (h : ValidSteps E w w') : Steps w w' :=
   h.mono (·.toStep E)
 
-omit [DecidableEq D] in
 /-- `o'` is `o`, possibly with more versions and more signature files. -/
 structure Grows (o o' : Obj D) : Prop where
   id : o'.id = o.id
@@ -309,14 +321,6 @@ omit [DecidableEq D] in
 theorem Grows.witness (o : Obj D) (ss : List (Sig D)) :
     Grows o { o with sigs := o.sigs ++ ss } :=
   ⟨rfl, rfl, rfl, ⟨[], by simp⟩, fun _ h => List.mem_append_left _ h⟩
-
-theorem Grows.resolveEntry {o o' : Obj D} (hg : Grows o o') {p : Pin D} {v : Version D}
-    (h : resolveEntry E.hash (some (.live o)) p = .ok v) :
-    resolveEntry E.hash (some (.live o')) p = .ok v := by
-  obtain ⟨t, ht⟩ := hg.versions
-  obtain ⟨hv, _⟩ := resolveEntry_live_ok E.hash h
-  exact resolveEntry_prefix E.hash (o := o) (o' := o') (t := []) ⟨hg.id, hg.genesis⟩
-    (by simp) (by rw [ht]) (Obj.versionAt_bounds hv).2 h
 
 omit [DecidableEq D] in
 theorem Step.lookup_cases {w w' : World D} (hs : Step w w') (b : ArchiveId) (x : ObjectId) :
@@ -349,22 +353,44 @@ theorem Step.lookup_cases {w w' : World D} (hs : Step w w') (b : ArchiveId) (x :
       exact Or.inr (Or.inr ⟨o, _, by simp [lookup, ha, ho], rfl, Grows.witness o ss⟩)
     · exact Or.inl rfl
 
-omit [DecidableEq D] in
-theorem Step.ne_none {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-    (h : lookup w b x ≠ none) : lookup w' b x ≠ none := by
-  rcases hs.lookup_cases b x with h1 | h1 | ⟨o, o', _, h2, _⟩
-  · rw [h1]; exact h
-  · exact absurd h1 h
-  · rw [h2]; simp
-
-omit [DecidableEq D] in
-theorem Step.live_back {w w' : World D} (hs : Step w w') {b : ArchiveId} {x : ObjectId}
-    {o' : Obj D} (h : lookup w' b x = some (.live o')) (hne : lookup w b x ≠ none) :
-    ∃ o, lookup w b x = some (.live o) ∧ Grows o o' := by
-  rcases hs.lookup_cases b x with h1 | h1 | ⟨o, o'', h1, h2, hg⟩
-  · rw [h1] at h; exact ⟨o', h, Grows.refl o'⟩
-  · exact absurd h1 hne
-  · rw [h2] at h; cases h; exact ⟨o, h1, hg⟩
+/-- What a valid step did to a live entry after it. -/
+theorem ValidStep.live_cases {w w' : World D} (hs : ValidStep E w w') {b : ArchiveId}
+    {x : ObjectId} {o' : Obj D} (h : lookup w' b x = some (.live o')) :
+    lookup w b x = some (.live o') ∨
+    (∃ ar, w b = some ar ∧ Authorised E w b ar x o' ∧
+      ((lookup w b x = none ∧ ∀ v ∈ o'.versions, ∀ p ∈ v.pins, PinOk E w p) ∨
+        ∃ o y ss, lookup w b x = some (.live o) ∧ o' = o.append y ss ∧
+          ∀ p ∈ y.pins, PinOk E w p)) ∨
+    ∃ o ss, lookup w b x = some (.live o) ∧ o' = { o with sigs := o.sigs ++ ss } ∧
+      ∀ s ∈ ss, SigOk E w b o s := by
+  cases hs with
+  | newArchive a ar ha hempty =>
+    rw [lookup_newArchive ha hempty] at h; exact Or.inl h
+  | create a ar oid o ha ho _ hpins _ _ hauth =>
+    rw [lookup_setEntry ha] at h
+    split at h
+    · rename_i hc
+      obtain ⟨rfl, rfl⟩ := hc
+      cases h
+      exact Or.inr (Or.inl ⟨ar, ha, hauth, Or.inl ⟨by simp [lookup, ha, ho], hpins⟩⟩)
+    · exact Or.inl h
+  | append a ar oid o y ss ha ho _ _ _ _ hpins _ _ hauth =>
+    rw [lookup_setEntry ha] at h
+    split at h
+    · rename_i hc
+      obtain ⟨rfl, rfl⟩ := hc
+      cases h
+      exact Or.inr (Or.inl ⟨ar, ha, hauth,
+        Or.inr ⟨o, y, ss, by simp [lookup, ha, ho], rfl, hpins⟩⟩)
+    · exact Or.inl h
+  | witness a ar oid o ss ha ho hss =>
+    rw [lookup_setEntry ha] at h
+    split at h
+    · rename_i hc
+      obtain ⟨rfl, rfl⟩ := hc
+      cases h
+      exact Or.inr (Or.inr ⟨o, ss, by simp [lookup, ha, ho], rfl, hss⟩)
+    · exact Or.inl h
 
 omit [DecidableEq D] in
 /-- **A tombstone stays.** -/

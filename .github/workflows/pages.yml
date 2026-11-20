@@ -1,7 +1,8 @@
 name: pages
 # Weave the two literate programs (literate/*.md, the model, and
 # literate-sheaf/*.md, the sheaf) into a website and publish it with GitHub
-# Pages.
+# Pages, once the Lean files are checked against the chapters and every proof
+# builds (the lean workflow, called first).
 on:
   push:
     branches: [main]
@@ -12,9 +13,12 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
+  lean:
+    uses: ./.github/workflows/lean.yml
   build:
+    needs: lean
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

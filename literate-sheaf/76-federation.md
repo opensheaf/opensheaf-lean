@@ -4,7 +4,7 @@ Archives are built separately, by different owners. This chapter takes two
 worlds, each built from nothing by events, on archives that do not overlap,
 and puts them side by side. It proves:
 
-- they **glue**, when owners are honest (`separate_glue`), and each keeps
+- they **glue**, when owners are honest (`union_glue`), and each keeps
   its own section (`union_restricts_left`, `union_restricts_right`).
 
 In version 0.1 an object named its archive, and two worlds on separate
@@ -70,36 +70,24 @@ both, an entry of the union is an entry of exactly one of them.
       | none => rw [h1] at h; exact Or.inr h
       | some ar => rw [h1] at h; exact Or.inl h
 
-    theorem archive_of_lookup {w : World D} {a : ArchiveId} {i : ObjectId} {e : Entry D}
-        (h : lookup w a i = some e) : w a ≠ none := by
-      obtain ⟨ar, ha⟩ := lookup_some_archive h
-      rw [ha]; simp
-
 ## Separate worlds glue
 
 The objects of the union are those of the two worlds, so they are well
 formed. Two copies of a line in the union come from one world or from
 both; either way, each ends in a version its owner signed (the model's
 `Events.headsSigned`), so they are prefixes of one another when the owner
-signs one history. The argument of the main theorem then applies to the
-union, although the union is not built by events. The proof does not use
-that the archives are separate: where both worlds have an archive, the
-union keeps the first world's, and the theorem holds of any two worlds.
-That each world keeps its own section, below, needs them separate.
+signs one history (`honest_comparable`, in the chapter [The sections of a
+world glue](40-world.md)). The argument of the main theorem then applies to
+the union, although the union is not built by events. The proof does not
+use that the archives are separate: where both worlds have an archive, the
+union keeps the first world's, and the theorem holds of the union of any
+two worlds built by events, whence its name. That each world keeps its own
+section, below, needs them separate.
 
     variable [DecidableEq D] (E : Env D)
 
-    theorem copies_comparable {w1 w2 : World D}
-        (hs1 : Events E (fun _ => (none : Option (Archive D))) w1)
-        (hs2 : Events E (fun _ => (none : Option (Archive D))) w2) {H : Histories D}
-        (hh1 : Honest E H w1) (hh2 : Honest E H w2) {l : LineId}
-        {b b' : ArchiveId} {o o' : Obj D} (hl : lookup w1 b (.line l) = some (.live o))
-        (hl' : lookup w2 b' (.line l) = some (.live o')) (hk : o.kind ≠ .owner)
-        (hk' : o'.kind ≠ .owner) : Comparable o.versions o'.versions :=
-      honest_comparable E hs1 hs2 hh1 hh2 hl hl' hk hk'
-
-    /-- **Separate worlds glue**, when owners are honest. -/
-    theorem separate_glue {w1 w2 : World D}
+    /-- **Two worlds glue side by side**, separate or not, when owners are honest. -/
+    theorem union_glue {w1 w2 : World D}
         (hs1 : Events E (fun _ => (none : Option (Archive D))) w1)
         (hs2 : Events E (fun _ => (none : Option (Archive D))) w2) {H : Histories D}
         (hh1 : Honest E H w1) (hh2 : Honest E H w2) :
@@ -114,8 +102,8 @@ That each world keeps its own section, below, needs them separate.
       · intro l b b' m m' hl hl' hk hk'
         rcases lookup_union_cases hl with hl | hl <;> rcases lookup_union_cases hl' with hl' | hl'
         · exact Events.copiesAgree E hs1 (hh1.one E l) _ _ _ _ hl hl' hk hk'
-        · exact copies_comparable E hs1 hs2 hh1 hh2 hl hl' hk hk'
-        · exact (copies_comparable E hs1 hs2 hh1 hh2 hl' hl hk' hk).symm
+        · exact honest_comparable E hs1 hs2 hh1 hh2 hl hl' hk hk'
+        · exact (honest_comparable E hs1 hs2 hh1 hh2 hl' hl hk' hk).symm
         · exact Events.copiesAgree E hs2 (hh2.one E l) _ _ _ _ hl hl' hk hk'
 
 ## Each world keeps its section
@@ -125,11 +113,12 @@ the union restricts to a section that glues each world: its own glued
 section, by uniqueness. Putting the worlds side by side changes nothing
 that either says.
 
-    omit [DecidableEq D] in
+    /-- A source of the first world is a source of the union. -/
     def Source.left {w1 w2 : World D} (i : Source w1) : Source (World.union w1 w2) :=
       ⟨i.archive, i.line, i.obj, lookup_union_left i.live, i.kind, i.version⟩
 
-    omit [DecidableEq D] in
+    /-- A source of the second world is a source of the union, when the worlds are
+    separate. -/
     def Source.right {w1 w2 : World D} (hd : SeparateWorlds w1 w2) (i : Source w2) :
         Source (World.union w1 w2) :=
       ⟨i.archive, i.line, i.obj, lookup_union_right hd i.live, i.kind, i.version⟩

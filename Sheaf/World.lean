@@ -30,7 +30,6 @@ theorem heldIn_open (w : World D) : deposit.IsOpen (HeldIn w) :=
 
 variable [DecidableEq D] (E : Env D)
 
-omit [DecidableEq D] in
 /-- For each line, a genesis record and the history its owner signs. -/
 abbrev Histories (D : Type) := LineId → Option (Genesis D) × List (Version D)
 

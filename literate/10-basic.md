@@ -101,7 +101,10 @@ model's pin carries its hints, as `hints` (`at` is a keyword of Lean): the
 archives in which a reader looks for the version, in order. They are not
 part of what the pin names: two pins with the same line, version and
 digest name the same object version, wherever they say to look
-(`Pin.names`).
+(`Pin.names`). Where the model compares pins for what they name (a branch
+point kept, a pin carried over, [chapter 7](45-worlds.md)), it compares
+them by `Pin.names`, never by equality, so that changing a hint changes
+nothing else.
 
     /-- A pin: an object version of a line, and the digest of its inventory
     (section 4); with the hints of where copies may be found, which are not part
@@ -116,6 +119,11 @@ digest name the same object version, wherever they say to look
     /-- Two pins name the same object version: same line, version and digest. -/
     def Pin.names {D : Type} (p q : Pin D) : Prop :=
       p.line = q.line ∧ p.version = q.version ∧ p.digest = q.digest
+
+    instance {D : Type} [DecidableEq D] (p q : Pin D) : Decidable (p.names q) := by
+      unfold Pin.names; infer_instance
+
+    theorem Pin.names_refl {D : Type} (p : Pin D) : p.names p := ⟨rfl, rfl, rfl⟩
 
 ## Member lists
 
@@ -265,6 +273,34 @@ without access to the parent's line is not modelled.
       documentVersion : Nat
       sigs : List (Sig D) := []
       deriving DecidableEq, Repr
+
+Two records of a branch point name the same one when they pin the same
+parent version and record the same document version of it. The hints of
+the pin (`parent.url`) and the evidence are not part of it: a version
+that updates `parent.url`, or carries more of the parent owner's signature
+files, keeps the branch point (section 9.4 speaks of the parent version,
+not of where it is found).
+
+    /-- Two branch points are the same: the same parent version, by line, number
+    and digest, and the same document version; hints and evidence aside
+    (sections 9.1 and 9.4). -/
+    def Parent.Same {D : Type} (pa pb : Parent D) : Prop :=
+      pa.pin.names pb.pin ∧ pa.documentVersion = pb.documentVersion
+
+    instance {D : Type} [DecidableEq D] (pa pb : Parent D) : Decidable (pa.Same pb) := by
+      unfold Parent.Same; infer_instance
+
+    theorem Parent.same_refl {D : Type} (pa : Parent D) : pa.Same pa := ⟨Pin.names_refl _, rfl⟩
+
+    /-- The branch point `pa` keeps the branch point `prev` of the version before,
+    if there is one. -/
+    def Parent.Keeps {D : Type} : Option (Parent D) → Parent D → Prop
+      | none, _ => False
+      | some pp, pa => pp.Same pa
+
+    instance {D : Type} [DecidableEq D] (prev : Option (Parent D)) (pa : Parent D) :
+        Decidable (Parent.Keeps prev pa) := by
+      cases prev <;> unfold Parent.Keeps <;> infer_instance
 
 ## Object versions
 

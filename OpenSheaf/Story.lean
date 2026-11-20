@@ -14,7 +14,8 @@ def idNum : ObjectId → Nat
 /-- A toy digest of an inventory. -/
 def toy : Hash Nat := fun i =>
   i.versions.foldl (fun h v => 31 * h + v.description.length + 7 * v.documentVersion
-    + v.files.length + v.depositor.length + 3 * ((v.keys.map (·.keys.length)).getD 0))
+    + (v.files.map fun f => 1 + f.1.length + 13 * f.2).sum + v.depositor.length
+    + 3 * ((v.keys.map (·.keys.length)).getD 0))
     (i.versions.length + idNum i.id)
 
 /-- The toy digest of a key. -/
@@ -261,6 +262,13 @@ theorem pinOk_of_isOk {F : Env Nat} {w : World Nat} {p : Pin Nat}
   have h2 := h.2
   cases hr : resolve F.hash w p <;> simp_all [Resolution.isOk]
 
+/-- The pins of a list of versions, each of a line that is not a key log and
+resolving to a version, may be held. -/
+theorem pins_resolve {F : Env Nat} {w : World Nat} {vs : List (Version Nat)}
+    (h : ∀ v ∈ vs, ∀ p ∈ v.pins, p.line ≠ keyLogLine p.line.owner ∧ (resolve F.hash w p).isOk = true) :
+    ∀ v ∈ vs, ∀ p ∈ v.pins, PinOk F w p :=
+  fun v hv p hp => pinOk_of_isOk (h v hv p hp)
+
 theorem identity_owner {F : Env Nat} {l : LineId} {o : Obj Nat} {g : Genesis Nat} (hg : o.genesis = some g)
     (hk : g.kind = o.kind) (ho : o.kind = .owner) (hl : l = keyLogLine l.owner)
     (hkl : KeyLogOk F l.owner o) : IdentityOk F l o := by
@@ -277,111 +285,171 @@ theorem lineOk_host {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive 
     (hin : l.owner ∈ ar.owners) (he : ¬ HasEnding kl) : LineOk F w a ar l o :=
   ⟨kl, hkl, hv, hf, hs, Or.inl ⟨hin, he⟩⟩
 
+/-- The genesis record of `o` names the line `l` of its originator (sections 5.1
+and 5.2). -/
+def Origin (F : Env Nat) (l : LineId) (o : Obj Nat) : Prop :=
+  match o.genesis with
+  | none => False
+  | some g => g.kind = o.kind ∧ l.owner = g.originator ∧ l.name = F.nameOf g 0
+
+instance (F : Env Nat) (l : LineId) (o : Obj Nat) : Decidable (Origin F l o) := by
+  unfold Origin; split <;> infer_instance
+
+theorem Origin.identity {F : Env Nat} {l : LineId} {o : Obj Nat} (h : Origin F l o)
+    (hk : o.kind ≠ .owner) (hp : ∀ v ∈ o.versions, v.parent = none) : IdentityOk F l o := by
+  unfold Origin at h
+  split at h
+  · exact h.elim
+  · rename_i g hg
+    exact identity_origin hg h.1 hk h.2.1 h.2.2 hp
+
+/-- A new object `o` of the originator's line `l`, as computation checks it. -/
+def NewLine (F : Env Nat) (l : LineId) (o : Obj Nat) : Prop :=
+  o.id = .line l ∧ o.versions ≠ [] ∧ o.kind ≠ .owner ∧ WellFormed o.versions ∧
+    (∀ v ∈ o.versions, (v.members.isSome = true ↔ o.kind = .collection) ∧ v.membersOk ∧
+      v.parent = none) ∧ StatusOk o.versions ∧ Origin F l o
+
+instance (F : Env Nat) (l : LineId) (o : Obj Nat) : Decidable (NewLine F l o) := by
+  unfold NewLine; infer_instance
+
+theorem NewLine.wf {F : Env Nat} {l : LineId} {o : Obj Nat} (h : NewLine F l o) : o.WF (.line l) := by
+  obtain ⟨hid, hne, hk, hwf, hv, hst, ho⟩ := h
+  refine ⟨hid, hne, fun _ => hwf, fun v hv' => (hv v hv').1, fun v hv' => (hv v hv').2.1, hst, ?_⟩
+  unfold Origin at ho
+  split at ho
+  · exact ho.elim
+  · rename_i g hg; rw [hg]; rfl
+
+/-- The version `x` added to the object `o` of an originator's line, as
+computation checks it. -/
+def NextVersion (o : Obj Nat) (x : Version Nat) : Prop :=
+  Extends o.versions x ∧ NoReinstatement o.versions x ∧
+    (x.members.isSome = true ↔ o.kind = .collection) ∧ x.membersOk ∧ x.parent = none ∧
+    (∀ v ∈ o.versions, v.parent = none) ∧ o.kind ≠ .owner
+
+instance (o : Obj Nat) (x : Version Nat) : Decidable (NextVersion o x) := by
+  unfold NextVersion; infer_instance
+
+/-- The head of `o` is signed by the owner of `l`, against the copy `kl` of its
+key log (section 7.5). -/
+def SignedAgainst (F : Env Nat) (l : LineId) (o kl : Obj Nat) : Prop :=
+  KeyLogOk F l.owner kl ∧ ¬ Frozen kl ∧ SignedClean F kl l o o.versions.length
+
+instance (F : Env Nat) (l : LineId) (o kl : Obj Nat) : Decidable (SignedAgainst F l o kl) := by
+  unfold SignedAgainst; infer_instance
+
+theorem create_keyLog {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {X : OwnerName} {g : Genesis Nat} (ha : w a = some ar) (hfree : ar.entries (logLine X) = none)
+    (hkl : KeyLogOk F X (keyLog X g)) : ValidStep F w (setEntry w a (logLine X) (.live (keyLog X g))) := by
+  obtain ⟨g', _, hp⟩ := hkl.parts
+  have hg : g' = g := by have := hp.genesis; simp only [keyLog, Option.some.injEq] at this; exact this.symm
+  subst hg
+  refine .create _ _ _ _ _ ha hfree ⟨rfl, by simp [keyLog], fun h => (h rfl).elim,
+    by simp [keyLog, firstKeyVersion], by simp [keyLog, firstKeyVersion, Version.membersOk],
+    StatusOk.single _, rfl⟩
+    (no_pins (by simp [keyLog, firstKeyVersion, Version.pins, Version.memberPins, Version.parentPins]))
+    (fun _ => branch_none (by simp [keyLog, firstKeyVersion]))
+    (fun _ => by simp [HeadFollows, keyLog, firstKeyVersion, Version.FollowsHeads])
+    ⟨identity_owner hp.genesis hp.gkind rfl rfl hkl, fun h => (h rfl).elim⟩ (by simp [keyLog])
+
+theorem append_keyLog {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {X : OwnerName} {o : Obj Nat} {x : Version Nat} {ss : List (Sig Nat)} (ha : w a = some ar)
+    (ho : ar.entries (logLine X) = some (.live o))
+    (h : KeyLogOk F X (o.append x ss) ∧ NoReinstatement o.versions x ∧ x.members = none ∧
+      x.pins = [] ∧ x.parent = none ∧ (∀ v ∈ o.versions, v.parent = none) ∧
+      ∀ s ∈ ss, SigOk F w a (o.append x ss) s) :
+    ValidStep F w (setEntry w a (logLine X) (.live (o.append x ss))) := by
+  obtain ⟨hkl, hst, hm, hpins, hx, hpar, hsigs⟩ := h
+  obtain ⟨_, _, hp⟩ := hkl.parts
+  have hk : o.kind = .owner := hp.kind
+  exact .append _ _ _ _ _ _ _ ha ho (fun h => (h hk).elim) hst (by simp [hm, hk])
+    (by simp [Version.membersOk, hm]) (by simp [hpins])
+    (fun _ => branch_none_append hpar hx) (fun _ => by simp [Version.FollowsHeads, hm])
+    ⟨identity_owner hp.genesis (hp.gkind.trans hk.symm) hk rfl hkl, fun h => (h hk).elim⟩ hsigs
+
+theorem create_hosted {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {l : LineId} {o kl : Obj Nat} (ha : w a = some ar) (hfree : ar.entries (.line l) = none)
+    (hkl : lookup w a (.line (keyLogLine l.owner)) = some (.live kl))
+    (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, PinOk F w p)
+    (h : NewLine F l o ∧ HeadFollows F w o.versions ∧ SignedAgainst F l o kl ∧
+      l.owner ∈ ar.owners ∧ ¬ HasEnding kl ∧ ∀ s ∈ o.sigs, SigOk F w a o s) :
+    ValidStep F w (setEntry w a (.line l) (.live o)) := by
+  obtain ⟨hn, hf, ⟨hv, hfr, hs⟩, hin, he, hsigs⟩ := h
+  have hpar : ∀ v ∈ o.versions, v.parent = none := fun v hv' => (hn.2.2.2.2.1 v hv').2.2
+  exact .create _ _ _ _ _ ha hfree hn.wf hpins (fun _ => branch_none hpar) (fun _ => hf)
+    ⟨hn.2.2.2.2.2.2.identity hn.2.2.1 hpar, fun _ => lineOk_host hkl hv hfr hs hin he⟩ hsigs
+
+theorem append_hosted {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {l : LineId} {o kl : Obj Nat} {x : Version Nat} {ss : List (Sig Nat)} (ha : w a = some ar)
+    (ho : ar.entries (.line l) = some (.live o))
+    (hkl : lookup w a (.line (keyLogLine l.owner)) = some (.live kl))
+    (hpins : ∀ v ∈ [x], ∀ p ∈ v.pins, PinOk F w p)
+    (h : Origin F l o ∧ NextVersion o x ∧ x.FollowsHeads F w ∧ SignedAgainst F l (o.append x ss) kl ∧
+      l.owner ∈ ar.owners ∧ ¬ HasEnding kl ∧ ∀ s ∈ ss, SigOk F w a (o.append x ss) s) :
+    ValidStep F w (setEntry w a (.line l) (.live (o.append x ss))) := by
+  obtain ⟨hor, ⟨hext, hst, hk, hm, hx, hpar, hko⟩, hf, ⟨hv, hfr, hs⟩, hin, he, hsigs⟩ := h
+  have hpar' : ∀ v ∈ (o.append x ss).versions, v.parent = none := by
+    simpa [Obj.append, or_imp, forall_and] using ⟨hpar, hx⟩
+  exact .append _ _ _ _ _ _ _ ha ho (fun _ => hext) hst hk hm (hpins x (List.mem_singleton_self _))
+    (fun _ => branch_none_append hpar hx) (fun _ => hf)
+    ⟨Origin.identity (o := o.append x ss) hor hko hpar', fun _ => lineOk_host hkl hv hfr hs hin he⟩
+    hsigs
+
+theorem create_copy {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {l : LineId} {o kl : Obj Nat} (ha : w a = some ar) (hfree : ar.entries (.line l) = none)
+    (hkl : lookup w a (.line (keyLogLine l.owner)) = some (.live kl)) (hcopy : CopyOf w a o)
+    (hpins : ∀ v ∈ o.versions, ∀ p ∈ v.pins, PinOk F w p)
+    (h : NewLine F l o ∧ SignedAgainst F l o kl ∧ ∀ s ∈ o.sigs, SigOk F w a o s) :
+    ValidStep F w (setEntry w a (.line l) (.live o)) := by
+  obtain ⟨hn, ⟨hv, hfr, hs⟩, hsigs⟩ := h
+  have hpar : ∀ v ∈ o.versions, v.parent = none := fun v hv' => (hn.2.2.2.2.1 v hv').2.2
+  exact .create _ _ _ _ _ ha hfree hn.wf hpins (fun h => absurd hcopy h) (fun h => absurd hcopy h)
+    ⟨hn.2.2.2.2.2.2.identity hn.2.2.1 hpar, fun _ => ⟨kl, hkl, hv, hfr, hs, Or.inr hcopy⟩⟩ hsigs
+
+theorem append_copy {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
+    {l : LineId} {o kl : Obj Nat} {x : Version Nat} {ss : List (Sig Nat)} (ha : w a = some ar)
+    (ho : ar.entries (.line l) = some (.live o))
+    (hkl : lookup w a (.line (keyLogLine l.owner)) = some (.live kl)) (hcopy : CopyOf w a (o.append x ss))
+    (hpins : ∀ v ∈ [x], ∀ p ∈ v.pins, PinOk F w p)
+    (h : Origin F l o ∧ NextVersion o x ∧ SignedAgainst F l (o.append x ss) kl ∧
+      ∀ s ∈ ss, SigOk F w a (o.append x ss) s) :
+    ValidStep F w (setEntry w a (.line l) (.live (o.append x ss))) := by
+  obtain ⟨hor, ⟨hext, hst, hk, hm, hx, hpar, hko⟩, ⟨hv, hfr, hs⟩, hsigs⟩ := h
+  have hpar' : ∀ v ∈ (o.append x ss).versions, v.parent = none := by
+    simpa [Obj.append, or_imp, forall_and] using ⟨hpar, hx⟩
+  exact .append _ _ _ _ _ _ _ ha ho (fun _ => hext) hst hk hm (hpins x (List.mem_singleton_self _))
+    (fun h => absurd hcopy h) (fun h => absurd hcopy h)
+    ⟨Origin.identity (o := o.append x ss) hor hko hpar', fun _ => ⟨kl, hkl, hv, hfr, hs, Or.inr hcopy⟩⟩
+    hsigs
+
 theorem s1 : ValidStep E w0 w1 := .newArchive _ _ _ rfl (fun _ => rfl)
 theorem s2 : ValidStep E w1 w2 := .newArchive _ _ _ rfl (fun _ => rfl)
 theorem s3 : ValidStep E w2 w3 := .newArchive _ _ _ rfl (fun _ => rfl)
 
-theorem s4 : ValidStep E w3 w4 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem s4 : ValidStep E w3 w4 := create_keyLog rfl rfl (by decide)
+theorem s5 : ValidStep E w4 w5 := create_keyLog rfl rfl (by decide)
+theorem s6 : ValidStep E w5 w6 := create_keyLog rfl rfl (by decide)
+theorem s7 : ValidStep E w6 w7 := create_keyLog rfl rfl (by decide)
 
-theorem s5 : ValidStep E w4 w5 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem s8 : ValidStep E w7 w8 := create_hosted rfl rfl rfl (no_pins (by decide)) (by decide)
 
-theorem s6 : ValidStep E w5 w6 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem s7 : ValidStep E w6 w7 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun h => (h rfl).elim, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem s8 : ValidStep E w7 w8 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem s9 : ValidStep E w8 w9 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ issue.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy w8 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem s10 : ValidStep E w9 w10 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩
-    (fun v hv p hp => pinOk_of_isOk ((by decide : ∀ v ∈ jointObj.versions, ∀ p ∈ v.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy w9 p).isOk = true) v hv p hp))
-    (fun _ => branch_none (by decide)) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem s9 : ValidStep E w8 w9 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+theorem s10 : ValidStep E w9 w10 := create_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem copy_w10 : CopyOf w10 "coauthor" paper1 :=
   ⟨"author", paper1, by decide, rfl, rfl, [], by simp⟩
 
-theorem s11 : ValidStep E w10 w11 :=
-  .create _ _ _ _ _ rfl rfl ⟨rfl, by decide, fun _ => by decide, by decide, by decide,
-    by decide, rfl⟩ (no_pins (by decide)) (fun h => absurd copy_w10 h) (fun h => absurd copy_w10 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logA1, rfl, by decide, by decide, by decide, Or.inr copy_w10⟩⟩
-    (by decide)
+theorem s11 : ValidStep E w10 w11 := create_copy rfl rfl rfl copy_w10 (no_pins (by decide)) (by decide)
 
-theorem s12 : ValidStep E w11 w12 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun h => (h rfl).elim) (by decide) (by decide) (by decide)
-    (by simp [k2, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem s12 : ValidStep E w11 w12 := append_keyLog rfl rfl (by decide)
+theorem s13 : ValidStep E w12 w13 := append_keyLog rfl rfl (by decide)
 
-theorem s13 : ValidStep E w12 w13 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun h => (h rfl).elim) (by decide) (by decide) (by decide)
-    (by simp [k2, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
-
-theorem s14 : ValidStep E w13 w14 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [v2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
-
-theorem s15 : ValidStep E w14 w15 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem s14 : ValidStep E w13 w14 := append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
+theorem s15 : ValidStep E w14 w15 := append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 example : v2.documentVersion = 2 ∧ v3.documentVersion = 1 := by decide
 
-theorem s16 : ValidStep E w15 w16 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (fun p hp => pinOk_of_isOk ((by decide : ∀ p ∈ j2.pins,
-      p.line ≠ keyLogLine p.line.owner ∧ (resolve toy w15 p).isOk = true) p hp))
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
-    (by decide)
+theorem s16 : ValidStep E w15 w16 := append_hosted rfl rfl rfl (pins_resolve (by decide)) (by decide)
 
 theorem copy_w16 : CopyOf w16 "coauthor" paper2 :=
   ⟨"author", paper3, by decide, rfl, rfl, [v3], by simp [paper3, paper2, Obj.append]⟩
@@ -390,20 +458,9 @@ theorem copy_w17 : CopyOf w17 "coauthor" paper3 :=
   ⟨"author", paper3, by decide, rfl, rfl, [], by simp⟩
 
 theorem s17 : ValidStep E w16 w17 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [v2, Version.revise, Version.pins, Version.memberPins, Version.parentPins])
-    (fun h => absurd copy_w16 h) (fun h => absurd copy_w16 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logA2, rfl, by decide, by decide, by decide, Or.inr copy_w16⟩⟩
-    (by decide)
-
+  append_copy rfl rfl rfl copy_w16 (pins_resolve (by decide)) (by decide)
 theorem s18 : ValidStep E w17 w18 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (by simp [v3, v1, Version.describe, Version.pins, Version.memberPins, Version.parentPins])
-    (fun h => absurd copy_w17 h) (fun h => absurd copy_w17 h)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => ⟨logA2, rfl, by decide, by decide, by decide, Or.inr copy_w17⟩⟩
-    (by decide)
+  append_copy rfl rfl rfl copy_w17 (pins_resolve (by decide)) (by decide)
 
 theorem s19 : ValidStep E w18 w19 :=
   acceptedCopy_valid E (a := "journal") rfl rfl genP pinV1 v1 [sigP1] [sigAC] _ _ _
@@ -506,30 +563,13 @@ def pinV2 : Pin Nat := ⟨paperLine, 2, toy (paper3.inventory 2), ["author"]⟩
 
 theorem pinV2_unheld : ¬ HeldBy wDown pinV2 := by
   intro h
-  have no : ∀ (o : Obj Nat), (∀ v ∈ o.versions, pinV2 ∉ v.pins) →
-      ∀ c, Entry.live o = .live c → ∀ v ∈ c.versions, pinV2 ∉ v.pins := by
+  have no : ∀ (o : Obj Nat), (∀ v ∈ o.versions, ∀ q ∈ v.pins, ¬ q.names pinV2) →
+      ∀ c, Entry.live o = .live c → ∀ v ∈ c.versions, ∀ q ∈ v.pins, ¬ q.names pinV2 := by
     intro o ho c hc; cases hc; exact ho
-  have h := heldBy_setEntry h (fun c hc => by cases hc)
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_setEntry h (no _ (by decide))
-  have h := heldBy_newArchive (ar := arch ["coauthor"]) rfl (fun _ => rfl) h
-  have h := heldBy_newArchive (ar := arch ["journal"]) rfl (fun _ => rfl) h
-  have h := heldBy_newArchive (ar := arch ["author"]) rfl (fun _ => rfl) h
-  obtain ⟨_, _, _, _, hl, _⟩ := h
+  replace h := heldBy_setEntry h (fun c hc => by cases hc)
+  repeat replace h := heldBy_setEntry h (no _ (by decide))
+  repeat replace h := heldBy_newArchive rfl (fun _ => rfl) h
+  obtain ⟨_, _, _, _, _, hl, _⟩ := h
   simp [lookup, w0] at hl
 
 example : ¬ PinOk E wDown pinV2 := by
@@ -543,16 +583,15 @@ example : ¬ PinOk E wDown pinV2 := by
 def wDown2 : World Nat := setEntry wDown "journal" (.line issueLine) (.live (issue.append i2 [sigI2]))
 
 theorem s20 : ValidStep E wDown wDown2 :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun _ => by decide) (by decide) (by decide) (by decide)
-    (fun p hp => by
+  append_hosted rfl rfl rfl
+    (fun v hv p hp => by
+      simp only [List.mem_singleton] at hv
+      subst hv
       have h := (by decide : ∀ p ∈ i2.pins, p.line ≠ keyLogLine p.line.owner ∧
         p.hints = ["author"] ∧ resolveAt toy wDown "author" p = .removed) p hp
       refine ⟨h.1, Or.inr ⟨⟨"author", by rw [h.2.1]; simp, h.2.2⟩,
-        "journal", .line issueLine, issue, i1, rfl, by decide, ?_⟩⟩
+        "journal", .line issueLine, issue, i1, p, rfl, by decide, ?_, Pin.names_refl p⟩⟩
       exact (hp : p ∈ i1.pins))
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_origin rfl rfl (by decide) rfl rfl (by decide),
-      fun _ => lineOk_host rfl (by decide) (by decide) (by decide) (by decide) (by decide)⟩
     (by decide)
 
 example : verify E wDown2 issue7 = [(pinV1, .removed)] := by decide
@@ -598,7 +637,7 @@ example : E.verifies sigForged = false := by decide
 example : ¬ LineOk E w19 "journal" (arch ["journal"]) issueLine (issue.append i2x [sigForged]) :=
   not_lineOk (kl := logJ) rfl (by decide)
 
-def v1' : Version Nat := { v1 with description := "On sheaves of documents, revised quietly" }
+def v1' : Version Nat := { v1 with files := [("paper.tm", 666), ("paper.pdf", 102)] }
 
 def wTamper : World Nat :=
   setEntry w19 "author" (.line paperLine) (.live { paper3 with versions := [v1', v2, v3] })
@@ -666,12 +705,7 @@ example : LineOk E w19 "author" (arch ["author"]) paperLine paper4 :=
 
 def wExp : World Nat := setEntry w19 "author" (logLine "author") (.live logA3)
 
-theorem sExp : ValidStep E w19 wExp :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun h => (h rfl).elim) (by decide) (by decide) (by decide)
-    (by simp [k3, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem sExp : ValidStep E w19 wExp := append_keyLog rfl rfl (by decide)
 
 example : ¬ LineOk E wExp "author" (arch ["author"]) paperLine paper4 :=
   not_lineOk (kl := logA3) rfl (by decide)
@@ -703,15 +737,14 @@ def logFork : Obj Nat := logA2.append fr
 
 def wFork : World Nat := setEntry w19 "coauthor" (logLine "author") (.live logFork)
 
-theorem sFork : ValidStep E w19 wFork :=
-  .append _ _ _ _ _ _ _ rfl rfl (fun h => (h rfl).elim) (by decide) (by decide) (by decide)
-    (by simp [fr, Version.pins, Version.memberPins, Version.parentPins])
-    (fun _ => branch_none_append (by decide) rfl) (fun _ => by decide)
-    ⟨identity_owner rfl rfl rfl rfl (by decide), fun h => (h rfl).elim⟩
-    (by decide)
+theorem sFork : ValidStep E w19 wFork := append_keyLog rfl rfl (by decide)
 
 example (o' : Obj Nat) : ¬ LineOk E wFork "coauthor" (arch ["coauthor"]) paperLine o' :=
   frozen_adds_nothing E (kl := logFork) rfl (by decide)
+
+example : SignedNotContested E logFork paperLine paper3 1 ∧
+    Contested E logFork paperLine paper3 3 ∧ SignedNotContested E logA2 paperLine paper3 3 := by
+  decide
 
 theorem after9 : ValidSteps E w9 w19 :=
   .tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.tail (.refl _) s10) s11) s12)

@@ -39,9 +39,9 @@ The chapters build the model from the bottom up:
    resolution at an archive and through the hints of a pin, the steps that
    change archives, immutability, and takedown;
 4. [Owners and key logs](35-owners.md): pre-rotation (section 6.1): the
-   rules on `keys.json`, the computed first version, rotation keys, ending
-   versions and fork records; a key log never forks at its first version,
-   and current keys cannot change it;
+   rules on `keys.json`, the computed first version, rotation keys (counted
+   by the digests committed), ending versions and fork records; a key log
+   never forks at its first version, and current keys cannot change it;
 5. [Lines and signatures](38-lines.md): signed versions, vouching, exposed
    keys, fork points and contested versions (section 7.3);
 6. [Catalogues and selections](40-collection.md): what updating a
@@ -81,7 +81,8 @@ The chapters build the model from the bottom up:
    fresh pin into a line taken down, a reinstatement, a branch posing as
    its parent, bad member lists, a mirror that does not copy, a version
    signed with an exposed key, a key log changed with current keys, a fork
-   that freezes the owner;
+   that freezes the owner and makes contested, where it is known, the
+   versions signed from the fork point on;
 14. [A learning record, checked by computation](75-record.md): a student's
     thesis and the department's receipt of it, comments tied by a reference
     to the version commented on, a rewrite caught by the receipt, and the
@@ -155,17 +156,20 @@ web servers. The model keeps only what the properties depend on.
   (issue #57, departing also from the first sentence of section 9.4, which
   is not provisional); pinned references between documents (issues #21 and #28),
   which branches keep; the order in which a resolver tries the hints of a
-  pin (section 12.3). Each is marked in its chapter.
+  pin (section 12.3); a new version that keeps the branch point and the
+  references of the head. Each is marked in its chapter.
 - **Abstractions.** The description (`datacite.json`) is a string; files
   are pairs of a logical path and a digest; JSON, the OCFL layout, HTTP,
   the discovery document, indexes, keepers, profiles and extensions are
   left out, and so is the evidence of a branch point (section 9.2): the
   model carries the parent's signature files without checking them, and
-  checks a branch point by resolving the parent. Section 8.5's seven
-  statuses of a member come down to four results, signatures being checked
-  by the valid steps ([chapter 3](30-archive.md)). A valid step adds one
-  version at a time, which must be signed directly (section 7.5 also lets
-  a version vouched for by the next one come with it).
+  checks a branch point by resolving the parent, and compares branch
+  points, and pins carried over, by what they name, not by their hints.
+  Section 8.5's seven statuses of a member come down to four results,
+  signatures being checked by the valid steps ([chapter 3](30-archive.md)).
+  A valid step adds one version at a time, which must be signed directly
+  (section 7.5 also lets a version vouched for by the next one come with
+  it).
   The pins of the model are those of member lists, of references and of
   branch points; a pin carries its hints (`at`, `parent.url`). Revisions of
   a selection have no `documentVersion`. Returns of a line taken down

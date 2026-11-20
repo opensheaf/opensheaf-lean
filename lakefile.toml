@@ -2,6 +2,9 @@ name = "opensheaf"
 version = "0.1.0"
 defaultTargets = ["OpenSheaf", "Sheaf"]
 
+[leanOptions]
+autoImplicit = false
+
 [[lean_lib]]
 name = "OpenSheaf"
 

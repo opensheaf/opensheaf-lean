@@ -13,9 +13,12 @@ Several promises are about what a reader finds through the hints of a pin,
 whichever hint answers. They hold as long as the owners of the lines
 pinned sign one history each, and the copies the world holds do not collide
 with it (`OneHistory`, [chapter 9](48-copies.md)): the model calls such
-owners **honest** in that world. An owner whose keys signed a fork
-of a line breaks the promise for that line, and only for it; the fork is
-then attributable to whoever held the keys (`Events.fork_signed`).
+owners **honest** in that world, and says it of the owners of a list of
+pins with `HonestPins` (the sheaf's `Honest`, over histories of every line,
+is another statement). An owner whose keys signed a fork of a line breaks
+the promise for that line, and only for it; the fork is then attributable
+to whoever held the keys, which then sign no one history of the line
+(`Events.fork_signed`).
 
     -- in OpenSheaf/Patterns.lean:
     import OpenSheaf.Copies
@@ -46,7 +49,7 @@ selection's revisions, which the model does not record
       ∀ p ∈ c.pins, ∃ v, resolve E.hash w p = .ok v
 
     /-- The owners of the lines pinned are honest, and no pin names a key log. -/
-    def Honest (w : World D) (ps : List (Pin D)) : Prop :=
+    def HonestPins (w : World D) (ps : List (Pin D)) : Prop :=
       ∀ p ∈ ps, OneHistory E w p.line ∧ p.line ≠ keyLogLine p.line.owner
 
 A member list whose pins all resolve verifies the same way after any number
@@ -57,7 +60,7 @@ pin, and agreement of copies (`Steps.resolve_ok`, [chapter
     /-- A member list that verified verifies the same after any steps. -/
     theorem verify_stable {w w' : World D}
         (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-        {c : Members D} (hh : Honest E w' c.pins) (hok : AllOk E w c) :
+        {c : Members D} (hh : HonestPins E w' c.pins) (hok : AllOk E w c) :
         verify E w' c = verify E w c := by
       unfold verify
       apply List.map_congr_left
@@ -78,7 +81,7 @@ of such changes, and updating it never adds the new versions.
     updating the selection leaves it as it is. -/
     theorem selection_stable {w w' : World D}
         (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-        {c : Members D} (hsel : c.type = .selection) (hh : Honest E w' c.pins) (hok : AllOk E w c) :
+        {c : Members D} (hsel : c.type = .selection) (hh : HonestPins E w' c.pins) (hok : AllOk E w c) :
         verify E w' c = verify E w c ∧ collect E.hash w' c = c :=
       ⟨verify_stable E hw' hs hh hok, collect_selection E.hash w' hsel⟩
 
@@ -102,8 +105,8 @@ member lists with them, so this is immutability twice.
     version, and the member list read through it verifies as before. -/
     theorem nested_stable {w w' : World D}
         (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-        {q : Pin D} {cv : Version D} (hq : resolve E.hash w q = .ok cv) (hhq : Honest E w' [q])
-        (hok : ∀ c, cv.members = some c → Honest E w' c.pins ∧ AllOk E w c) :
+        {q : Pin D} {cv : Version D} (hq : resolve E.hash w q = .ok cv) (hhq : HonestPins E w' [q])
+        (hok : ∀ c, cv.members = some c → HonestPins E w' c.pins ∧ AllOk E w c) :
         resolve E.hash w' q = .ok cv ∧
           ∀ c, cv.members = some c → verify E w' c = verify E w c := by
       have := hhq q (List.mem_singleton_self _)

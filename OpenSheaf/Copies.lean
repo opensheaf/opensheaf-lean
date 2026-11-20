@@ -5,7 +5,6 @@ namespace OpenSheaf
 
 variable {D : Type} [DecidableEq D] (E : Env D)
 
-omit [DecidableEq D] in
 /-- The inventories `i` and `j` do not collide. -/
 def NoCollision (i j : Inventory D) : Prop := E.hash i = E.hash j → i = j
 
@@ -22,21 +21,6 @@ theorem comparable_of_prefixes {α : Type} {l1 l2 t1 t2 L : List α} (h1 : L = l
   · exact Or.inl ⟨a, ha⟩
   · exact Or.inr ⟨c, hc⟩
 
-/-- Comparable with a list, comparable with each of its prefixes. -/
-theorem Comparable.of_prefix {α : Type} {m o L t : List α} (h : Comparable m L)
-    (ho : L = o ++ t) : Comparable m o := by
-  rcases h with ⟨t', ht'⟩ | ⟨t', ht'⟩
-  · exact comparable_of_prefixes ht' ho
-  · exact Or.inr ⟨t ++ t', by rw [ht', ho, List.append_assoc]⟩
-
-/-- The inventory `i` is signed for the owner of `l`: a signature that verifies,
-made with a current key of a valid key log of the owner, signs its last version
-with its digest. -/
-def SignedInv (w : World D) (l : LineId) (i : Inventory D) : Prop :=
-  ∃ s, E.verifies s = true ∧ s.line = l ∧ s.version = i.versions.length ∧
-    s.digest = E.hash i ∧ OwnerKey E w l.owner s
-
-omit [DecidableEq D] in
 /-- The inventory of the first `n` versions of the history `H` of line `l`,
 whose genesis record is `g`. -/
 def histInv (l : LineId) (g : Option (Genesis D)) (H : List (Version D)) (n : Nat) :
@@ -67,17 +51,6 @@ another (key logs apart). -/
 def CopiesAgree (w : World D) (l : LineId) : Prop :=
   ∀ b b' o o', lookup w b (.line l) = some (.live o) → lookup w b' (.line l) = some (.live o') →
     o.kind ≠ .owner → o'.kind ≠ .owner → Comparable o.versions o'.versions
-
-theorem Events.head_signedInv {w : World D}
-    (hs : Events E (fun _ => (none : Option (Archive D))) w) {b : ArchiveId} {l : LineId}
-    {o : Obj D} (hl : lookup w b (.line l) = some (.live o)) (hk : o.kind ≠ .owner) :
-    SignedInv E w l (o.inventory o.versions.length) ∧
-      (o.inventory o.versions.length).id = .line l ∧
-      (o.inventory o.versions.length).versions = o.versions := by
-  obtain ⟨s, _, hver, hsg, hown⟩ := Events.headsSigned E hs hl hk
-  have hid : o.id = .line l := ((Events.sound E hs).1 _ _ _ hl).id
-  refine ⟨⟨s, hver, hsg.1, ?_, hsg.2.2.1, hown⟩, hid, by simp [Obj.inventory]⟩
-  simp [Obj.inventory, hsg.2.1]
 
 theorem Events.prefix_history {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w) {l : LineId}
@@ -144,17 +117,16 @@ theorem OneHistory.back {w w' : World D} (hs : Steps w w') {l : LineId}
   obtain ⟨g, H, hsh, hnc⟩ := h
   exact ⟨g, H, hsh.back E hs, hnc.back E hs⟩
 
-/-- **A fork of a line was signed with keys of its owner's key log.** -/
+/-- **A fork of a line was signed with keys of its owner's key log**, which
+then sign no one history. -/
 theorem Events.fork_signed {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w) {l : LineId}
     {b b' : ArchiveId} {o o' : Obj D} (hl : lookup w b (.line l) = some (.live o))
     (hl' : lookup w b' (.line l) = some (.live o')) (hk : o.kind ≠ .owner)
     (hk' : o'.kind ≠ .owner) (hfork : ¬ Comparable o.versions o'.versions) :
-    HeadSigned E w l o ∧ HeadSigned E w l o' ∧
-      ¬ Comparable (o.inventory o.versions.length).versions
-        (o'.inventory o'.versions.length).versions := by
-  refine ⟨Events.headsSigned E hs hl hk, Events.headsSigned E hs hl' hk', ?_⟩
-  simpa [Obj.inventory] using hfork
+    HeadSigned E w l o ∧ HeadSigned E w l o' ∧ ¬ OneHistory E w l :=
+  ⟨Events.headsSigned E hs hl hk, Events.headsSigned E hs hl' hk',
+    fun h1 => hfork (Events.copiesAgree E hs h1 b b' o o' hl hl' hk hk')⟩
 
 omit [DecidableEq D] in
 theorem Comparable.versionAt {o o' : Obj D} (h : Comparable o.versions o'.versions) {n : Nat}
@@ -185,7 +157,8 @@ theorem Events.keyLog_line {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w) {b : ArchiveId} {l : LineId}
     {o : Obj D} (hl : lookup w b (.line l) = some (.live o)) (hk : o.kind = .owner) :
     l = keyLogLine l.owner := by
-  obtain ⟨_, _, _, hid, _⟩ := (Events.keyLogsOk E hs hl hk).parts
+  obtain ⟨_, _, hp⟩ := (Events.keyLogsOk E hs hl hk).parts
+  have hid := hp.id
   have := ((Events.sound E hs).1 _ _ _ hl).id
   rw [this] at hid
   exact ObjectId.line.inj hid
@@ -277,19 +250,12 @@ theorem pinnedVersion_of_resolveAt {w : World D} (hw : SoundWorld E w) {b : Arch
   obtain ⟨hv, hd⟩ := resolveEntry_live_ok E.hash h
   have hid : c.id = .line p.line := (hw.1 _ _ _ hc).id
   obtain ⟨h1, h2⟩ := Obj.versionAt_bounds hv
-  refine ⟨c.inventory p.version, hid, hd, by simp [Obj.inventory]; omega, ?_⟩
-  simp only [Obj.inventory]
-  rw [List.getLast?_eq_getElem?]
-  simp only [Obj.versionAt, show p.version ≠ 0 by omega, ite_false] at hv
-  rw [List.getElem?_take]
-  simp only [List.length_take, Nat.min_eq_left h2]
-  rw [if_yes (by omega)]
-  exact hv
+  exact ⟨c.inventory p.version, hid, hd, by simp [Obj.inventory]; omega, getLast?_take hv⟩
 
 /-- A version that sets a new branch point holds the files of the parent
 version that the pin fixes, and its document version (sections 9.2 and 9.4). -/
 def BranchOk (prev : Option (Parent D)) (x : Version D) : Prop :=
-  ∀ pa, x.parent = some pa → prev ≠ some pa →
+  ∀ pa, x.parent = some pa → ¬ Parent.Keeps prev pa →
     ∃ u, PinnedVersion E pa.pin u ∧ x.files = u.files ∧ u.documentVersion = pa.documentVersion
 
 /-- Every version of every object that sets a new branch point holds its
@@ -400,7 +366,8 @@ branch point was checked against. -/
 theorem Events.branch_files {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w) {b : ArchiveId} {x : ObjectId}
     {o : Obj D} (hl : lookup w b x = some (.live o)) {i : Nat} (hi : i < o.versions.length)
-    {pa : Parent D} (hpa : o.versions[i].parent = some pa) (hnew : prevParent o.versions i ≠ some pa) :
+    {pa : Parent D} (hpa : o.versions[i].parent = some pa)
+    (hnew : ¬ Parent.Keeps (prevParent o.versions i) pa) :
     ∃ j : Inventory D, E.hash j = pa.pin.digest ∧ j.id = .line pa.pin.line ∧
       j.versions.length = pa.pin.version ∧
       (∃ u', j.versions.getLast? = some u' ∧ o.versions[i].files = u'.files) ∧
@@ -413,21 +380,13 @@ theorem Events.branch_files {w : World D}
   rw [hc] at hu
   obtain ⟨hv, hd⟩ := resolveEntry_live_ok E.hash hu
   have heq := hcol (hd.trans hj.symm)
-  have hn := Obj.versionAt_bounds hv
-  have hlast' : (c.versions.take pa.pin.version).getLast? = some u := by
-    rw [List.getLast?_eq_getElem?]
-    simp only [Obj.versionAt, show pa.pin.version ≠ 0 by omega, ite_false] at hv
-    rw [List.getElem?_take]
-    simp only [List.length_take, Nat.min_eq_left hn.2]
-    rw [if_yes (by omega)]
-    exact hv
+  have hlast' : (c.versions.take pa.pin.version).getLast? = some u := getLast?_take hv
   have : (c.inventory pa.pin.version).versions = j.versions := congrArg Inventory.versions heq
   simp only [Obj.inventory] at this
   rw [this, hlast] at hlast'
   cases hlast'
   exact hf
 
-omit [DecidableEq D] in
 /-- The first version of a branch from the version `v`, pinned by `src`, with
 the parent's signatures `psigs` as evidence (section 9.2). -/
 def branchVersion (src : Pin D) (v : Version D) (psigs : List (Sig D))
@@ -435,7 +394,6 @@ def branchVersion (src : Pin D) (v : Version D) (psigs : List (Sig D))
   { documentVersion := 1, files := v.files, description, refs := v.refs,
     parent := some ⟨src, v.documentVersion, psigs⟩, depositor := curator, message }
 
-omit [DecidableEq D] in
 /-- The accepted copy of the revision `v`, pinned by `src`, as the line `l` of
 the curator, with the genesis record `g` and the curator's signatures `ss`
 (section 9.6). -/

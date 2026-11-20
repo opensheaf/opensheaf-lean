@@ -67,6 +67,11 @@ structure Pin (D : Type) where
 def Pin.names {D : Type} (p q : Pin D) : Prop :=
   p.line = q.line ∧ p.version = q.version ∧ p.digest = q.digest
 
+instance {D : Type} [DecidableEq D] (p q : Pin D) : Decidable (p.names q) := by
+  unfold Pin.names; infer_instance
+
+theorem Pin.names_refl {D : Type} (p : Pin D) : p.names p := ⟨rfl, rfl, rfl⟩
+
 /-- An entry of `members.json` (section 8.2): the member's line, where copies of
 it may be found, and its pins. In a catalogue it has one pin, and `follow` says
 whether updates move it to the latest version (section 8.3); in a selection its
@@ -135,6 +140,27 @@ structure Parent (D : Type) where
   documentVersion : Nat
   sigs : List (Sig D) := []
   deriving DecidableEq, Repr
+
+/-- Two branch points are the same: the same parent version, by line, number
+and digest, and the same document version; hints and evidence aside
+(sections 9.1 and 9.4). -/
+def Parent.Same {D : Type} (pa pb : Parent D) : Prop :=
+  pa.pin.names pb.pin ∧ pa.documentVersion = pb.documentVersion
+
+instance {D : Type} [DecidableEq D] (pa pb : Parent D) : Decidable (pa.Same pb) := by
+  unfold Parent.Same; infer_instance
+
+theorem Parent.same_refl {D : Type} (pa : Parent D) : pa.Same pa := ⟨Pin.names_refl _, rfl⟩
+
+/-- The branch point `pa` keeps the branch point `prev` of the version before,
+if there is one. -/
+def Parent.Keeps {D : Type} : Option (Parent D) → Parent D → Prop
+  | none, _ => False
+  | some pp, pa => pp.Same pa
+
+instance {D : Type} [DecidableEq D] (prev : Option (Parent D)) (pa : Parent D) :
+    Decidable (Parent.Keeps prev pa) := by
+  cases prev <;> unfold Parent.Keeps <;> infer_instance
 
 /-- An object version (sections 4.1 to 4.4). Its content is its files and, for a
 collection, its member list; the description, the branch point, the keys and

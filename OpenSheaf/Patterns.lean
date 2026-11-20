@@ -16,13 +16,13 @@ def AllOk (w : World D) (c : Members D) : Prop :=
   ∀ p ∈ c.pins, ∃ v, resolve E.hash w p = .ok v
 
 /-- The owners of the lines pinned are honest, and no pin names a key log. -/
-def Honest (w : World D) (ps : List (Pin D)) : Prop :=
+def HonestPins (w : World D) (ps : List (Pin D)) : Prop :=
   ∀ p ∈ ps, OneHistory E w p.line ∧ p.line ≠ keyLogLine p.line.owner
 
 /-- A member list that verified verifies the same after any steps. -/
 theorem verify_stable {w w' : World D}
     (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-    {c : Members D} (hh : Honest E w' c.pins) (hok : AllOk E w c) :
+    {c : Members D} (hh : HonestPins E w' c.pins) (hok : AllOk E w c) :
     verify E w' c = verify E w c := by
   unfold verify
   apply List.map_congr_left
@@ -35,7 +35,7 @@ then after any number of steps the verifier reports exactly the same, and
 updating the selection leaves it as it is. -/
 theorem selection_stable {w w' : World D}
     (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-    {c : Members D} (hsel : c.type = .selection) (hh : Honest E w' c.pins) (hok : AllOk E w c) :
+    {c : Members D} (hsel : c.type = .selection) (hh : HonestPins E w' c.pins) (hok : AllOk E w c) :
     verify E w' c = verify E w c ∧ collect E.hash w' c = c :=
   ⟨verify_stable E hw' hs hh hok, collect_selection E.hash w' hsel⟩
 
@@ -44,8 +44,8 @@ pins all resolve, then after any number of steps it resolves to the same
 version, and the member list read through it verifies as before. -/
 theorem nested_stable {w w' : World D}
     (hw' : Events E (fun _ => (none : Option (Archive D))) w') (hs : Steps w w')
-    {q : Pin D} {cv : Version D} (hq : resolve E.hash w q = .ok cv) (hhq : Honest E w' [q])
-    (hok : ∀ c, cv.members = some c → Honest E w' c.pins ∧ AllOk E w c) :
+    {q : Pin D} {cv : Version D} (hq : resolve E.hash w q = .ok cv) (hhq : HonestPins E w' [q])
+    (hok : ∀ c, cv.members = some c → HonestPins E w' c.pins ∧ AllOk E w c) :
     resolve E.hash w' q = .ok cv ∧
       ∀ c, cv.members = some c → verify E w' c = verify E w c := by
   have := hhq q (List.mem_singleton_self _)

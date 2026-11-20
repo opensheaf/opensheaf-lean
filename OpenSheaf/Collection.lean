@@ -39,10 +39,6 @@ theorem collect_selection (w : World D) {c : Members D} (h : c.type = .selection
     collect hash w c = c := by
   simp [collect, h]
 
-/-- Updating a collection keeps its type. -/
-theorem collect_type (w : World D) (c : Members D) : (collect hash w c).type = c.type := by
-  unfold collect; split <;> rfl
-
 /-- In a catalogue, a member with `follow` is moved to the head. -/
 theorem collect_follow (w : World D) {c : Members D} (h : c.type = .catalogue)
     {m : Member D} (hm : m ∈ c.members) (hf : m.follow = true) {p : Pin D}
@@ -109,24 +105,8 @@ def Members.WF (c : Members D) : Prop := ∀ m ∈ c.members, m.WF c.type
 instance (c : Members D) : Decidable c.WF := by
   unfold Members.WF; infer_instance
 
-theorem headIn_names {w : World D} {hs bs : List ArchiveId} {l : LineId} {p : Pin D}
-    (h : headIn hash w hs bs l = some p) : p.line = l ∧ p.hints = hs := by
-  induction bs with
-  | nil => simp [headIn] at h
-  | cons b bs ih =>
-    unfold headIn at h
-    split at h
-    · split at h
-      · exact ih h
-      · cases h; exact ⟨rfl, rfl⟩
-    · exact ih h
-
-theorem headPin_names {w : World D} {hs : List ArchiveId} {l : LineId} {p : Pin D}
-    (h : headPin hash w hs l = some p) : p.line = l ∧ p.hints = hs :=
-  headIn_names hash h
-
 /-- **Updating keeps a member list well formed.** -/
-theorem collect_wf (w : World D) {c : Members D} (h : c.WF) : (collect hash w c).WF := by
+theorem collect_wf [DecidableEq D] (w : World D) {c : Members D} (h : c.WF) : (collect hash w c).WF := by
   unfold collect
   split
   · exact h
@@ -141,7 +121,7 @@ theorem collect_wf (w : World D) {c : Members D} (h : c.WF) : (collect hash w c)
     split
     · split
       · rename_i p hp
-        obtain ⟨hl, hh⟩ := headPin_names hash hp
+        obtain ⟨hh, _, _, _, _, _, hl, _⟩ := headPin_resolves hash hp
         refine ⟨hmw.1, by simp, ?_, fun _ => rfl, fun h => nomatch h⟩
         intro q hq
         simp only [List.mem_singleton] at hq

@@ -21,11 +21,11 @@ def proj {w : World D} (G : Sec (SitesIn w) (Inventory D)) : Sec (SitesIn w) Nam
 theorem lastV_inventory {c : Obj D} {n : Nat} (h1 : 1 ≤ n) (h2 : n ≤ c.versions.length) :
     ∃ v, lastV (c.inventory n) = some v ∧ v ∈ c.versions ∧ c.versions[n - 1]? = some v := by
   have hlt : n - 1 < c.versions.length := by omega
-  refine ⟨c.versions[n - 1], ?_, List.getElem_mem hlt, List.getElem?_eq_getElem hlt⟩
-  unfold lastV Obj.inventory
-  rw [List.getLast?_eq_getElem?, List.length_take, Nat.min_eq_left h2, List.getElem?_take]
-  simp only [show n - 1 < n by omega, ite_true]
-  exact List.getElem?_eq_getElem hlt
+  have hva : c.versionAt n = some c.versions[n - 1] := by
+    obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
+    rw [Obj.versionAt_succ]; simp
+  exact ⟨c.versions[n - 1], getLast?_take hva, List.getElem_mem hlt,
+    List.getElem?_eq_getElem hlt⟩
 
 /-- At an object version held by a copy, the map gives the named document
 version that the copy's version there holds. -/
@@ -142,18 +142,16 @@ theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
     · have := le_docCount hz; rw [hxz]; omega
     · rw [hnew v hv] at hc; cases hc
 
-omit [DecidableEq D] in
 /-- The description a history gives to document version `k`: that of the last
 object version holding it, as `history` records (section 4.2). -/
 def docDescription (l : List (Version D)) (k : Nat) : String :=
   (((l.filter (·.documentVersion == k)).getLast?).map (·.description)).getD ""
 
-omit [DecidableEq D] in
 /-- The descriptions an object version gives. -/
 def descSec (o : Obj D) (n : Nat) : Sec (Covers o n) String :=
   fun x _ => docDescription (o.versions.take n) x.doc
 
-omit [DecidableEq D] in
+/-- The section of descriptions a source of a world gives (section 4.2). -/
 abbrev descSections (w : World D) (i : Source w) : Sec (cover w i) String :=
   descSec i.obj i.version
 

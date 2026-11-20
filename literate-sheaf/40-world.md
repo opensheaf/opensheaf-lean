@@ -87,8 +87,16 @@ hypothesis names them: `H` gives, for each line, the genesis record and
 the history its owner signs (the model's `SignsHistory`), and the world
 holds no copy that collides with them (`NoCollisionWith`). Only pairs of
 inventories are assumed not to collide, never the digest to be injective.
+The hypothesis asks a history of every line, key logs and lines the world
+does not hold included, though the theorems use it only for the lines whose
+copies are documents or collections: it counts only the signatures made
+with current keys of the owner, which a key log's own versions do not
+have, and holds of a line nobody signed with the empty history. The
+model's freedom from cycles asks it only of lines that are not key logs;
+here it is left for every line, since restricting it would need, for each
+use, that the copies at hand are not at the line of a key log, which holds
+only in worlds whose names do not collide.
 
-    omit [DecidableEq D] in
     /-- For each line, a genesis record and the history its owner signs. -/
     abbrev Histories (D : Type) := LineId → Option (Genesis D) × List (Version D)
 

@@ -13,7 +13,9 @@ against a copy of the owner's key log, and proves what they rest on:
   version of the key log that is not an ending version
   (`SignedWith.signer`): "it has no keys, so nothing is signed against it"
   (section 6.3);
-- a rotation key never signs a line (`rotation_key_signs_no_line`);
+- a rotation key never signs a line, since no rotation key of a valid key
+  log is among its current keys (`KeyLogOk.disjoint`, in the previous
+  chapter);
 - more signature files, or a weaker test on them, keep a version signed
   (`SignedWith.mono`). What a longer copy of the key log, with more
   exposures, does to a status is not proved here.
@@ -147,6 +149,49 @@ without tainted signatures.
     def Contested (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Prop :=
       Signed E kl l o n ∧ ¬ SignedNotContested E kl l o n
 
+A reader decides these statuses by computation: the versions at or after
+`n` are finitely many.
+
+    theorem signed_iff (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+        Signed E kl l o n ↔ 1 ≤ n ∧ ∃ m ∈ List.range (o.versions.length + 1),
+          n ≤ m ∧ SignedDirect E kl l o m := by
+      unfold Signed
+      constructor
+      · rintro ⟨h1, m, h2, h3, h4⟩
+        exact ⟨h1, m, List.mem_range.mpr (Nat.lt_succ_of_le h3), h2, h4⟩
+      · rintro ⟨h1, m, hm, h2, h4⟩
+        exact ⟨h1, m, h2, Nat.le_of_lt_succ (List.mem_range.mp hm), h4⟩
+
+    theorem signedNotContested_iff (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+        SignedNotContested E kl l o n ↔ 1 ≤ n ∧ ∃ m ∈ List.range (o.versions.length + 1),
+          n ≤ m ∧ SignedClean E kl l o m := by
+      unfold SignedNotContested
+      constructor
+      · rintro ⟨h1, m, h2, h3, h4⟩
+        exact ⟨h1, m, List.mem_range.mpr (Nat.lt_succ_of_le h3), h2, h4⟩
+      · rintro ⟨h1, m, hm, h2, h4⟩
+        exact ⟨h1, m, h2, Nat.le_of_lt_succ (List.mem_range.mp hm), h4⟩
+
+    instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Decidable (Signed E kl l o n) :=
+      decidable_of_iff _ (signed_iff E kl l o n).symm
+
+    instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) :
+        Decidable (SignedNotContested E kl l o n) :=
+      decidable_of_iff _ (signedNotContested_iff E kl l o n).symm
+
+    instance (kl : Obj D) (l : LineId) (o : Obj D) (n : Nat) : Decidable (Contested E kl l o n) := by
+      unfold Contested; infer_instance
+
+The valid steps of [chapter 7](45-worlds.md) ask only for `SignedClean` of
+the head, against a copy of the key log without a fork record: an archive
+that knows of a fork adds nothing to the owner's lines (section 7.5), so
+the half of `tainted` that looks at the fork point never matters to them.
+It matters to readers: in the story ([chapter 13](70-story.md)), the
+archive that holds the fork record of the author's key log reads the
+versions of the paper signed against a key-log version from the fork point
+on as contested, and the version signed before it as signed and not
+contested.
+
 ## What a signature rests on
 
 Counting fewer signatures, or with a stronger test, never makes a version
@@ -202,24 +247,6 @@ version signed and not contested does not need an exposed key.
         decide_eq_false_iff_not] at h
       exact h.1
 
-## Rotation keys never sign a line
-
-"Current keys never sign a version of the key log, and rotation keys sign
-nothing else" (section 6.1). The second half is a rule for owner tools;
-the model shows that it holds whatever the tools do, for the versions a
-copy of the key log holds: a key whose digest `next` of a version holds is
-never among the `keys` of a version, so it never counts in a signature of
-a line (`KeyLogOk.disjoint`, [chapter 4](35-owners.md)).
-
-    /-- **A rotation key never signs a line**, against a version of a valid key
-    log. -/
-    theorem rotation_key_signs_no_line {X : OwnerName} {kl : Obj D} (hkl : KeyLogOk E X kl)
-        {i j : Nat} (hi : i < kl.versions.length) (hj : j < kl.versions.length)
-        {ki kj : Keys D} (hki : (kl.versions[i]'hi).keys = some ki)
-        (hkj : (kl.versions[j]'hj).keys = some kj) {key : Key} (hd : E.keyDigest key ∈ kj.next) :
-        key ∉ ki.keys :=
-      fun hk => hkl.disjoint E hi hj hki hkj hk hd
-
 ## Frozen and ended owners
 
 An owner is **ended** "when its key log has an ending version or a fork
@@ -245,25 +272,19 @@ reaches in it is a version the copy holds, with the digest of the pin.
 
     theorem KeyLogOk.carried_nil {X : OwnerName} {kl : Obj D} (h : KeyLogOk E X kl)
         (hf : ¬ Frozen kl) : carriedOf kl = [] := by
-      obtain ⟨g, _, _, _, _, _, _, _, _, _, hhead, hsteps⟩ := h.parts
+      obtain ⟨g, _, hp⟩ := h.parts
       unfold carriedOf
       rw [List.flatMap_eq_nil_iff]
       intro v hv
       obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hv
       cases i with
-      | zero =>
-        have h0 : kl.versions[0]'hi = firstKeyVersion g := by
-          rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hi] at hhead
-          exact Option.some.inj hhead
-        rw [h0]; rfl
+      | zero => rw [hp.getElem_zero E hi]; rfl
       | succ i =>
-        have hs := hsteps i (by omega)
-        unfold KeyStep at hs
-        split at hs
-        · exact hs.1
-        · rename_i hx
-          exact absurd ⟨_, List.getElem_mem hi, hx⟩ hf
-        · exact hs.elim
+        cases hx : (kl.versions[i + 1]'hi).keys with
+        | none => exact absurd ⟨_, List.getElem_mem hi, hx⟩ hf
+        | some k =>
+          obtain ⟨_, _, hc, _⟩ := (hp.steps i (by omega)).keyed E hx
+          exact hc
 
     theorem keyVersion_held {kl : Obj D} (hc : carriedOf kl = []) {p : Pin D} {kv : Keys D}
         (h : keyVersion E kl p = some kv) :

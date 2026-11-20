@@ -78,11 +78,10 @@ the environment lists, and through every copy the world holds.
       else if l = keyLogLine "author" then (some genA, logA2.versions ++ [k3c])
       else (none, [])
 
-The second half tries the same tactics on every copy, so some of the
-lemmas it names are not used in every case; the linter that reports them is
-turned off for this proof.
+The second half unfolds the world at each of its three archives, finds
+every copy it holds, and tries the same tactics on each: the copy is a key
+log, or a prefix of the history its owner signs.
 
-    set_option linter.unusedSimpArgs false in
     /-- **The owners of the story are honest.** -/
     theorem story_honest : Honest E storyHistories w19 := by
       refine ⟨fun l s hv hl ho => ?_, ?_⟩
@@ -118,7 +117,7 @@ turned off for this proof.
             all_goals (first
               | exact absurd rfl hk
               | decide
-              | (simp [storyHistories, paperLine, issueLine, jointLine, copyLine, keyLogLine]; done)
+              | (simp [storyHistories, paperLine, issueLine, jointLine, copyLine]; done)
               | (apply Exists.intro [v4]; simp [storyHistories, paperLine, issueLine, jointLine,
                   copyLine, keyLogLine, paper3, paper2, paper1, paper0, Obj.append]; done)
               | (apply Exists.intro [i2]; simp [storyHistories, paperLine, issueLine, jointLine,

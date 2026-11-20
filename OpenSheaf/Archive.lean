@@ -63,17 +63,6 @@ theorem lookup_some_archive {w : World D} {a : ArchiveId} {oid : ObjectId} {e : 
   · contradiction
   · exact ⟨_, by assumption⟩
 
-/-- The owners archive `a` hosts, if it exists. -/
-def ownersOf (w : World D) (a : ArchiveId) : Option (List OwnerName) :=
-  (w a).map (·.owners)
-
-theorem ownersOf_setEntry (w : World D) (a : ArchiveId) (oid : ObjectId) (e : Entry D)
-    (c : ArchiveId) : ownersOf (setEntry w a oid e) c = ownersOf w c := by
-  unfold ownersOf setEntry
-  by_cases hc : c = a
-  · subst hc; cases w c <;> simp
-  · simp [hc]
-
 theorem lookup_newArchive {w : World D} {a : ArchiveId} {ar : Archive D} (h : w a = none)
     (hempty : ∀ x, ar.entries x = none) :
     lookup (fun b => if b = a then some ar else w b) = lookup w := by
@@ -282,17 +271,6 @@ theorem Star.mono {α : Type} {r s : α → α → Prop} (hrs : ∀ {a b}, r a b
   induction h with
   | refl => exact .refl _
   | tail _ hr ih => exact .tail ih (hrs hr)
-
-theorem Step.owners_kept {w w' : World D} (hs : Step w w') {a : ArchiveId}
-    {os : List OwnerName} (h : ownersOf w a = some os) : ownersOf w' a = some os := by
-  cases hs with
-  | newArchive b ar hb =>
-    have : a ≠ b := by rintro rfl; simp [ownersOf, hb] at h
-    unfold ownersOf at h ⊢
-    simp only [this, ite_false]; exact h
-  | create => rw [ownersOf_setEntry]; exact h
-  | append => rw [ownersOf_setEntry]; exact h
-  | witness => rw [ownersOf_setEntry]; exact h
 
 section Immutability
 

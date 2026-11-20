@@ -1,10 +1,12 @@
 name: lean
 # Check that the Lean files are those of the chapters, then check the proofs.
+# The pages workflow calls it too, and publishes only when it succeeds.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 jobs:
   build:
     runs-on: ubuntu-latest

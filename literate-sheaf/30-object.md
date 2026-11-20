@@ -65,6 +65,8 @@ version and the version it describes, for instance.
     def piece (o : Obj D) (n : Nat) (i : {v // v ∈ o.versions.take n}) (x : Name) : Prop :=
       x = o.name i.1
 
+    /-- The section of each piece: the content of its object version (section
+    4.2). -/
     def pieces (o : Obj D) (n : Nat) : ∀ i, Sec (piece o n i) (Content D) :=
       fun i _ _ => i.1.content
 

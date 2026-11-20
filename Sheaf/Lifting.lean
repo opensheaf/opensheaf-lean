@@ -40,7 +40,10 @@ structure Copy (w : World D) where
   live : lookup w archive (.line line) = some (.live obj)
   kind : obj.kind ≠ .owner
 
+/-- The object versions a copy of a world holds. -/
 abbrev siteCover (w : World D) (i : Copy w) : VSite → Prop := SiteHeld i.obj
+
+/-- The section of inventories a copy of a world gives (sections 4.1 and 4.3). -/
 abbrev invSections (w : World D) (i : Copy w) : Sec (siteCover w i) (Inventory D) := invSec i.obj
 
 /-- The object versions held anywhere in a world. -/
@@ -61,7 +64,7 @@ def GenesisAgree (w : World D) : Prop :=
 
 /-- In a world built by events with honest owners, copies of a line hold one
 genesis record. -/
-theorem Events.genesisAgree {w : World D}
+theorem Events.genesisAgree_of_honest {w : World D}
     (hs : Events E (fun _ => (none : Option (Archive D))) w) {H : Histories D}
     (hh : Honest E H w) : GenesisAgree w :=
   fun _ _ l _ _ hl hl' hk hk' =>
@@ -89,9 +92,8 @@ theorem inventory_glues {w : World D}
     (hh : Honest E H w) :
     ∃ G, Glues (invSections w) G ∧ ∀ G', Glues (invSections w) G' → G' = G :=
   sheaf (inv_compatible (SoundWorld.wfObjects E (Events.sound E hs))
-    (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree E hs hh))
+    (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree_of_honest E hs hh))
 
-omit [DecidableEq D] in
 /-- The digest morphism: a section of inventories gives a section of digests. -/
 def digests {U : VSite → Prop} (s : Sec U (Inventory D)) : Sec U D := fun x hx => E.hash (s x hx)
 
@@ -111,9 +113,10 @@ theorem digests_injective {U : VSite → Prop} {s s' : Sec U (Inventory D)}
 /-- The verdict a verifier reaches on a pin from an inventory of its object
 version. -/
 def verdictOf (i : Inventory D) (p : Pin D) : Resolution D :=
-  match i.versions[p.version - 1]? with
-  | none => .unavailable
-  | some v => if E.hash i = p.digest then .ok v else .mismatch
+  if p.version = 0 then .unavailable
+  else match i.versions[p.version - 1]? with
+    | none => .unavailable
+    | some v => if E.hash i = p.digest then .ok v else .mismatch
 
 /-- Resolving a pin through a copy is reading the verdict off its inventory. -/
 theorem resolveEntry_verdict (c : Obj D) (p : Pin D) :
@@ -138,7 +141,7 @@ theorem copies_same_verdict {w : World D}
     resolveEntry E.hash (some (.live i.obj)) p = resolveEntry E.hash (some (.live j.obj)) p := by
   rw [resolveEntry_verdict, resolveEntry_verdict]
   have := inv_compatible (SoundWorld.wfObjects E (Events.sound E hs))
-    (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree E hs hh) i j (pinSite p) hi hj
+    (fun l => Events.copiesAgree E hs (hh.one E l)) (Events.genesisAgree_of_honest E hs hh) i j (pinSite p) hi hj
   simp only [invSections, invSec, pinSite] at this
   rw [this]
 
@@ -173,7 +176,7 @@ theorem lifts_iff {w : World D} {G : Sec (SitesIn w) (Inventory D)}
     exact ⟨_, List.getElem?_eq_getElem (by omega)⟩
   obtain ⟨v, hv⟩ := hv
   unfold verdictOf
-  rw [hv]
+  rw [if_no (by omega), hv]
   constructor
   · rintro ⟨u, hu⟩
     by_cases hd : E.hash (i.obj.inventory p.version) = p.digest
