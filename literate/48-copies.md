@@ -497,7 +497,7 @@ A copy holds the versions of the copy it copies, at the same numbers.
         ⟨SoundWorld.empty E, fun _ _ _ h => by simp [lookup] at h⟩).2
 
 The check of section 9.3, "every file of the head state of
-`parent.inventory.json` ... is present at the same logical path with the
+`parent/inventory.json` ... is present at the same logical path with the
 same digest", holds then of every branch, in every world built by events,
 whatever copy of the parent a verifier finds: there is an inventory of the
 parent's line, with the pinned digest and number, whose last version holds

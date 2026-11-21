@@ -259,9 +259,9 @@ inventory from them and checks the digest, as section 14.3 checks
 A branch records its **branch point** in `parent` (section 9.1): the pin of
 the parent version (with `url` as a hint), the document version it holds,
 and, as evidence, the parent owner's signature files of that version
-(`parent.signatures/`, section 9.2). The other evidence of the
-specification (`parent.inventory.json`, `parent.object.json` and
-`parent.chain/`) is left out. The model carries the signature files but
+(`parent/signatures/`, section 9.2). The other evidence of the
+specification (`parent/inventory.json`, `parent/object.json` and
+`parent/parent/`) is left out. The model carries the signature files but
 does not check them, nor that they are present: it checks a branch point
 by resolving it ([chapter 7](45-worlds.md)), so the check of section 9.3
 without access to the parent's line is not modelled.
