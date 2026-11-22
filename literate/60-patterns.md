@@ -203,7 +203,7 @@ presentations show the two together.
 The first half holds of any version appended, not only of a withdrawal (it
 is immutability); only the status is specific. That the withdrawal is a
 version the owner may add is [chapter 2](20-object.md)'s `withdraw_extends`
-and `withdraw_noReinstatement`.
+and `withdraw_statusStep`.
 
 The table "What happens when ..." of the use cases describes a withdrawal
 in both columns at once: a catalogue follows it, and pins the withdrawn

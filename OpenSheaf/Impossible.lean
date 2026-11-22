@@ -325,15 +325,17 @@ theorem Events.pinned_not_owner {w : World D}
 def HeadWithdrawn (w : World D) (a : ArchiveId) (oid : ObjectId) : Prop :=
   ∃ o, lookup w a oid = some (.live o) ∧ headStatus o.versions = .withdrawn
 
-/-- **A withdrawal cannot be undone** by valid steps. -/
+/-- **A withdrawal stays until a new document version** reinstates the line. -/
 theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep E w w')
-    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid := by
+    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) :
+    HeadWithdrawn w' a oid ∨ ∃ o x ss, lookup w a oid = some (.live o) ∧
+      lookup w' a oid = some (.live (o.append x ss)) ∧ docCount o.versions < x.documentVersion := by
   obtain ⟨o, hl, hst⟩ := h
   cases hs with
   | newArchive b ar hb hempty =>
-    exact ⟨o, by rw [lookup_newArchive hb hempty]; exact hl, hst⟩
+    exact Or.inl ⟨o, by rw [lookup_newArchive hb hempty]; exact hl, hst⟩
   | create b ar c o' hb hc =>
-    refine ⟨o, ?_, hst⟩
+    refine Or.inl ⟨o, ?_, hst⟩
     rw [lookup_setEntry hb]
     split
     · rename_i hbc
@@ -347,9 +349,11 @@ theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep E w w')
         rw [← hl]; simp [lookup, hb, hc]
       have := Entry.live.inj (Option.some.inj hoo)
       subst this
-      refine ⟨o'.append y ss, by rw [lookup_setEntry hb]; simp, ?_⟩
-      simp [headStatus, Obj.append, hst' hst]
-    · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
+      by_cases hy : y.documentVersion ≤ docCount o'.versions
+      · refine Or.inl ⟨o'.append y ss, by rw [lookup_setEntry hb]; simp, ?_⟩
+        simp [headStatus, Obj.append, hst'.2 hy hst]
+      · exact Or.inr ⟨o', y, ss, hl, by rw [lookup_setEntry hb]; simp, by omega⟩
+    · exact Or.inl ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
   | witness b ar c o' ss hb hc =>
     by_cases hbc : a = b ∧ oid = c
     · obtain ⟨rfl, rfl⟩ := hbc
@@ -357,11 +361,35 @@ theorem ValidStep.withdrawn_stays {w w' : World D} (hs : ValidStep E w w')
         rw [← hl]; simp [lookup, hb, hc]
       have := Entry.live.inj (Option.some.inj hoo)
       subst this
-      exact ⟨{ o' with sigs := o'.sigs ++ ss }, by rw [lookup_setEntry hb]; simp, hst⟩
-    · exact ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
+      exact Or.inl ⟨{ o' with sigs := o'.sigs ++ ss }, by rw [lookup_setEntry hb]; simp, hst⟩
+    · exact Or.inl ⟨o, by rw [lookup_setEntry hb, if_no hbc]; exact hl, hst⟩
 
-theorem ValidSteps.withdrawn_stays {w w' : World D} (hs : ValidSteps E w w')
-    {a : ArchiveId} {oid : ObjectId} (h : HeadWithdrawn w a oid) : HeadWithdrawn w' a oid :=
-  hs.invariant _ (·.withdrawn_stays E) h
+/-- Document version `k` of the history `l` is withdrawn: a version at or after
+one holding it is a withdrawal (section 13.1). -/
+def DocWithdrawn (l : List (Version D)) (k : Nat) : Prop :=
+  ∃ j i, ∃ (hji : j ≤ i) (hi : i < l.length),
+    (l[j]'(Nat.lt_of_le_of_lt hji hi)).documentVersion = k ∧ l[i].status = .withdrawn
+
+omit [DecidableEq D] in
+theorem DocWithdrawn.append {l : List (Version D)} {k : Nat} (h : DocWithdrawn l k)
+    (t : List (Version D)) : DocWithdrawn (l ++ t) k := by
+  obtain ⟨j, i, hji, hi, hk, hw⟩ := h
+  refine ⟨j, i, hji, by simp; omega, ?_, ?_⟩
+  · rw [List.getElem_append_left (Nat.lt_of_le_of_lt hji hi)]; exact hk
+  · rw [List.getElem_append_left hi]; exact hw
+
+/-- Document version `k` of the object `oid`, as archive `a` holds it, is withdrawn. -/
+def DocWithdrawnAt (w : World D) (a : ArchiveId) (oid : ObjectId) (k : Nat) : Prop :=
+  ∃ o, lookup w a oid = some (.live o) ∧ DocWithdrawn o.versions k
+
+omit [DecidableEq D] in
+/-- **A withdrawn document version stays withdrawn**, also when the line is
+reinstated. -/
+theorem Steps.docWithdrawn_stays {w w' : World D} (hs : Steps w w') {a : ArchiveId}
+    {oid : ObjectId} {k : Nat} (h : DocWithdrawnAt w a oid k) : DocWithdrawnAt w' a oid k := by
+  obtain ⟨o, hl, hd⟩ := h
+  obtain ⟨o', hl', hg⟩ := hs.live_grows hl
+  obtain ⟨t, ht⟩ := hg.versions
+  exact ⟨o', hl', by rw [ht]; exact hd.append t⟩
 
 end OpenSheaf

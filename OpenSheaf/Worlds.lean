@@ -267,7 +267,7 @@ inductive ValidStep : World D → World D → Prop
   | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
       (x : Version D) (ss : List (Sig D)) (ha : w a = some ar)
       (ho : ar.entries oid = some (.live o))
-      (hf : o.kind ≠ .owner → Extends o.versions x) (hst : NoReinstatement o.versions x)
+      (hf : o.kind ≠ .owner → Extends o.versions x) (hst : StatusStep o.versions x)
       (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
       (hpins : ∀ p ∈ x.pins, PinOk E w p)
       (hbranch : ¬ CopyOf w a (o.append x ss) →

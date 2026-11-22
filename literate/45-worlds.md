@@ -437,8 +437,9 @@ A valid step is a step with the checks of the specification:
   versions that already exist; its branch points hold their parents'
   files; it is authorised, as above;
 - a new object version extends the history (section 4.2), unless it is a
-  version of a key log; does not make a withdrawn line active again (the
-  choice of [chapter 2](20-object.md) on issue #25); has a member list
+  version of a key log; changes the status only as section 13.1 says (a
+  new document version is active, any other version of a withdrawn line
+  withdrawn, [chapter 2](20-object.md)); has a member list
   exactly if the object is a collection, and then a well-formed one; pins
   only versions that are found, or report `removed` and are carried over;
   keeps or moves its branch point as section 9.4 says; and leaves the
@@ -515,7 +516,7 @@ reaches it. The computed first version of a key log is never signed.
       | append (w : World D) (a : ArchiveId) (ar : Archive D) (oid : ObjectId) (o : Obj D)
           (x : Version D) (ss : List (Sig D)) (ha : w a = some ar)
           (ho : ar.entries oid = some (.live o))
-          (hf : o.kind ≠ .owner → Extends o.versions x) (hst : NoReinstatement o.versions x)
+          (hf : o.kind ≠ .owner → Extends o.versions x) (hst : StatusStep o.versions x)
           (hk : x.members.isSome = true ↔ o.kind = .collection) (hm : x.membersOk)
           (hpins : ∀ p ∈ x.pins, PinOk E w p)
           (hbranch : ¬ CopyOf w a (o.append x ss) →

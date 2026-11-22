@@ -407,7 +407,7 @@ theorem acceptedCopy_wf (l : LineId) (g : Genesis D) (src : Pin D) (v : Version 
     (acceptedCopy l g src v psigs ss d c m).WF (.line l) :=
   ⟨rfl, by simp [acceptedCopy], fun _ => WellFormed.single rfl,
     by simp [acceptedCopy, branchVersion], by simp [acceptedCopy, branchVersion, Version.membersOk],
-    StatusOk.single _, rfl⟩
+    StatusOk.single _ (fun _ => rfl), rfl⟩
 
 theorem acceptedCopy_valid {w : World D} {a : ArchiveId} {ar : Archive D} {l : LineId}
     (ha : w a = some ar) (hfree : ar.entries (.line l) = none) (g : Genesis D) (src : Pin D)

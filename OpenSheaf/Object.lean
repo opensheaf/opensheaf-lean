@@ -268,23 +268,25 @@ theorem le_docCount {l : List (Version D)} {v : Version D} (h : v ∈ l) :
 def headStatus (l : List (Version D)) : Status :=
   (l.getLast?.map (·.status)).getD .active
 
-/-- `x` does not make a withdrawn object active again. -/
-def NoReinstatement (l : List (Version D)) (x : Version D) : Prop :=
-  headStatus l = .withdrawn → x.status = .withdrawn
+/-- The status of `x` follows section 13.1: a new document version is active,
+and any other version of a withdrawn object stays withdrawn. -/
+def StatusStep (l : List (Version D)) (x : Version D) : Prop :=
+  (docCount l < x.documentVersion → x.status = .active) ∧
+    (x.documentVersion ≤ docCount l → headStatus l = .withdrawn → x.status = .withdrawn)
 
-instance (l : List (Version D)) (x : Version D) : Decidable (NoReinstatement l x) := by
-  unfold NoReinstatement; infer_instance
+instance (l : List (Version D)) (x : Version D) : Decidable (StatusStep l x) := by
+  unfold StatusStep; infer_instance
 
-/-- No version of the history makes a withdrawn object active again. -/
+/-- Every version of the history changes the status only as section 13.1 says. -/
 def StatusOk (l : List (Version D)) : Prop :=
-  ∀ i (h : i < l.length), NoReinstatement (l.take i) l[i]
+  ∀ i (h : i < l.length), StatusStep (l.take i) l[i]
 
 instance (l : List (Version D)) : Decidable (StatusOk l) := by
   unfold StatusOk; infer_instance
 
 omit [DecidableEq D] in
 theorem StatusOk.snoc {l : List (Version D)} {x : Version D} (h : StatusOk l)
-    (hx : NoReinstatement l x) : StatusOk (l ++ [x]) := by
+    (hx : StatusStep l x) : StatusOk (l ++ [x]) := by
   intro i hi
   simp only [List.length_append, List.length_singleton] at hi
   by_cases hlt : i < l.length
@@ -295,12 +297,15 @@ theorem StatusOk.snoc {l : List (Version D)} {x : Version D} (h : StatusOk l)
     simpa using hx
 
 omit [DecidableEq D] in
-theorem StatusOk.single (x : Version D) : StatusOk [x] := by
+theorem StatusOk.single (x : Version D) (hx : 0 < x.documentVersion → x.status = .active) :
+    StatusOk [x] := by
   intro i hi
   simp only [List.length_singleton] at hi
   have : i = 0 := by omega
   subst this
-  simp [NoReinstatement, headStatus]
+  simp only [List.take_zero, List.getElem_singleton, StatusStep, docCount, headStatus,
+    List.getLast?_nil, Option.map_none, Option.getD_none]
+  exact ⟨hx, fun _ h => by cases h⟩
 
 /-- The branch point of the head of a history, if any. -/
 def headParent (l : List (Version D)) : Option (Parent D) := l.getLast?.bind (·.parent)
@@ -320,13 +325,14 @@ def Version.describe (l : List (Version D)) (v : Version D)
 def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
   { last with status := .withdrawn, depositor, message }
 
-/-- A new document version of the history `l`: new content, with the status,
-the branch point and the references of the head. -/
+/-- A new document version of the history `l`: new content, active (it
+reinstates a withdrawn line, section 13.1), with the branch point and the
+references of the head. -/
 def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
     (members : Option (Members D)) (description depositor message : String) :
     Version D :=
   { documentVersion := docCount l + 1, files, members, description, refs := headRefs l,
-    parent := headParent l, status := headStatus l, depositor, message }
+    parent := headParent l, status := .active, depositor, message }
 
 theorem sameContent_self (v : Version D) : sameContent v v = true := by
   simp [sameContent_iff]
@@ -347,17 +353,20 @@ theorem revise_extends (l : List (Version D)) (fs : List (LogicalPath × D))
   Or.inr ⟨hnew, rfl⟩
 
 omit [DecidableEq D] in
-theorem describe_noReinstatement (l : List (Version D)) (v : Version D) (d a m : String) :
-    NoReinstatement l (Version.describe l v d a m) := fun h => h
+theorem describe_statusStep {l : List (Version D)} {v : Version D} (hv : v ∈ l) (d a m : String) :
+    StatusStep l (Version.describe l v d a m) :=
+  ⟨fun h => absurd (le_docCount hv) (by simp only [Version.describe] at h; omega), fun _ h => h⟩
 
 omit [DecidableEq D] in
-theorem withdraw_noReinstatement (l : List (Version D)) (v : Version D) (a m : String) :
-    NoReinstatement l (v.withdraw a m) := fun _ => rfl
+theorem withdraw_statusStep {l : List (Version D)} {v : Version D} (hv : v ∈ l) (a m : String) :
+    StatusStep l (v.withdraw a m) :=
+  ⟨fun h => absurd (le_docCount hv) (by simp only [Version.withdraw] at h; omega), fun _ _ => rfl⟩
 
 omit [DecidableEq D] in
-theorem revise_noReinstatement (l : List (Version D)) (fs : List (LogicalPath × D))
+theorem revise_statusStep (l : List (Version D)) (fs : List (LogicalPath × D))
     (ms : Option (Members D)) (d a m : String) :
-    NoReinstatement l (Version.revise l fs ms d a m) := fun h => h
+    StatusStep l (Version.revise l fs ms d a m) :=
+  ⟨fun _ => rfl, fun h => by simp only [Version.revise] at h; omega⟩
 
 omit [DecidableEq D] in
 /-- A description-only version keeps the document version and the content. -/

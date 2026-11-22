@@ -432,38 +432,43 @@ The status belongs to the line, read "from its latest signed version
 (section 7.3), whatever document version that holds" (section 13.1): a
 description of an earlier document version of a withdrawn line does not
 make it active again. The model reads it from the last version of a
-history; [chapter 5](38-lines.md) says when that version is signed. Whether
-a withdrawal can be undone at all, and whether a withdrawn line takes new
-document versions, are
-[issue #25](https://github.com/opensheaf/opensheaf.github.io/issues/25) of
-the specification, still open. **The model makes a choice**: it cannot. A
-new version has the status of the head, or `withdrawn`.
+history; [chapter 5](38-lines.md) says when that version is signed.
+Section 13.1 says when the status changes, as decided in
+[issue #25](https://github.com/opensheaf/opensheaf.github.io/issues/25): a
+withdrawal is a description-only version, so "a new document version is
+never itself a withdrawal"; the description-only versions after a
+withdrawal keep it; and "a new document version reinstates the line". A
+version with the next number is active; any other version of a withdrawn
+line is withdrawn. The model keeps the status only, not the date and
+reason of a withdrawal.
 
     /-- The status of the object: that of the head, `active` before any version. -/
     def headStatus (l : List (Version D)) : Status :=
       (l.getLast?.map (·.status)).getD .active
 
-    /-- `x` does not make a withdrawn object active again. -/
-    def NoReinstatement (l : List (Version D)) (x : Version D) : Prop :=
-      headStatus l = .withdrawn → x.status = .withdrawn
+    /-- The status of `x` follows section 13.1: a new document version is active,
+    and any other version of a withdrawn object stays withdrawn. -/
+    def StatusStep (l : List (Version D)) (x : Version D) : Prop :=
+      (docCount l < x.documentVersion → x.status = .active) ∧
+        (x.documentVersion ≤ docCount l → headStatus l = .withdrawn → x.status = .withdrawn)
 
-    instance (l : List (Version D)) (x : Version D) : Decidable (NoReinstatement l x) := by
-      unfold NoReinstatement; infer_instance
+    instance (l : List (Version D)) (x : Version D) : Decidable (StatusStep l x) := by
+      unfold StatusStep; infer_instance
 
-A history keeps the rule when no version of it reinstates the versions
-before it. A history created at once (imported, or copied) is checked as a
+A history keeps the rule when each of its versions keeps it against the
+versions before it. A history created at once (imported, or copied) is checked as a
 whole, and appending a version that keeps the rule keeps it.
 
-    /-- No version of the history makes a withdrawn object active again. -/
+    /-- Every version of the history changes the status only as section 13.1 says. -/
     def StatusOk (l : List (Version D)) : Prop :=
-      ∀ i (h : i < l.length), NoReinstatement (l.take i) l[i]
+      ∀ i (h : i < l.length), StatusStep (l.take i) l[i]
 
     instance (l : List (Version D)) : Decidable (StatusOk l) := by
       unfold StatusOk; infer_instance
 
     omit [DecidableEq D] in
     theorem StatusOk.snoc {l : List (Version D)} {x : Version D} (h : StatusOk l)
-        (hx : NoReinstatement l x) : StatusOk (l ++ [x]) := by
+        (hx : StatusStep l x) : StatusOk (l ++ [x]) := by
       intro i hi
       simp only [List.length_append, List.length_singleton] at hi
       by_cases hlt : i < l.length
@@ -474,12 +479,15 @@ whole, and appending a version that keeps the rule keeps it.
         simpa using hx
 
     omit [DecidableEq D] in
-    theorem StatusOk.single (x : Version D) : StatusOk [x] := by
+    theorem StatusOk.single (x : Version D) (hx : 0 < x.documentVersion → x.status = .active) :
+        StatusOk [x] := by
       intro i hi
       simp only [List.length_singleton] at hi
       have : i = 0 := by omega
       subst this
-      simp [NoReinstatement, headStatus]
+      simp only [List.take_zero, List.getElem_singleton, StatusStep, docCount, headStatus,
+        List.getLast?_nil, Option.map_none, Option.getD_none]
+      exact ⟨hx, fun _ h => by cases h⟩
 
 ## The three kinds of new version
 
@@ -516,28 +524,31 @@ is written with the references it wants (as in [chapter
                description := description, depositor := depositor, message := message }
 
 `Version.withdraw` builds a withdrawal as section 13.1 defines it, a
-description-only version. The rules do not require it: a version with new
-content may also come with status `withdrawn`, which section 13.1 does not
-foresee. The model leaves this open, with issue #25.
+description-only version; a new document version with status `withdrawn`
+is excluded by section 13.1, and by `StatusStep` above.
 
     /-- A withdrawal (section 13.1): the same content, with status `withdrawn`. -/
     def Version.withdraw (last : Version D) (depositor message : String) : Version D :=
       { last with status := .withdrawn, depositor, message }
 
-    /-- A new document version of the history `l`: new content, with the status,
-    the branch point and the references of the head. -/
+    /-- A new document version of the history `l`: new content, active (it
+    reinstates a withdrawn line, section 13.1), with the branch point and the
+    references of the head. -/
     def Version.revise (l : List (Version D)) (files : List (LogicalPath × D))
         (members : Option (Members D)) (description depositor message : String) :
         Version D :=
       { documentVersion := docCount l + 1, files, members, description, refs := headRefs l,
-        parent := headParent l, status := headStatus l, depositor, message }
+        parent := headParent l, status := .active, depositor, message }
 
 Each extends the history it is added to: a description or a withdrawal of
 any version of the history, since it holds that version's content; a
 revision, if its content differs from that of the current version.
 Depositing the content of the current version again as a revision is no
 new document version, and is excluded by the hypothesis `hnew`; the
-content of an earlier version is a revert, and allowed. None of them makes a withdrawn object active.
+content of an earlier version is a revert, and allowed. Each keeps the
+rule of section 13.1 on the status: a description or a withdrawal of a
+version of the history keeps a withdrawn object withdrawn, and a revision
+is active, and so reinstates it.
 
     theorem sameContent_self (v : Version D) : sameContent v v = true := by
       simp [sameContent_iff]
@@ -558,17 +569,20 @@ content of an earlier version is a revert, and allowed. None of them makes a wit
       Or.inr ⟨hnew, rfl⟩
 
     omit [DecidableEq D] in
-    theorem describe_noReinstatement (l : List (Version D)) (v : Version D) (d a m : String) :
-        NoReinstatement l (Version.describe l v d a m) := fun h => h
+    theorem describe_statusStep {l : List (Version D)} {v : Version D} (hv : v ∈ l) (d a m : String) :
+        StatusStep l (Version.describe l v d a m) :=
+      ⟨fun h => absurd (le_docCount hv) (by simp only [Version.describe] at h; omega), fun _ h => h⟩
 
     omit [DecidableEq D] in
-    theorem withdraw_noReinstatement (l : List (Version D)) (v : Version D) (a m : String) :
-        NoReinstatement l (v.withdraw a m) := fun _ => rfl
+    theorem withdraw_statusStep {l : List (Version D)} {v : Version D} (hv : v ∈ l) (a m : String) :
+        StatusStep l (v.withdraw a m) :=
+      ⟨fun h => absurd (le_docCount hv) (by simp only [Version.withdraw] at h; omega), fun _ _ => rfl⟩
 
     omit [DecidableEq D] in
-    theorem revise_noReinstatement (l : List (Version D)) (fs : List (LogicalPath × D))
+    theorem revise_statusStep (l : List (Version D)) (fs : List (LogicalPath × D))
         (ms : Option (Members D)) (d a m : String) :
-        NoReinstatement l (Version.revise l fs ms d a m) := fun h => h
+        StatusStep l (Version.revise l fs ms d a m) :=
+      ⟨fun _ => rfl, fun h => by simp only [Version.revise] at h; omega⟩
 
 Finally, the statement of section 4.2 itself: a description-only version
 keeps the document version and the content of the version it describes.

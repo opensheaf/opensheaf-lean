@@ -174,8 +174,7 @@ web servers. The model keeps only what the properties depend on.
   check which algorithm a branch takes after a clash (section 5.3), nor
   the rule on reused genesis records (section 5.4).
 - **Choices on open questions.** Where the specification leaves a question
-  open, the model makes a choice and says so: withdrawals that cannot be
-  undone (issue #25); pins that must be found when they are made (or report
+  open, the model makes a choice and says so: pins that must be found when they are made (or report
   `removed`, if carried over from a version already held); copies that may
   stop at any version (issue #39); branches that number their document
   versions from 1, the parent's number kept in `parent.documentVersion`

@@ -537,7 +537,7 @@ before it.
     /-- The version `x` added to the object `o` of an originator's line, as
     computation checks it. -/
     def NextVersion (o : Obj Nat) (x : Version Nat) : Prop :=
-      Extends o.versions x ∧ NoReinstatement o.versions x ∧
+      Extends o.versions x ∧ StatusStep o.versions x ∧
         (x.members.isSome = true ↔ o.kind = .collection) ∧ x.membersOk ∧ x.parent = none ∧
         (∀ v ∈ o.versions, v.parent = none) ∧ o.kind ≠ .owner
 
@@ -567,7 +567,7 @@ valid; its versions hold no pins and no branch point.
       subst hg
       refine .create _ _ _ _ _ ha hfree ⟨rfl, by simp [keyLog], fun h => (h rfl).elim,
         by simp [keyLog, firstKeyVersion], by simp [keyLog, firstKeyVersion, Version.membersOk],
-        StatusOk.single _, rfl⟩
+        StatusOk.single _ (fun _ => rfl), rfl⟩
         (no_pins (by simp [keyLog, firstKeyVersion, Version.pins, Version.memberPins, Version.parentPins]))
         (fun _ => branch_none (by simp [keyLog, firstKeyVersion]))
         (fun _ => by simp [HeadFollows, keyLog, firstKeyVersion, Version.FollowsHeads])
@@ -576,7 +576,7 @@ valid; its versions hold no pins and no branch point.
     theorem append_keyLog {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
         {X : OwnerName} {o : Obj Nat} {x : Version Nat} {ss : List (Sig Nat)} (ha : w a = some ar)
         (ho : ar.entries (logLine X) = some (.live o))
-        (h : KeyLogOk F X (o.append x ss) ∧ NoReinstatement o.versions x ∧ x.members = none ∧
+        (h : KeyLogOk F X (o.append x ss) ∧ StatusStep o.versions x ∧ x.members = none ∧
           x.pins = [] ∧ x.parent = none ∧ (∀ v ∈ o.versions, v.parent = none) ∧
           ∀ s ∈ ss, SigOk F w a (o.append x ss) s) :
         ValidStep F w (setEntry w a (logLine X) (.live (o.append x ss))) := by
@@ -1026,18 +1026,29 @@ digest. The pin does not resolve, so no valid step can write it.
 
 **The author withdraws the paper, then describes version 1 again as
 active.** The description takes the status of the head, so it stays
-withdrawn; a version marked active by hand is rejected (the model's choice
-on issue #25).
+withdrawn; a version marked active by hand, without a new number, is
+rejected (section 13.1). A new document version reinstates the paper, and
+version 1 stays withdrawn.
 
     def wd : Version Nat := v3.withdraw "author" "retracted"
 
     example : (Version.describe (paper3.versions ++ [wd]) v1 "On sheaves" "author" "again").status =
         .withdrawn := by decide
 
-    example : ¬ NoReinstatement (paper3.versions ++ [wd]) { v1 with message := "back" } := by
+    example : ¬ StatusStep (paper3.versions ++ [wd]) { v1 with message := "back" } := by
       decide
 
     example : ¬ StatusOk (paper3.versions ++ [wd, { v1 with message := "back" }]) := by decide
+
+    def back : Version Nat :=
+      Version.revise (paper3.versions ++ [wd]) [("paper.tm", 301), ("paper.pdf", 302)] none
+        "On sheaves of documents" "author" "corrected"
+
+    example : back.status = .active ∧ StatusStep (paper3.versions ++ [wd]) back :=
+      ⟨rfl, revise_statusStep _ _ _ _ _ _⟩
+
+    example : DocWithdrawn (paper3.versions ++ [wd, back]) 1 :=
+      ⟨0, 3, by decide, by decide, by decide, by decide⟩
 
 **The accepted copy poses as the paper.** Its first version holds the
 paper's files, but its inventory names another line, so it does not
@@ -1214,14 +1225,14 @@ no sequence of steps reaches the rewritten world (`history_not_rewritten`).
     example : ¬ Steps w19 wTamper := fun hs =>
       history_not_rewritten hs author_w19 rfl (by decide)
 
-A withdrawal, once made, stays: no valid steps undo it
-(`ValidSteps.withdrawn_stays`, the choice on #25); the examples of
-reinstatement above are the steps that would have to.
+A withdrawn document version stays withdrawn, whatever steps follow, also
+when the paper is reinstated (`Steps.docWithdrawn_stays`, section 13.1).
 
-    example {w' : World Nat} (h : HeadWithdrawn (setEntry w19 "author" (.line paperLine)
-          (.live (paper3.append wd))) "author" (.line paperLine))
-        (hs : ValidSteps E (setEntry w19 "author" (.line paperLine) (.live (paper3.append wd))) w') :
-        HeadWithdrawn w' "author" (.line paperLine) :=
-      ValidSteps.withdrawn_stays E hs h
+    example {w' : World Nat}
+        (h : DocWithdrawnAt (setEntry w19 "author" (.line paperLine) (.live (paper3.append wd)))
+          "author" (.line paperLine) 1)
+        (hs : Steps (setEntry w19 "author" (.line paperLine) (.live (paper3.append wd))) w') :
+        DocWithdrawnAt w' "author" (.line paperLine) 1 :=
+      Steps.docWithdrawn_stays hs h
 
     end OpenSheaf.Story
