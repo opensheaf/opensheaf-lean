@@ -71,16 +71,12 @@ tombstones stay.
 The history of a key log has no document versions (section 4.1): its
 versions are checked by [chapter 4](35-owners.md) instead. A branch numbers
 its document versions from 1, like any line, and keeps the branch point's
-own number in `parent.documentVersion`. This is a **modelling choice** on
-[issue #57](https://github.com/opensheaf/opensheaf.github.io/issues/57),
-and departs from section 9.4 twice: "the first version of a branch holds
-the document version of its branch point", a rule not marked provisional,
-where the model gives it number 1; and later versions provisionally
-continue from that number, where the model continues from 1. The
-alternative the issue names, numbering from the branch point ("3.1,
-3.2"), keeps the parent's number in front, which the model has only in
-`parent.documentVersion`. The choice keeps the counting of chapter 2, and
-its theorems, the same for every line.
+own number in `parent.documentVersion`, as section 9.4 says since
+[issue #57](https://github.com/opensheaf/opensheaf.github.io/issues/57)
+was decided ("a branch numbers its own document versions, from 1 without
+gaps, as every line does"); the model had made this choice before. It
+keeps the counting of chapter 2, and its theorems, the same for every
+line.
 
     /-- A well-formed object stored under `oid` (sections 4, 4.2, 8.2 and 10.1). -/
     structure Obj.WF (o : Obj D) (oid : ObjectId) : Prop where
@@ -230,8 +226,10 @@ above.
 
 A branch holds its branch point, and "the first object version of a branch
 holds exactly the files of the parent version" (section 9.2), as does every
-version that moves the branch point (section 9.4). A branch point moves
-only to "a later version of the same parent line ...: with the same `owner`
+version that takes a new branch point (section 9.4), which in the
+specification also keeps the files of the branch's own notices; the model
+has no notices, and every file counts. A new branch point is only "a
+later version of the same parent line ...: with the same `owner`
 and `name`, a higher object version, and a document version later than the
 previous branch point's" ("a parent version holding the same document
 version (a DOI added) is not a new branch point"), and the new parent
@@ -442,7 +440,7 @@ A valid step is a step with the checks of the specification:
   withdrawn, [chapter 2](20-object.md)); has a member list
   exactly if the object is a collection, and then a well-formed one; pins
   only versions that are found, or report `removed` and are carried over;
-  keeps or moves its branch point as section 9.4 says; and leaves the
+  keeps its branch point or takes a new one as section 9.4 says; and leaves the
   object authorised;
 - in a new document version that an owner makes of its catalogue (not a
   copy, nor a description-only version), every member with `follow` pins

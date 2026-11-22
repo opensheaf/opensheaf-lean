@@ -540,8 +540,8 @@ genesis record of the work, whose first version holds the files of the
 revision, records the revision's pin as its branch point, with the parent
 owner's signatures as evidence (section 9.2), and is signed by the curator.
 Its description, depositor and message are the curator's, given as
-parameters; its document version is 1 (the choice of [chapter
-7](45-worlds.md) on issue #57).
+parameters; its document version is 1 (section 9.4, as [chapter
+7](45-worlds.md) says).
 
 It also keeps the references of the revision. This is a **modelling
 choice** on issue #28: section 9.7 asks a branch to keep "the relations of

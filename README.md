@@ -92,7 +92,8 @@ on which the model makes a choice are marked in their chapters.
   (section 11.2);
 - the evidence of a branch point (`parent.inventory.json`,
   `parent.object.json`, `parent.chain/`) and the check of section 9.3
-  without the parent; moving a branch point with files of its own (#57);
+  without the parent; the files of a branch's own notices at a new branch
+  point (section 9.4), since the model has no notices;
 - the clashes of section 5.3, reused genesis records (section 5.4), and
   returns of a line taken down (section 13.2);
 - pins form no cycles also with takedowns among the events, when a line
