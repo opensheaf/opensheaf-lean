@@ -320,17 +320,18 @@ holding it.
 ## A check made piece by piece
 
 The second half of the rule of section 4.2 is a local condition: below a
-named document version, no earlier document version of the same object has
-the same content. It looks only at the history below a point, so it can be
+named document version, the document version just before it, of the same
+object, has other content (a revert may return to the content of an older
+one, section 4.2). It looks only at the history below a point, so it can be
 checked one object version at a time. Each object version satisfies it,
 since its history is well formed. The glued section satisfies it, by the
 theorem on local conditions of the first chapter. So the condition holds of
 the world as a whole, whichever copies the values are read from.
 
-    /-- A new number is new content: below a point, no earlier document version of
-    the same object has the same content. -/
+    /-- A new number is new content: below a point, the document version just
+    before it, of the same object, has other content. -/
     def NewContent : LocalCond deposit (Content D) :=
-      fun x f => ∀ y (hy : deposit.le y x), y.doc ≠ x.doc → f y hy ≠ f x (deposit.refl x)
+      fun x f => ∀ y (hy : deposit.le y x), x.doc = y.doc + 1 → f y hy ≠ f x (deposit.refl x)
 
     /-- Each object version satisfies it (section 4.2). -/
     theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
@@ -341,8 +342,9 @@ the world as a whole, whichever copies the values are read from.
       obtain ⟨u, hu, rfl⟩ := (covers_iff hwf n y).mp hyx
       have heq' : objSec o n (o.name u) hyx = objSec o n (o.name v) hx := heq
       rw [objSec_piece hwf hu, objSec_piece hwf hv] at heq'
-      exact hne (one_content_one_number hwf (List.mem_of_mem_take hu)
-        (List.mem_of_mem_take hv) (content_eq_iff.mp heq'))
+      have hc := next_number_new_content hwf (List.mem_of_mem_take hu) (List.mem_of_mem_take hv) hne
+      rw [content_eq_iff.mp heq'] at hc
+      cases hc
 
     /-- **So does the glued section**, which takes its values from many copies. -/
     theorem world_newContent {w : World D}

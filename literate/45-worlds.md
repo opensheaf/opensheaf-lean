@@ -358,8 +358,9 @@ does not hold a pin by walking back through the steps that built it
       exact hb
 
 The check on followed members: "a followed member pins the latest signed
-version of its line ... when the collection version was made" (section
-8.3).
+version of its line ... when the document version of the collection that
+holds it was made; a description-only version of the collection keeps the
+member list of the document version it holds" (section 8.3).
 A tool "follows only a signed version that extends the version pinned; a
 copy that does not is a fork of the line (section 7.4), which it reports,
 keeping the pin". The model's tool takes the head of the first copy found
@@ -370,13 +371,16 @@ or a stale copy). A member whose line has no head at its hints keeps its
 pin, as `collect` does. The model does not ask the head to be uncontested:
 a head that has become contested since it was added (section 7.3) is
 followed, where section 8.3 says not to; telling it needs the key log of
-the archive holding the head, which the check does not consult. The check applies to every version an
-owner makes of its catalogue, not to copies, which copy versions made
-earlier. So once a followed member has moved, the catalogue can get no
-description-only version, nor a withdrawal: the new version would have to
-pin the new head, which changes its member list, its content. The
-specification has the same tension, raised as
-[issue #45](https://github.com/opensheaf/opensheaf.github.io/issues/45).
+the archive holding the head, which the check does not consult. The check
+applies to the new document versions an owner makes of its catalogue, not
+to its description-only versions, nor to copies, which copy versions made
+earlier. An earlier version of the model checked every version, and so a
+catalogue whose followed member had moved could get no description-only
+version, nor a withdrawal: the new version would have had to pin the new
+head, which changes its member list, its content. The model raised this as
+[issue #45](https://github.com/opensheaf/opensheaf.github.io/issues/45),
+which the specification settled this way. For a line created whole, the
+check applies to its last version, as before.
 
     /-- The result is a version. -/
     def Resolution.isOk : Resolution D → Bool
@@ -439,8 +443,9 @@ A valid step is a step with the checks of the specification:
   only versions that are found, or report `removed` and are carried over;
   keeps or moves its branch point as section 9.4 says; and leaves the
   object authorised;
-- in a version that an owner makes of its catalogue (not a copy), every
-  member with `follow` pins the head of its line;
+- in a new document version that an owner makes of its catalogue (not a
+  copy, nor a description-only version), every member with `follow` pins
+  the head of its line;
 - new witnesses verify, and sign versions of the object.
 
 Every signature file an archive adds, with a new object, with a new
@@ -515,7 +520,8 @@ reaches it. The computed first version of a key log is never signed.
           (hpins : ∀ p ∈ x.pins, PinOk E w p)
           (hbranch : ¬ CopyOf w a (o.append x ss) →
             BranchPointOk E w (o.versions.getLast?.bind (·.parent)) x)
-          (hfollow : ¬ CopyOf w a (o.append x ss) → x.FollowsHeads E w)
+          (hfollow : ¬ CopyOf w a (o.append x ss) →
+            x.documentVersion = docCount o.versions + 1 → x.FollowsHeads E w)
           (hauth : Authorised E w a ar oid (o.append x ss))
           (hsigs : ∀ s ∈ ss, SigOk E w a (o.append x ss) s) :
           ValidStep w (setEntry w a oid (.live (o.append x ss)))

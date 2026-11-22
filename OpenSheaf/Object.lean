@@ -192,7 +192,8 @@ def docCount : List (Version D) → Nat
 /-- `x` may extend the history `l` (section 4.2). -/
 def Extends (l : List (Version D)) (x : Version D) : Prop :=
   (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
-    ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
+    ((∀ v ∈ l, v.documentVersion = docCount l → sameContent v x = false) ∧
+      x.documentVersion = docCount l + 1)
 
 instance (l : List (Version D)) (x : Version D) : Decidable (Extends l x) := by
   unfold Extends; infer_instance
@@ -340,7 +341,8 @@ theorem withdraw_extends {l : List (Version D)} {v : Version D} (hv : v ∈ l)
 
 theorem revise_extends (l : List (Version D)) (fs : List (LogicalPath × D))
     (ms : Option (Members D)) (d a m : String)
-    (hnew : ∀ v ∈ l, sameContent v (Version.revise l fs ms d a m) = false) :
+    (hnew : ∀ v ∈ l, v.documentVersion = docCount l →
+      sameContent v (Version.revise l fs ms d a m) = false) :
     Extends l (Version.revise l fs ms d a m) :=
   Or.inr ⟨hnew, rfl⟩
 

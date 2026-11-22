@@ -270,25 +270,26 @@ comes last.
 The specification distinguishes object versions, which OCFL counts, from
 document versions, which count the changes of the document's own files
 (section 4.2): "A new document version is made exactly when the document's
-own files change (a file added, changed or removed, the change note
-included) ...; an object version holding the same own files as an earlier
-document version keeps its number." A collection "makes a new document
-version exactly when its member list changes" (section 4.2). This covers a
-description-only version, which "MAY hold any document version", and a
-withdrawal.
+own files differ from those of the current version (a file added, changed,
+renamed or removed, the change note included) ... An object version that
+holds an existing document version (a description-only version, a
+completion) holds exactly its own files." A collection "is a document
+whose source is its member list" (section 4.2), so a change of its member
+list is a new document version like any other. A description-only version
+"MAY hold any document version", and a withdrawal is one.
 
-The model follows the rule: a version keeps the number of an earlier
-version whose content it holds, and any other version gets a new number.
-Content is compared as a set of files, since the order in which files are
-listed means nothing, together with the member list, whose order is
-authoritative (section 8.2). Version 0.1 of the specification left open the
-versions that only remove files or combine files of different earlier
-versions ([issue #23](https://github.com/opensheaf/opensheaf.github.io/issues/23)),
-and the model chose then what version 0.2 now says: such a version is new.
-A file renamed is new content (files are compared by path and digest), and
-a version whose content returns to an earlier version's takes the earlier
-number. Whether a verifier can decide all this from the files is still
-open (#23, section 14.6).
+The model follows the rule: a version either holds the content of an
+earlier version and keeps its number, or gets the next number, and then
+its content differs from that of the current version. Without `history`
+(below), the current version is the highest document version. Content is
+compared as a set of files, since the order in which files are listed
+means nothing, together with the member list, whose order is authoritative
+(section 8.2). A file renamed is new content, since files are compared by
+path and digest. Content that returns to that of an earlier version which
+is not the current one is a **revert** (section 4.2, decided in
+[issue #23](https://github.com/opensheaf/opensheaf.github.io/issues/23)):
+a new document version with the next number. So a number has one content,
+but a content may have several numbers.
 
 The model does not tell the document's own files (sources, renditions,
 change note) from the files of notes, which section 4.2 counts as files of
@@ -329,13 +330,15 @@ yet.
       | v :: l => max v.documentVersion (docCount l)
 
 A new object version `x` may extend a history `l` in two ways: it holds the
-content of an earlier version, and has its document version; or its content
-is new, and its document version is the next number.
+content of an earlier version, and has its document version; or its
+document version is the next number, and its content differs from that of
+the current version, the versions holding the highest number.
 
     /-- `x` may extend the history `l` (section 4.2). -/
     def Extends (l : List (Version D)) (x : Version D) : Prop :=
       (∃ v ∈ l, sameContent v x = true ∧ x.documentVersion = v.documentVersion) ∨
-        ((∀ v ∈ l, sameContent v x = false) ∧ x.documentVersion = docCount l + 1)
+        ((∀ v ∈ l, v.documentVersion = docCount l → sameContent v x = false) ∧
+          x.documentVersion = docCount l + 1)
 
     instance (l : List (Version D)) (x : Version D) : Decidable (Extends l x) := by
       unfold Extends; infer_instance
@@ -531,9 +534,10 @@ foresee. The model leaves this open, with issue #25.
 
 Each extends the history it is added to: a description or a withdrawal of
 any version of the history, since it holds that version's content; a
-revision, if its content is really new. Depositing the same content again
-as a revision would break the count, and is excluded by the hypothesis
-`hnew`. None of them makes a withdrawn object active.
+revision, if its content differs from that of the current version.
+Depositing the content of the current version again as a revision is no
+new document version, and is excluded by the hypothesis `hnew`; the
+content of an earlier version is a revert, and allowed. None of them makes a withdrawn object active.
 
     theorem sameContent_self (v : Version D) : sameContent v v = true := by
       simp [sameContent_iff]
@@ -548,7 +552,8 @@ as a revision would break the count, and is excluded by the hypothesis
 
     theorem revise_extends (l : List (Version D)) (fs : List (LogicalPath × D))
         (ms : Option (Members D)) (d a m : String)
-        (hnew : ∀ v ∈ l, sameContent v (Version.revise l fs ms d a m) = false) :
+        (hnew : ∀ v ∈ l, v.documentVersion = docCount l →
+          sameContent v (Version.revise l fs ms d a m) = false) :
         Extends l (Version.revise l fs ms d a m) :=
       Or.inr ⟨hnew, rfl⟩
 

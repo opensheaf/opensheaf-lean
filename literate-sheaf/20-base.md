@@ -116,12 +116,13 @@ model says they have the same content.
 
 ## Numbers and content
 
-The rule of section 4.2 has two directions, and the model proves both, in
-its chapter "What cannot happen": in a well-formed history, object versions
-with the same document version have the same content
-(`one_number_one_content`), and object versions with the same content have
-the same document version (`one_content_one_number`). Within one history,
-numbers and contents correspond one to one. The model also proves that the
+The model proves the rule of section 4.2 in its chapter "What cannot
+happen": in a well-formed history, object versions with the same document
+version have the same content (`one_number_one_content`), and document
+versions with consecutive numbers have different content
+(`next_number_new_content`). The converse of the first does not hold: a
+revert gives the content of an earlier version a new number (section 4.2),
+so a content may have several numbers. The model also proves that the
 numbers start at 1 and have no gaps (`doc_pos`, `no_gaps`), and that a
 prefix of a well-formed history is well formed (`WellFormed.prefix`). The
 next chapters use these facts.

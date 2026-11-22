@@ -272,7 +272,8 @@ inductive ValidStep : World D → World D → Prop
       (hpins : ∀ p ∈ x.pins, PinOk E w p)
       (hbranch : ¬ CopyOf w a (o.append x ss) →
         BranchPointOk E w (o.versions.getLast?.bind (·.parent)) x)
-      (hfollow : ¬ CopyOf w a (o.append x ss) → x.FollowsHeads E w)
+      (hfollow : ¬ CopyOf w a (o.append x ss) →
+        x.documentVersion = docCount o.versions + 1 → x.FollowsHeads E w)
       (hauth : Authorised E w a ar oid (o.append x ss))
       (hsigs : ∀ s ∈ ss, SigOk E w a (o.append x ss) s) :
       ValidStep w (setEntry w a oid (.live (o.append x ss)))

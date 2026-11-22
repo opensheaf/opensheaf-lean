@@ -196,10 +196,10 @@ theorem glue_value {w : World D} (hw : SoundWorld E w) {g : Sec (HeldIn w) (Cont
   have := congrFun (congrFun (hg ⟨b, l, c, hl, hk, c.versions.length⟩) (c.name v)) hc
   exact this.trans (objSec_piece hwf (by rw [List.take_length]; exact hv) hc)
 
-/-- A new number is new content: below a point, no earlier document version of
-the same object has the same content. -/
+/-- A new number is new content: below a point, the document version just
+before it, of the same object, has other content. -/
 def NewContent : LocalCond deposit (Content D) :=
-  fun x f => ∀ y (hy : deposit.le y x), y.doc ≠ x.doc → f y hy ≠ f x (deposit.refl x)
+  fun x f => ∀ y (hy : deposit.le y x), x.doc = y.doc + 1 → f y hy ≠ f x (deposit.refl x)
 
 /-- Each object version satisfies it (section 4.2). -/
 theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
@@ -210,8 +210,9 @@ theorem objSec_newContent {o : Obj D} (hwf : WellFormed o.versions) (n : Nat) :
   obtain ⟨u, hu, rfl⟩ := (covers_iff hwf n y).mp hyx
   have heq' : objSec o n (o.name u) hyx = objSec o n (o.name v) hx := heq
   rw [objSec_piece hwf hu, objSec_piece hwf hv] at heq'
-  exact hne (one_content_one_number hwf (List.mem_of_mem_take hu)
-    (List.mem_of_mem_take hv) (content_eq_iff.mp heq'))
+  have hc := next_number_new_content hwf (List.mem_of_mem_take hu) (List.mem_of_mem_take hv) hne
+  rw [content_eq_iff.mp heq'] at hc
+  cases hc
 
 /-- **So does the glued section**, which takes its values from many copies. -/
 theorem world_newContent {w : World D}

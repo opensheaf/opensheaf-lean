@@ -397,7 +397,7 @@ theorem append_keyLog {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archiv
   have hk : o.kind = .owner := hp.kind
   exact .append _ _ _ _ _ _ _ ha ho (fun h => (h hk).elim) hst (by simp [hm, hk])
     (by simp [Version.membersOk, hm]) (by simp [hpins])
-    (fun _ => branch_none_append hpar hx) (fun _ => by simp [Version.FollowsHeads, hm])
+    (fun _ => branch_none_append hpar hx) (fun _ _ => by simp [Version.FollowsHeads, hm])
     ⟨identity_owner hp.genesis (hp.gkind.trans hk.symm) hk rfl hkl, fun h => (h hk).elim⟩ hsigs
 
 theorem create_hosted {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archive Nat}
@@ -424,7 +424,7 @@ theorem append_hosted {F : Env Nat} {w : World Nat} {a : ArchiveId} {ar : Archiv
   have hpar' : ∀ v ∈ (o.append x ss).versions, v.parent = none := by
     simpa [Obj.append, or_imp, forall_and] using ⟨hpar, hx⟩
   exact .append _ _ _ _ _ _ _ ha ho (fun _ => hext) hst hk hm (hpins x (List.mem_singleton_self _))
-    (fun _ => branch_none_append hpar hx) (fun _ => hf)
+    (fun _ => branch_none_append hpar hx) (fun _ _ => hf)
     ⟨Origin.identity (o := o.append x ss) hor hko hpar', fun _ => lineOk_host hkl hv hfr hs hin he⟩
     hsigs
 

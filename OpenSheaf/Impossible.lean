@@ -100,25 +100,34 @@ theorem sameContent_trans {v u t : Version D} (h1 : sameContent v u = true)
   rw [sameContent_iff] at *
   exact ⟨fun f => (h1.1 f).trans (h2.1 f), h1.2.trans h2.2⟩
 
-/-- **One content, one document version.** -/
-theorem one_content_one_number {l : List (Version D)} (h : WellFormed l)
-    {v u : Version D} (hv : v ∈ l) (hu : u ∈ l) (heq : sameContent v u = true) :
-    v.documentVersion = u.documentVersion := by
+/-- **Consecutive document versions differ.** -/
+theorem next_number_new_content {l : List (Version D)} (h : WellFormed l)
+    {v u : Version D} (hv : v ∈ l) (hu : u ∈ l)
+    (hn : u.documentVersion = v.documentVersion + 1) : sameContent v u = false := by
   induction l using snoc_induction generalizing v u with
   | nil => cases hv
   | snoc l x ih =>
     obtain ⟨hwf, hx⟩ := h.init
-    have key : ∀ y ∈ l, sameContent y x = true → y.documentVersion = x.documentVersion := by
-      intro y hy hyx
-      rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, _⟩
-      · exact (ih hwf hy hz (sameContent_trans hyx (sameContent_symm hzx))).trans hxz.symm
-      · rw [hnew y hy] at hyx; cases hyx
     simp only [List.mem_append, List.mem_singleton] at hv hu
-    rcases hv with hv | rfl <;> rcases hu with hu | rfl
-    · exact ih hwf hv hu heq
-    · exact key v hv heq
-    · exact (key u hu (sameContent_symm heq)).symm
-    · rfl
+    rcases hv with hv | hv <;> rcases hu with hu | hu
+    · exact ih hwf hv hu hn
+    · rw [hu] at hn ⊢
+      rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, hxn⟩
+      · cases hc : sameContent v x
+        · rfl
+        · have h1 := ih hwf hv hz (by omega)
+          rw [sameContent_trans hc (sameContent_symm hzx)] at h1
+          cases h1
+      · exact hnew v hv (by omega)
+    · rw [hv] at hn ⊢
+      rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hxn⟩
+      · cases hc : sameContent x u
+        · rfl
+        · have h1 := ih hwf hz hu (by omega)
+          rw [sameContent_trans hzx hc] at h1
+          cases h1
+      · have := le_docCount hu; omega
+    · rw [hv, hu] at hn; omega
 
 /-- **Document versions have no gaps.** -/
 theorem no_gaps {l : List (Version D)} (h : WellFormed l) {k : Nat} (hk1 : 1 ≤ k)

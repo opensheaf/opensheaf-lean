@@ -12,7 +12,7 @@ those about keys.
 | A pin changes its meaning | immutability: once a pin resolves to a version at an archive, no step changes that version; and through its hints, as long as the owner signs one history |
 | An archive rewrites the history of a copy | no sequence of steps can; outside the protocol, every pin of a rewritten version stops resolving there (unless the inventories collide) |
 | An identifier taken down names another object | tombstones stay |
-| One document version number for two contents, two numbers for one content, or a gap in the numbering | the counting rule of section 4.2 |
+| One document version number for two contents, a new number for the content of the version before it, or a gap in the numbering | the counting rule of section 4.2 (a revert to an earlier content is a new number, and allowed) |
 | Pins form a cycle (a version pins itself, or two collections pin each other) | valid steps pin only versions that exist already, and copies of a line agree |
 | A pin names a key log | valid steps check it, and it stays so |
 | A withdrawn line becomes active again | valid steps forbid it (the model's choice on issue #25) |
@@ -129,8 +129,7 @@ from the end, with `snoc_induction` and `WellFormed.init` of chapter 2.
 
 One number, one content: two versions of a well-formed history with the
 same document version have the same content. The last version either holds
-earlier content, and takes its number, or new content, and a number above
-all the others.
+earlier content, and takes its number, or a number above all the others.
 
     /-- **One document version, one content.** -/
     theorem one_number_one_content {l : List (Version D)} (h : WellFormed l)
@@ -156,10 +155,14 @@ all the others.
           exact ⟨fun f => (this.1 f).symm, this.2.symm⟩
         · exact sameContent_self _
 
-The converse holds too. Two versions with the same content hold the same
-number: a new number is given only to content not deposited before, and
-earlier content takes the number it already had. So within one history,
-numbers and contents correspond one to one.
+The converse does not hold: a revert (section 4.2) gives the content of an
+earlier version a new number, so a content may have several numbers. What
+holds is that a new number is new content as against the version before it:
+two document versions with consecutive numbers have different content. The
+version holding the higher number was, when it was made, either a new
+document version, whose content differs from that of the current version,
+which held the number below; or it holds the content of an earlier version
+with that number, and the induction applies to that one.
 
     theorem sameContent_symm {v u : Version D} (h : sameContent v u = true) :
         sameContent u v = true := by
@@ -171,25 +174,34 @@ numbers and contents correspond one to one.
       rw [sameContent_iff] at *
       exact ⟨fun f => (h1.1 f).trans (h2.1 f), h1.2.trans h2.2⟩
 
-    /-- **One content, one document version.** -/
-    theorem one_content_one_number {l : List (Version D)} (h : WellFormed l)
-        {v u : Version D} (hv : v ∈ l) (hu : u ∈ l) (heq : sameContent v u = true) :
-        v.documentVersion = u.documentVersion := by
+    /-- **Consecutive document versions differ.** -/
+    theorem next_number_new_content {l : List (Version D)} (h : WellFormed l)
+        {v u : Version D} (hv : v ∈ l) (hu : u ∈ l)
+        (hn : u.documentVersion = v.documentVersion + 1) : sameContent v u = false := by
       induction l using snoc_induction generalizing v u with
       | nil => cases hv
       | snoc l x ih =>
         obtain ⟨hwf, hx⟩ := h.init
-        have key : ∀ y ∈ l, sameContent y x = true → y.documentVersion = x.documentVersion := by
-          intro y hy hyx
-          rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, _⟩
-          · exact (ih hwf hy hz (sameContent_trans hyx (sameContent_symm hzx))).trans hxz.symm
-          · rw [hnew y hy] at hyx; cases hyx
         simp only [List.mem_append, List.mem_singleton] at hv hu
-        rcases hv with hv | rfl <;> rcases hu with hu | rfl
-        · exact ih hwf hv hu heq
-        · exact key v hv heq
-        · exact (key u hu (sameContent_symm heq)).symm
-        · rfl
+        rcases hv with hv | hv <;> rcases hu with hu | hu
+        · exact ih hwf hv hu hn
+        · rw [hu] at hn ⊢
+          rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨hnew, hxn⟩
+          · cases hc : sameContent v x
+            · rfl
+            · have h1 := ih hwf hv hz (by omega)
+              rw [sameContent_trans hc (sameContent_symm hzx)] at h1
+              cases h1
+          · exact hnew v hv (by omega)
+        · rw [hv] at hn ⊢
+          rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hxn⟩
+          · cases hc : sameContent x u
+            · rfl
+            · have h1 := ih hwf hz hu (by omega)
+              rw [sameContent_trans hzx hc] at h1
+              cases h1
+          · have := le_docCount hu; omega
+        · rw [hv, hu] at hn; omega
 
 No gaps: every number from 1 to the highest is held by some version, and
 none is below 1.

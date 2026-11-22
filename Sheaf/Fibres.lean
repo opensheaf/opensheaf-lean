@@ -78,52 +78,31 @@ theorem content_factors {w : World D} (hk : Kept E w)
   have hh : Holds w (proj G s hs) v := ⟨i.archive, i.line, i.obj, i.live, i.kind, hv, hp.symm⟩
   exact glue_value E hk.1 hg hh hx
 
-/-- **The fibres are the contents.** Two object versions held in a world go to
-the same named document version exactly when they are versions of the same
-object with the same content. -/
+/-- **The fibres lie within the contents.** Two object versions held in a world
+that go to the same named document version are versions of the same object
+with the same content. -/
 theorem proj_fibre {w : World D} (hk : Kept E w) {G : Sec (SitesIn w) (Inventory D)}
     (hG : Glues (invSections w) G) {s s' : VSite} (hs : SitesIn w s) (hs' : SitesIn w s')
     {v v' : Version D} (hv : lastV (G s hs) = some v) (hv' : lastV (G s' hs') = some v') :
-    proj G s hs = proj G s' hs' ↔ s.object = s'.object ∧ sameContent v v' = true := by
+    proj G s hs = proj G s' hs' → s.object = s'.object ∧ sameContent v v' = true := by
   obtain ⟨i, u, hu, hl, hp⟩ := proj_eq hG hs
   obtain ⟨i', u', hu', hl', hp'⟩ := proj_eq hG hs'
   rw [hv] at hl; cases hl
   rw [hv'] at hl'; cases hl'
-  constructor
-  · intro h
-    have e : proj G s hs = proj G s' hs' := h
-    simp only [proj, docOf, Name.mk.injEq] at e
-    refine ⟨e.1, ?_⟩
-    exact holds_agree E hk.1 hk.2 ⟨i.archive, i.line, i.obj, i.live, i.kind, hu, hp.symm⟩
-      ⟨i'.archive, i'.line, i'.obj, i'.live, i'.kind, hu', (h.trans hp').symm⟩
-  · rintro ⟨ho, hc⟩
-    rw [hp, hp']
-    have hio : i.obj.id = i'.obj.id := by
-      have e1 : (proj G s hs).object = i.obj.id := by rw [hp]; rfl
-      have e2 : (proj G s' hs').object = i'.obj.id := by rw [hp']; rfl
-      simp only [proj, docOf] at e1 e2
-      rw [← e1, ← e2, ho]
-    have hll : i.line = i'.line := by
-      have h1 := (hk.1.1 _ _ _ i.live).id
-      have h2 := (hk.1.1 _ _ _ i'.live).id
-      exact ObjectId.line.inj (h1.symm.trans (hio.trans h2))
-    have hjl := i'.live
-    rw [← hll] at hjl
-    have hd : v.documentVersion = v'.documentVersion := by
-      rcases hk.2 i.line _ _ _ _ i.live hjl i.kind i'.kind with ⟨t, ht⟩ | ⟨t, ht⟩
-      · exact one_content_one_number ((hk.1.1 _ _ _ i'.live).history i'.kind)
-          (by rw [ht]; exact List.mem_append_left _ hu) hu' hc
-      · exact one_content_one_number ((hk.1.1 _ _ _ i.live).history i.kind)
-          hu (by rw [ht]; exact List.mem_append_left _ hu') hc
-    simp only [Obj.name, hio, hd]
+  intro h
+  have e : proj G s hs = proj G s' hs' := h
+  simp only [proj, docOf, Name.mk.injEq] at e
+  refine ⟨e.1, ?_⟩
+  exact holds_agree E hk.1 hk.2 ⟨i.archive, i.line, i.obj, i.live, i.kind, hu, hp.symm⟩
+    ⟨i'.archive, i'.line, i'.obj, i'.live, i'.kind, hu', (h.trans hp').symm⟩
 
 /-- **The fibres of the top are runs.** In a well-formed history, version
-`k + 1` has the same top as version `k` exactly when it holds content
-deposited before it. -/
+`k + 1` has the same top as version `k` exactly when it holds the content of
+an earlier version, with its document version. -/
 theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
     (hk : k < l.length) :
     docCount (l.take (k + 1)) = docCount (l.take k) ↔
-      ∃ v ∈ l.take k, sameContent v l[k] = true := by
+      ∃ v ∈ l.take k, sameContent v l[k] = true ∧ l[k].documentVersion = v.documentVersion := by
   have hsplit : l.take (k + 1) = l.take k ++ [l[k]] := by
     rw [List.take_add_one, List.getElem?_eq_getElem hk]; rfl
   have hwf : WellFormed (l.take (k + 1)) := by
@@ -134,13 +113,11 @@ theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
   rw [docCount_append]
   constructor
   · intro heq
-    rcases hx with ⟨z, hz, hzx, _⟩ | ⟨_, hn⟩
-    · exact ⟨z, hz, hzx⟩
+    rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hn⟩
+    · exact ⟨z, hz, hzx, hxz⟩
     · rw [hn] at heq; omega
-  · rintro ⟨v, hv, hc⟩
-    rcases hx with ⟨z, hz, _, hxz⟩ | ⟨hnew, _⟩
-    · have := le_docCount hz; rw [hxz]; omega
-    · rw [hnew v hv] at hc; cases hc
+  · rintro ⟨v, hv, _, hxv⟩
+    have := le_docCount hv; rw [hxv]; omega
 
 /-- The description a history gives to document version `k`: that of the last
 object version holding it, as `history` records (section 4.2). -/

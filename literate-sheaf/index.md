@@ -122,8 +122,8 @@ version signed with keys the key log lists belongs to the history too.
    when owners are honest, though they may share lines, and on separate
    archives each keeps its section;
 14. [Descriptions are the fibres](78-fibres.md): two maps from object
-   versions to named document versions; the fibres of the first are the
-   contents, but it is not monotone; the second, the top, is monotone, and
+   versions to named document versions; the fibres of the first lie within
+   the contents, but it is not monotone; the second, the top, is monotone, and
    its fibres are runs of description-only versions; descriptions do not
    glue;
 15. [The citable section](79-citable.md): the worlds of a run glue over time

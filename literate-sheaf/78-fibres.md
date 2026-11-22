@@ -5,10 +5,11 @@ The program has two bases: the object versions (chapter
 (the rest). Two maps go from the first to the second, and each shows
 something about descriptions.
 
-- **The document version a version holds** (`proj`). Its fibres are
-  exactly the contents: two object versions go to the same named document
-  version when they are versions of the same object with the same content
-  (`proj_fibre`), and its image is what the world holds (`proj_image`). The
+- **The document version a version holds** (`proj`). Its fibres lie
+  within the contents: two object versions that go to the same named
+  document version are versions of the same object with the same content
+  (`proj_fibre`). The converse does not hold, since a revert gives the
+  content of an earlier version a new number (section 4.2). Its image is what the world holds (`proj_image`). The
   content at the image of an object version is the content of that version
   (`content_factors`). But the map is **not monotone**: a description-only
   version that describes an earlier document version goes below the
@@ -20,8 +21,8 @@ something about descriptions.
   [An object version is a section](30-object.md)). It is monotone
   (`top_mono`), and the open set of an object version is the principal open
   below its top (`covers_principal`). Its fibres are runs: a version that
-  deposits a document version, then the description-only versions that
-  follow it, until the next deposit (`top_step_iff`).
+  deposits a document version, then the versions that hold a document
+  version already held, until the next deposit (`top_step_iff`).
 
 Descriptions vary along both: a description-only version describes, with a
 new description, content already held. And **descriptions do not glue**:
@@ -134,66 +135,50 @@ through the map, not a pushforward of sheaves: the map is not monotone.
 
 ## The fibres
 
-Two object versions go to the same named document version exactly when they
-have the same content: one direction is that a number has one content
-(`one_number_one_content`), the other that a content has one number
-(`one_content_one_number`), both proved in the model, with the copies'
-agreement to compare versions kept in different places.
+Two object versions that go to the same named document version have the
+same content, since a number has one content (`one_number_one_content`,
+proved in the model), with the copies' agreement to compare versions kept
+in different places. The converse held in an earlier version of the model,
+when a content returning to an earlier one took the earlier number; since
+#23, such a content is a revert, a new document version (section 4.2), so
+two versions with the same content may go to different named document
+versions.
 
-    /-- **The fibres are the contents.** Two object versions held in a world go to
-    the same named document version exactly when they are versions of the same
-    object with the same content. -/
+    /-- **The fibres lie within the contents.** Two object versions held in a world
+    that go to the same named document version are versions of the same object
+    with the same content. -/
     theorem proj_fibre {w : World D} (hk : Kept E w) {G : Sec (SitesIn w) (Inventory D)}
         (hG : Glues (invSections w) G) {s s' : VSite} (hs : SitesIn w s) (hs' : SitesIn w s')
         {v v' : Version D} (hv : lastV (G s hs) = some v) (hv' : lastV (G s' hs') = some v') :
-        proj G s hs = proj G s' hs' ↔ s.object = s'.object ∧ sameContent v v' = true := by
+        proj G s hs = proj G s' hs' → s.object = s'.object ∧ sameContent v v' = true := by
       obtain ⟨i, u, hu, hl, hp⟩ := proj_eq hG hs
       obtain ⟨i', u', hu', hl', hp'⟩ := proj_eq hG hs'
       rw [hv] at hl; cases hl
       rw [hv'] at hl'; cases hl'
-      constructor
-      · intro h
-        have e : proj G s hs = proj G s' hs' := h
-        simp only [proj, docOf, Name.mk.injEq] at e
-        refine ⟨e.1, ?_⟩
-        exact holds_agree E hk.1 hk.2 ⟨i.archive, i.line, i.obj, i.live, i.kind, hu, hp.symm⟩
-          ⟨i'.archive, i'.line, i'.obj, i'.live, i'.kind, hu', (h.trans hp').symm⟩
-      · rintro ⟨ho, hc⟩
-        rw [hp, hp']
-        have hio : i.obj.id = i'.obj.id := by
-          have e1 : (proj G s hs).object = i.obj.id := by rw [hp]; rfl
-          have e2 : (proj G s' hs').object = i'.obj.id := by rw [hp']; rfl
-          simp only [proj, docOf] at e1 e2
-          rw [← e1, ← e2, ho]
-        have hll : i.line = i'.line := by
-          have h1 := (hk.1.1 _ _ _ i.live).id
-          have h2 := (hk.1.1 _ _ _ i'.live).id
-          exact ObjectId.line.inj (h1.symm.trans (hio.trans h2))
-        have hjl := i'.live
-        rw [← hll] at hjl
-        have hd : v.documentVersion = v'.documentVersion := by
-          rcases hk.2 i.line _ _ _ _ i.live hjl i.kind i'.kind with ⟨t, ht⟩ | ⟨t, ht⟩
-          · exact one_content_one_number ((hk.1.1 _ _ _ i'.live).history i'.kind)
-              (by rw [ht]; exact List.mem_append_left _ hu) hu' hc
-          · exact one_content_one_number ((hk.1.1 _ _ _ i.live).history i.kind)
-              hu (by rw [ht]; exact List.mem_append_left _ hu') hc
-        simp only [Obj.name, hio, hd]
+      intro h
+      have e : proj G s hs = proj G s' hs' := h
+      simp only [proj, docOf, Name.mk.injEq] at e
+      refine ⟨e.1, ?_⟩
+      exact holds_agree E hk.1 hk.2 ⟨i.archive, i.line, i.obj, i.live, i.kind, hu, hp.symm⟩
+        ⟨i'.archive, i'.line, i'.obj, i'.live, i'.kind, hu', (h.trans hp').symm⟩
 
 ## The runs of the top
 
-Within one history, the top stays where it is exactly at the
-description-only versions: a version leaves the highest document version
-unchanged exactly when it holds content deposited before it. So the fibres
-of the top are runs: a deposit, then the description-only versions that
-follow it.
+Within one history, the top stays where it is exactly at the versions that
+hold a document version already held (description-only versions): a
+version leaves the highest document version unchanged exactly when it
+holds the content of an earlier version, with its number. Content
+deposited before under another number, a revert, raises the top. So the
+fibres of the top are runs: a deposit, then the description-only versions
+that follow it.
 
     /-- **The fibres of the top are runs.** In a well-formed history, version
-    `k + 1` has the same top as version `k` exactly when it holds content
-    deposited before it. -/
+    `k + 1` has the same top as version `k` exactly when it holds the content of
+    an earlier version, with its document version. -/
     theorem top_step_iff {l : List (Version D)} (h : WellFormed l) {k : Nat}
         (hk : k < l.length) :
         docCount (l.take (k + 1)) = docCount (l.take k) ↔
-          ∃ v ∈ l.take k, sameContent v l[k] = true := by
+          ∃ v ∈ l.take k, sameContent v l[k] = true ∧ l[k].documentVersion = v.documentVersion := by
       have hsplit : l.take (k + 1) = l.take k ++ [l[k]] := by
         rw [List.take_add_one, List.getElem?_eq_getElem hk]; rfl
       have hwf : WellFormed (l.take (k + 1)) := by
@@ -204,13 +189,11 @@ follow it.
       rw [docCount_append]
       constructor
       · intro heq
-        rcases hx with ⟨z, hz, hzx, _⟩ | ⟨_, hn⟩
-        · exact ⟨z, hz, hzx⟩
+        rcases hx with ⟨z, hz, hzx, hxz⟩ | ⟨_, hn⟩
+        · exact ⟨z, hz, hzx, hxz⟩
         · rw [hn] at heq; omega
-      · rintro ⟨v, hv, hc⟩
-        rcases hx with ⟨z, hz, _, hxz⟩ | ⟨hnew, _⟩
-        · have := le_docCount hz; rw [hxz]; omega
-        · rw [hnew v hv] at hc; cases hc
+      · rintro ⟨v, hv, _, hxv⟩
+        have := le_docCount hv; rw [hxv]; omega
 
 ## Descriptions do not glue
 
