@@ -247,7 +247,10 @@ A resolver "tries, in any order, the locations it has" (section 12.3); the
 model tries the hints of the pin, in their order, and keeps the best
 result: a version, then a mismatch (a copy found that does not match),
 then `removed` (no copy found, and a tombstone), then `unavailable`
-(section 8.5). Among results of the same rank, the first wins. Which
+(section 8.5). Among results of the same rank, the first wins. So a copy
+that matches decides the status, whatever other locations serve; the
+specification reports the copies that do not match apart, with their
+location (#37), which the model does not record. Which
 version is found does not depend on where it was found unless two copies
 disagree, which [chapter 9](48-copies.md) shows cannot happen while the
 owner signs one history and inventories do not collide.
