@@ -938,9 +938,13 @@ anyone whose pin names it.
 
     example : resolve toy wDown { pinV1 with hints := ["author", "coauthor"] } = .ok v1 := by decide
 
-Whether a takedown reaches mirrors, and whether a tombstone stops
-resolution elsewhere, is open in the specification (sections 11 and 13.3,
-[issue #33](https://github.com/opensheaf/opensheaf.github.io/issues/33)).
+This is what the specification asks: a tombstone speaks for its archive
+only, does not stop resolution elsewhere, and binds no mirror, each archive
+answering for what it serves (sections 12.3 and 13.3, issues
+[#66](https://github.com/opensheaf/opensheaf.github.io/issues/66) and
+[#33](https://github.com/opensheaf/opensheaf.github.io/issues/33)); a
+resolver reports the tombstone with the copy it finds, which the model
+leaves out.
 
 ## A draft
 

@@ -5,7 +5,7 @@ decides the versions of its lines and signs them" (section 6). Its object,
 the line `(owner name, owner name)`, is its **key log**: each version holds
 `keys.json`, the owner's current keys, which sign the versions of its
 lines, and the digests of its rotation keys, which alone sign the next
-version of the key log. This **pre-rotation** (section 6.1, provisional,
+version of the key log. This **pre-rotation** (section 6.1, decided in
 issue [#58](https://github.com/opensheaf/opensheaf.github.io/issues/58)) is
 the core of what version 0.2 adds, and this chapter models it:
 

@@ -526,9 +526,8 @@ is found but a tombstone is, is reported as removed" (section 13.3): at the
 archive, every pin of the line now resolves to `removed`, whatever its
 version and digest. The tombstone keeps only the last digest, so a verifier
 cannot tell there a pin of a version that existed from a pin that never
-named one; whether tombstones should list every digest is open (#33), and
-the archive's `sha512/` index keeps them meanwhile (section 12.5), which
-the model leaves out.
+named one; the tombstone keeps one pin (#33), and the archive's `sha512/`
+index keeps every digest (section 12.5), which the model leaves out.
 
     /-- At the archive, every pin of a line taken down resolves to `removed`
     (section 13.3). -/

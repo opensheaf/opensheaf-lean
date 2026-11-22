@@ -265,7 +265,7 @@ the parent does not reach (`acceptedCopy_survives`).
 A paper vetted by a journal is taken down, by law. The promise: at the
 archive that took it down, every pin of the paper reports `removed`, and
 everything else resolves as before; copies kept elsewhere are not reached
-("open, #33", the table).
+(section 13.3: a tombstone speaks for its archive only).
 
     /-- **A takedown is reported.** -/
     theorem takedown_reported {w : World D} {a : ArchiveId} {oid : ObjectId} {o : Obj D}
